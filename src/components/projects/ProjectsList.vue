@@ -40,8 +40,9 @@ const formatDate = (dateStr: string) => {
   }
 }
 
-const isOwner = (project: Project) => {
-  return project.owner_id === authStore.user?.id
+const isOwner = (_project: Project) => {
+  // Local projects are always owned by the current user
+  return true
 }
 </script>
 

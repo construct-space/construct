@@ -1,8 +1,9 @@
 /**
- * Composable for loading and managing project spaces
+ * Composable for loading and managing spaces
+ * Personal local-first version — all spaces always available
  */
 
-// Direct imports of space configs (fallback for when glob doesn't work)
+// Direct imports of space configs
 import codeSpace from '~/spaces/code/space.config'
 import kanbanSpace from '~/spaces/kanban/space.config'
 import architectSpace from '~/spaces/architect/space.config'
@@ -14,7 +15,6 @@ import designSpace from '~/spaces/design/space.config'
 import chatSpace from '~/spaces/chat/space.config'
 import docsSpace from '~/spaces/docs/space.config'
 import calendarSpace from '~/spaces/calendar/space.config'
-// import browserSpace from '~/spaces/browser/space.config' // Disabled for now - future feature
 
 export interface SpaceToolbarItem {
   id: string
@@ -38,7 +38,6 @@ export interface SpaceConfig {
   displayName: string
   description: string
   icon: string
-  scope?: 'company' | 'project' | 'both'
 
   // Pages this space provides (loaded from spaces/[name]/pages/)
   pages: SpacePage[]
@@ -54,6 +53,7 @@ export interface SpaceConfig {
     order: number
   }
 
+  scope?: 'company' | 'project' | 'both'
   permission?: string
 }
 
@@ -65,12 +65,11 @@ export function useSpaces() {
   const loading = ref(false)
 
   /**
-   * Load all available spaces from the spaces directory
+   * Load all available spaces
    */
   const loadSpaces = async () => {
     loading.value = true
     try {
-      // Use direct imports instead of glob (more reliable)
       const allSpaces: SpaceConfig[] = [
         codeSpace,
         designSpace,
@@ -82,8 +81,7 @@ export function useSpaces() {
         chatSpace,
         gitSpace,
         terminalSpace,
-        calendarSpace
-        // browserSpace // Disabled for now
+        calendarSpace,
       ]
 
       // Sort by order
@@ -94,25 +92,6 @@ export function useSpaces() {
     } finally {
       loading.value = false
     }
-  }
-
-  /**
-   * Get spaces that are enabled for a project
-   */
-  const getProjectSpaces = (projectSpaces: string[], userCanAccess?: (spaceName: string) => boolean) => {
-    if (!projectSpaces || projectSpaces.length === 0) {
-      return []
-    }
-
-    return spaces.value.filter(space => {
-      // Check if space is enabled in project
-      const isEnabled = projectSpaces.includes(space.name)
-
-      // Check if user has permission (if callback provided)
-      const hasAccess = userCanAccess ? userCanAccess(space.name) : true
-
-      return isEnabled && hasAccess
-    })
   }
 
   /**
@@ -133,7 +112,6 @@ export function useSpaces() {
     spaces,
     loading,
     loadSpaces,
-    getProjectSpaces,
     hasSpace,
     getSpace
   }

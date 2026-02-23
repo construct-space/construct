@@ -79,7 +79,7 @@ export const useTasksStore = defineStore('tasks', {
   },
 
   actions: {
-    async fetchProjectTasks(projectId: number) {
+    async fetchProjectTasks(projectId: string | number) {
       this.loading = true
       this.error = null
 

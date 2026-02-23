@@ -13,10 +13,8 @@ const localDesigns = useLocalDesigns()
 const toast = useToast()
 
 const projectId = computed(() => {
-  const id = route.params.id
-  if (typeof id !== 'string') return null
-  const parsed = Number.parseInt(id, 10)
-  return Number.isNaN(parsed) ? null : parsed
+  const p = route.query.project
+  return typeof p === 'string' ? p : null
 })
 const isProjectScope = computed(() => projectId.value !== null)
 
@@ -54,7 +52,7 @@ const allDesignFiles = computed((): DisplayFile[] => {
 const loadDesigns = async () => {
   isLoading.value = true
   try {
-    await localDesigns.loadDesigns(projectId.value)
+    await localDesigns.loadDesigns(projectId.value ? Number(projectId.value) : null)
   } catch (e) {
     console.error('Failed to load designs:', e)
   } finally {
@@ -69,24 +67,20 @@ const _handleCreate = async (name: string) => {
     toast.add({ title: 'Project required', description: 'Open a project to create a design.', color: 'warning' })
     return
   }
-  const design = await localDesigns.createDesign(projectId.value, name)
+  const design = await localDesigns.createDesign(projectId.value ? Number(projectId.value) : null, name)
   showCreateModal.value = false
 
-  router.push({
-    path: `/app/projects/${route.params.id}/design/editor`,
-    query: { localId: design.localId, name: design.name },
-  })
+  const editorQuery: Record<string, string> = { localId: design.localId, name: design.name }
+  if (projectId.value) editorQuery.project = String(projectId.value)
+  router.push({ path: '/app/design/editor', query: editorQuery })
 }
 
 // Open design → PixiJS editor
 const openDesign = (file: DisplayFile) => {
-  const base = file.projectId
-    ? `/app/projects/${file.projectId}/design/editor`
-    : isProjectScope.value
-      ? `/app/projects/${route.params.id}/design/editor`
-      : '/app/design/editor'
-
-  router.push({ path: base, query: { localId: file.localId, name: file.name } })
+  const query: Record<string, string> = { localId: file.localId, name: file.name }
+  const proj = file.projectId || projectId.value
+  if (proj) query.project = String(proj)
+  router.push({ path: '/app/design/editor', query })
 }
 
 // Delete
@@ -108,7 +102,7 @@ const confirmDelete = async () => {
 const openCreateModal = () => {
   if (!isProjectScope.value) {
     toast.add({ title: 'Project required', description: 'Open a project to create a design.', color: 'warning' })
-    router.push('/app/projects')
+    router.push('/app')
     return
   }
   showCreateModal.value = true
@@ -131,7 +125,7 @@ const syncToolbar = () => {
     return
   }
   setPageItems([
-    { id: 'design-projects', icon: 'i-lucide-folder-open', label: 'Projects', type: 'action', category: 'space', onClick: () => router.push('/app/projects') },
+    { id: 'design-projects', icon: 'i-lucide-folder-open', label: 'Projects', type: 'action', category: 'space', onClick: () => router.push('/app') },
     { id: 'design-refresh', icon: 'i-lucide-refresh-cw', label: 'Refresh', type: 'action', category: 'space', onClick: loadDesigns },
   ])
 }
@@ -164,7 +158,7 @@ watch(projectId, () => { loadDesigns() })
       <Button
         :icon="isProjectScope ? 'i-lucide-plus' : 'i-lucide-folder-open'"
         :label="isProjectScope ? 'New Design' : 'Open Projects'"
-        @click="isProjectScope ? openCreateModal() : router.push('/app/projects')"
+        @click="isProjectScope ? openCreateModal() : router.push('/app')"
       />
     </div>
 

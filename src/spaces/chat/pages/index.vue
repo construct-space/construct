@@ -22,10 +22,8 @@ const api = useApi()
 const { canRun: canRunRoomAgent, generateReply: generateRoomAgentReply } = useChatRoomAgent()
 
 const routeProjectId = computed(() => {
-  const id = route.params.id
-  if (typeof id !== 'string') return null
-  const parsed = Number.parseInt(id, 10)
-  return Number.isNaN(parsed) ? null : parsed
+  const p = route.query.project
+  return typeof p === 'string' ? p : null
 })
 const isProjectScope = computed(() => routeProjectId.value !== null)
 const companyProjects = ref<Project[]>([])
@@ -59,7 +57,7 @@ const API_BASE = appConfig.apiBase || 'https://api.construct.ninja/api'
 let ws: WebSocket | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let localAIMessageId = -1
-let companyMembersLoadedForProject: number | null = null
+let companyMembersLoadedForProject: string | number | null = null
 let wsConnectAttempt = 0
 let preferredChatWsMode: ChatWebSocketMode = 'generic'
 
@@ -104,7 +102,7 @@ const chatProjects = computed(() =>
 async function loadCompanyProjects() {
   try {
     if (projectStore.projects.length === 0) {
-      await projectStore.fetchProjects()
+      await projectStore.loadProjects()
     }
     companyProjects.value = projectStore.projects
   } catch (error) {
@@ -114,7 +112,7 @@ async function loadCompanyProjects() {
 }
 
 function openProjectChat(projectId: number) {
-  router.push(`/app/projects/${projectId}/chat`)
+  router.push({ path: '/app/chat', query: { project: String(projectId) } })
 }
 
 async function ensureCompanyMembers() {
@@ -157,7 +155,7 @@ async function fetchRooms() {
 
     // Create default rooms if none exist
     if (rooms.value.length === 0) {
-      await ensureDefaultRooms(projectId)
+      await ensureDefaultRooms(Number(projectId))
     }
 
     // Auto-select first room if none selected
@@ -533,7 +531,7 @@ const syncToolbar = () => {
       label: 'Projects',
       type: 'action',
       category: 'space',
-      onClick: () => router.push('/app/projects'),
+      onClick: () => router.push('/app'),
     },
     {
       id: 'chat-refresh-projects',
@@ -599,7 +597,7 @@ onUnmounted(() => {
         <Button
           icon="i-lucide-folder-open"
           label="Open Projects"
-          @click="router.push('/app/projects')"
+          @click="router.push('/app')"
         />
       </div>
 
@@ -608,7 +606,7 @@ onUnmounted(() => {
           v-for="project in chatProjects"
           :key="project.id"
           class="text-left rounded-xl bg-white/[0.03] hover:bg-white/[0.07] px-4 py-3 transition-colors"
-          @click="openProjectChat(project.id)"
+          @click="openProjectChat(Number(project.id))"
         >
           <div class="flex items-center justify-between gap-2">
             <p class="font-medium text-app truncate">{{ project.name }}</p>

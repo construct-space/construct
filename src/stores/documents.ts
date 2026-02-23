@@ -75,7 +75,7 @@ export const useDocumentsStore = defineStore('documents', {
   },
 
   actions: {
-    async fetchProjectDocuments(projectId: number) {
+    async fetchProjectDocuments(projectId: string | number) {
       this.loading = true
       this.error = null
 

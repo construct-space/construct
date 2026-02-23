@@ -81,7 +81,7 @@ const saveSettings = async () => {
     success.value = 'Settings saved'
     setTimeout(() => { success.value = '' }, 3000)
   } else {
-    error.value = result.error || 'Failed to save settings'
+    error.value = (result as any).error || 'Failed to save settings'
   }
 }
 

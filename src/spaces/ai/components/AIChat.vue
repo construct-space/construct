@@ -164,7 +164,7 @@ const loadedDocsProjectId = ref<number | null>(null)
 
 function getActiveProjectId(): number | null {
   const storeProjectId = projectStore.currentProject?.id
-  if (storeProjectId) return storeProjectId
+  if (storeProjectId) return Number(storeProjectId)
   const propProjectId = Number(props.projectId)
   return Number.isFinite(propProjectId) && propProjectId > 0 ? propProjectId : null
 }

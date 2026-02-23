@@ -44,12 +44,12 @@ const boardRef = ref<HTMLElement | null>(null)
 const savingNote = ref(false)
 
 const currentProjectId = computed(() => {
-  const id = props.projectId || route.params.id
-  return id ? Number(id) : null
+  const id = props.projectId || route.query.project
+  return id ? (typeof id === 'number' ? id : id) : null
 })
 
 watch(currentProjectId, async (newId) => {
-  if (newId) await notesStore.fetchProjectNotes(newId)
+  if (newId) await notesStore.fetchProjectNotes(Number(newId))
 }, { immediate: true })
 
 const notes = computed(() => notesStore.notes)

@@ -17,7 +17,7 @@ export interface PinnedItem {
   path: string
   color?: string
   metadata?: {
-    projectId?: number
+    projectId?: string | number
     localPath?: string
     spaceId?: string
     taskId?: number
@@ -286,26 +286,24 @@ export const usePinnedStore = defineStore('pinned', {
 })
 
 // Helper functions to create pinned item objects
-export const createProjectPin = (project: { id: number; name: string; description?: string }): Omit<PinnedItem, 'pinnedAt'> => ({
+export const createProjectPin = (project: { id: number | string; name: string; description?: string; path?: string }): Omit<PinnedItem, 'pinnedAt'> => ({
   id: `project-${project.id}`,
   type: 'project',
   name: project.name,
   icon: 'i-lucide-folder',
-  path: `/app/projects/${project.id}`,
+  path: project.path ? `/app/code?project=${encodeURIComponent(project.path)}` : '/app',
   metadata: {
     projectId: project.id,
     description: project.description
   }
 })
 
-export const createFolderPin = (folder: { name: string; localPath: string; projectId?: number }): Omit<PinnedItem, 'pinnedAt'> => ({
+export const createFolderPin = (folder: { name: string; localPath: string; projectId?: number | string }): Omit<PinnedItem, 'pinnedAt'> => ({
   id: `folder-${folder.localPath}`,
   type: 'folder',
   name: folder.name,
   icon: 'i-lucide-folder-code',
-  path: folder.projectId
-    ? `/app/projects/${folder.projectId}/code/editor`
-    : `/app/projects`,
+  path: `/app/code/editor?project=${encodeURIComponent(folder.localPath)}`,
   metadata: {
     localPath: folder.localPath,
     projectId: folder.projectId
@@ -320,12 +318,14 @@ export const createPagePin = (page: { name: string; path: string; icon?: string 
   path: page.path
 })
 
-export const createSpacePin = (space: { name: string; spaceId: string; projectId: number; icon?: string }): Omit<PinnedItem, 'pinnedAt'> => ({
-  id: `space-${space.projectId}-${space.spaceId}`,
+export const createSpacePin = (space: { name: string; spaceId: string; projectId?: number | string; projectPath?: string; icon?: string }): Omit<PinnedItem, 'pinnedAt'> => ({
+  id: `space-${space.projectId || 'global'}-${space.spaceId}`,
   type: 'space',
   name: space.name,
   icon: space.icon || 'i-lucide-layout-grid',
-  path: `/app/projects/${space.projectId}/${space.spaceId}`,
+  path: space.projectPath
+    ? `/app/${space.spaceId}?project=${encodeURIComponent(space.projectPath)}`
+    : `/app/${space.spaceId}`,
   metadata: {
     spaceId: space.spaceId,
     projectId: space.projectId
@@ -340,12 +340,14 @@ export const createLinkPin = (link: { name: string; url: string; icon?: string }
   path: link.url
 })
 
-export const createTaskPin = (task: { id: number; title: string; projectId: number; priority?: string; status?: string; description?: string }): Omit<PinnedItem, 'pinnedAt'> => ({
-  id: `task-${task.projectId}-${task.id}`,
+export const createTaskPin = (task: { id: number; title: string; projectId?: number | string; projectPath?: string; priority?: string; status?: string; description?: string }): Omit<PinnedItem, 'pinnedAt'> => ({
+  id: `task-${task.projectId || 'global'}-${task.id}`,
   type: 'task',
   name: task.title,
   icon: task.priority === 'high' ? 'i-lucide-alert-circle' : task.priority === 'medium' ? 'i-lucide-circle-dot' : 'i-lucide-circle',
-  path: `/app/projects/${task.projectId}/kanban?task=${task.id}`,
+  path: task.projectPath
+    ? `/app/kanban?project=${encodeURIComponent(task.projectPath)}&task=${task.id}`
+    : `/app/kanban?task=${task.id}`,
   color: task.priority === 'high' ? 'red' : task.priority === 'medium' ? 'yellow' : undefined,
   metadata: {
     projectId: task.projectId,

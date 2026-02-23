@@ -8,7 +8,7 @@ import { useCodeEditor } from '../composables/useCodeEditor'
 
 const route = useRoute()
 const router = useRouter()
-const projectId = computed(() => route.params.id as string)
+const projectId = computed(() => route.query.project as string)
 
 // Get the current editor state to access rootPath
 const { state: editorState, loadDirectory } = useCodeEditor()
@@ -30,7 +30,7 @@ onMounted(async () => {
 
 // Navigation helper (for vue-tsc compatibility)
 const goToEditor = async () => {
-  await router.push(`/app/projects/${projectId.value}/code/editor`)
+  await router.push({ path: '/app/code/editor', query: { project: projectId.value } })
 }
 
 // Event handlers

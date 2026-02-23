@@ -98,7 +98,7 @@ const handleCreate = async () => {
 
   try {
     const result = await tasksStore.createTask({
-      project_id: projectId,
+      project_id: Number(projectId),
       title: title.value.trim(),
       description: description.value.trim() || undefined,
       status: status.value,

@@ -256,7 +256,7 @@ export function useLocalDocs() {
       const content = await tauriFs.readTextFile(doc.localPath)
 
       // Create in API
-      const result = await documentsStore.createProjectDocument(projectId, {
+      const result = await documentsStore.createProjectDocument(Number(projectId), {
         title: doc.title,
         type: doc.type,
         content,

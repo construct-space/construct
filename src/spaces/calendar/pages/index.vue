@@ -12,8 +12,8 @@ const toast = useToast()
 const { setPageItems, setSearch, clearToolbar } = useToolbar()
 
 const projectId = computed(() => {
-  const id = route.params.id
-  return typeof id === 'string' ? Number(id) : undefined
+  const p = route.query.project
+  return typeof p === 'string' ? p : undefined
 })
 const isProjectScope = computed(() => !!projectId.value)
 
@@ -254,9 +254,7 @@ const syncToolbar = () => {
 onMounted(async () => {
   syncToolbar()
   if (isProjectScope.value && projectId.value) {
-    await eventsStore.fetchProjectEvents(projectId.value)
-  } else if (authStore.user?.company_id) {
-    await eventsStore.fetchCompanyEvents(authStore.user.company_id)
+    await eventsStore.fetchProjectEvents(Number(projectId.value))
   }
 })
 

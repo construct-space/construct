@@ -16,7 +16,7 @@ import CreateProjectModal from '../components/CreateProjectModal.vue'
 import { useSpaceShortcuts } from '~/composables/useSpaceShortcuts'
 
 const route = useRoute()
-const projectId = computed(() => route.params.id as string)
+const projectId = computed(() => route.query.project as string)
 const projectStore = useProjectStore()
 const {
   state: editorState,

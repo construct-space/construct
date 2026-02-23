@@ -23,8 +23,8 @@ const route = useRoute()
 const projectStore = useProjectStore()
 const pinnedStore = usePinnedStore()
 const projectId = computed(() => {
-  const id = route.params.id
-  return typeof id === 'string' ? id : undefined
+  const p = route.query.project
+  return typeof p === 'string' ? p : undefined
 })
 const isProjectScope = computed(() => !!projectId.value)
 
@@ -41,7 +41,7 @@ interface RepoListItem {
 }
 
 interface CompanyRepoListItem extends RepoListItem {
-  projectId: number
+  projectId: string | number
   projectName: string
 }
 
@@ -230,7 +230,7 @@ const loadRepos = async () => {
 
     if (!isProjectScope.value) {
       if (projectStore.projects.length === 0) {
-        await projectStore.fetchProjects()
+        await projectStore.loadProjects()
       }
 
       const discovered: CompanyRepoListItem[] = []
@@ -305,14 +305,14 @@ const openRepo = (repo: { name: string; path: string }) => {
   console.log('[Code] Saved editor path to localStorage:', repo.path)
 
   loadDirectory(repo.path)
-  router.push(`/app/projects/${projectId.value}/code/editor`)
+  router.push({ path: '/app/code/editor', query: { project: projectId.value } })
 }
 
 const openCompanyRepo = (repo: CompanyRepoListItem) => {
   const storageKey = `construct-editor-${repo.projectId}`
   localStorage.setItem(storageKey, repo.path)
   loadDirectory(repo.path)
-  router.push(`/app/projects/${repo.projectId}/code/editor`)
+  router.push({ path: '/app/code/editor', query: { project: repo.projectId } })
 }
 
 // Create new repository
@@ -779,7 +779,7 @@ const syncToolbar = () => {
       label: 'Projects',
       type: 'action',
       category: 'space',
-      onClick: () => router.push('/app/projects')
+      onClick: () => router.push('/app')
     },
     {
       id: 'code-refresh',
@@ -844,7 +844,7 @@ watch(
           <Button
             icon="i-lucide-folder-open"
             label="Open Projects"
-            @click="router.push('/app/projects')"
+            @click="router.push('/app')"
           />
         </div>
 
@@ -990,7 +990,7 @@ watch(
                 size="xs"
                 variant="ghost"
                 title="Terminal"
-                @click.stop="router.push(`/app/projects/${projectId}/code/terminal`)"
+                @click.stop="router.push({ path: '/app/code/terminal', query: { project: projectId } })"
               />
               <Button
                 :icon="pinnedStore.isPinned(`folder-${repo.path}`) ? 'i-lucide-pin-off' : 'i-lucide-pin'"

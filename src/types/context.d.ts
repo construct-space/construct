@@ -143,7 +143,7 @@ export interface ContextServiceApi {
 // ============================================================================
 
 export interface SpaceContextProject {
-  id: number
+  id: string | number
   name: string
   description: string
   spaces: string[]

@@ -89,7 +89,7 @@ export function useChatRoomAgent() {
   const isRunning = ref(false)
   const canRun = computed(() => isTauri.value && connected.value)
   const projectDocs = ref<DocumentListItem[]>([])
-  const loadedDocsProjectId = ref<number | null>(null)
+  const loadedDocsProjectId = ref<string | number | null>(null)
 
   async function ensureProjectDocsLoaded(): Promise<void> {
     const projectId = projectStore.currentProject?.id
@@ -209,7 +209,7 @@ export function useChatRoomAgent() {
   }
 
   function buildScopedContext(full: SpaceContext): Partial<SpaceContext> {
-    const allowedSpaces = new Set(projectStore.accessibleSpaces)
+    const allowedSpaces = new Set(projectStore.projectSpaces)
     const scoped: Partial<SpaceContext> = {
       activeSpace: 'chat',
       chat: full.chat,
@@ -225,7 +225,7 @@ export function useChatRoomAgent() {
     }
 
     if (allowedSpaces.has('code')) scoped.code = full.code
-    if (allowedSpaces.has('ui')) scoped.ui = full.ui
+    if (allowedSpaces.has('design')) scoped.ui = full.ui
     if (allowedSpaces.has('kanban')) scoped.tasks = full.tasks
     if (allowedSpaces.has('notes')) scoped.notes = full.notes
     if (allowedSpaces.has('git')) scoped.git = full.git
@@ -326,10 +326,8 @@ export function useChatRoomAgent() {
         messages,
         local_data: {
           security_scope: {
-            policy: 'role_based',
-            role_id: authStore.roleId,
-            is_company_owner: authStore.hasFullAccess,
-            allowed_spaces: projectStore.accessibleSpaces,
+            policy: 'owner',
+            allowed_spaces: projectStore.projectSpaces,
           },
           space_context: scopedContext,
           chat_room: {

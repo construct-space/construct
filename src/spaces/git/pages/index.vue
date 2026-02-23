@@ -8,8 +8,8 @@ import Git from '../components/Git.vue'
 
 const route = useRoute()
 const projectId = computed(() => {
-  const id = route.params.id
-  return typeof id === 'string' ? id : undefined
+  const p = route.query.project
+  return typeof p === 'string' ? p : undefined
 })
 const scope = computed<'company' | 'project'>(() => projectId.value ? 'project' : 'company')
 

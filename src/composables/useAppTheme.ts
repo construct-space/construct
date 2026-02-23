@@ -25,13 +25,13 @@ export const appThemes: AppTheme[] = [
     id: 'auto',
     name: 'Auto (System)',
     mode: 'dark',
-    primary: 'blue',
+    primary: 'green',
     neutral: 'slate',
     colors: {
       background: '#0f172a',
       foreground: '#f8fafc',
       muted: '#64748b',
-      accent: '#3b82f6',
+      accent: '#34C759',
       accentForeground: '#ffffff',
     }
   },
@@ -39,13 +39,13 @@ export const appThemes: AppTheme[] = [
     id: 'vs',
     name: 'Light',
     mode: 'light',
-    primary: 'blue',
+    primary: 'green',
     neutral: 'slate',
     colors: {
       background: '#ffffff',
       foreground: '#1e293b',
       muted: '#64748b',
-      accent: '#3b82f6',
+      accent: '#34C759',
       accentForeground: '#ffffff',
     }
   },
@@ -53,13 +53,13 @@ export const appThemes: AppTheme[] = [
     id: 'vs-dark',
     name: 'Dark',
     mode: 'dark',
-    primary: 'blue',
+    primary: 'green',
     neutral: 'slate',
     colors: {
       background: '#1e1e1e',
       foreground: '#d4d4d4',
       muted: '#6b7280',
-      accent: '#569cd6',
+      accent: '#34C759',
       accentForeground: '#ffffff',
     }
   },

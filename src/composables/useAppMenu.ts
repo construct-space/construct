@@ -60,11 +60,11 @@ export function useAppMenu() {
     }))
 
     unlisteners.push(await listen('menu:projects', () => {
-      router.push('/app/projects')
+      router.push('/app')
     }))
 
     unlisteners.push(await listen('menu:new-project', () => {
-      router.push('/app/projects?action=new')
+      router.push('/app/code')
     }))
 
     unlisteners.push(await listen('menu:about', () => {
@@ -77,7 +77,7 @@ export function useAppMenu() {
 
     unlisteners.push(await listen('menu:toggle-sidebar', () => {
       const sidebar = useSidebar()
-      sidebar.setPanel(sidebar.state.panel === 'main' ? 'project' : 'main')
+      sidebar.setPanel(sidebar.state.panel === 'main' ? 'space' : 'main')
     }))
 
     unlisteners.push(await listen('menu:toggle-assistant', () => {

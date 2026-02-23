@@ -48,10 +48,9 @@ export interface AuthUserData {
   last_name?: string
   name: string
   phone?: string
-  company_id?: number
-  is_company_owner?: boolean
   avatar?: string
   last_login?: string
+  company_id?: number
   created_at: string
   updated_at: string
 }

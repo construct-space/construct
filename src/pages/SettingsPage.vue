@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import {
-  Building2, Globe, Shield, Mail, Bell, CreditCard,
-  Palette, Image, Users, Bot, Cpu, Server, Puzzle,
-  Coins, Download, Brush, Keyboard, CircleUser,
+  Palette, Bot, Cpu, Server, Puzzle,
+  Download, Brush, Keyboard, CircleUser,
+  Settings, FolderOpen,
 } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -16,40 +16,28 @@ const navGroups = [
     ],
   },
   {
-    label: 'Company',
+    label: 'Workspace',
     items: [
-      { label: 'Company',        path: '/app/settings',               icon: Building2 },
-      { label: 'System',         path: '/app/settings/system',        icon: Globe },
-      { label: 'Security',       path: '/app/settings/security',      icon: Shield },
-      { label: 'Email',          path: '/app/settings/email',         icon: Mail },
-      { label: 'Notifications',  path: '/app/settings/notifications', icon: Bell },
-      { label: 'Billing',        path: '/app/settings/billing',       icon: CreditCard },
-    ],
-  },
-  {
-    label: 'Project',
-    items: [
-      { label: 'Design',         path: '/app/settings/design',        icon: Palette },
-      { label: 'Media',          path: '/app/settings/media',         icon: Image },
-      { label: 'Collaboration',  path: '/app/settings/collaboration', icon: Users },
+      { label: 'General',      path: '/app/settings',          icon: Settings },
+      { label: 'Projects',     path: '/app/settings/projects', icon: FolderOpen },
+      { label: 'Appearance',   path: '/app/settings/appearance', icon: Brush },
+      { label: 'Design',       path: '/app/settings/design',   icon: Palette },
+      { label: 'Shortcuts',    path: '/app/settings/shortcuts', icon: Keyboard },
     ],
   },
   {
     label: 'AI',
     items: [
-      { label: 'AI Assistant',   path: '/app/settings/ai',            icon: Bot },
-      { label: 'LLMs & Models',  path: '/app/settings/llms',          icon: Cpu },
-      { label: 'MCP Servers',    path: '/app/settings/mcp',           icon: Server },
-      { label: 'Skills & Hooks', path: '/app/settings/skills',        icon: Puzzle },
-      { label: 'Credits',        path: '/app/settings/credits',       icon: Coins },
+      { label: 'AI Assistant',   path: '/app/settings/ai',    icon: Bot },
+      { label: 'LLMs & Models',  path: '/app/settings/llms',  icon: Cpu },
+      { label: 'MCP Servers',    path: '/app/settings/mcp',   icon: Server },
+      { label: 'Skills & Hooks', path: '/app/settings/skills', icon: Puzzle },
     ],
   },
   {
     label: 'System',
     items: [
-      { label: 'Appearance',     path: '/app/settings/appearance',    icon: Brush },
-      { label: 'Shortcuts',      path: '/app/settings/shortcuts',     icon: Keyboard },
-      { label: 'Updates',        path: '/app/settings/updates',       icon: Download },
+      { label: 'Updates',        path: '/app/settings/updates', icon: Download },
     ],
   },
 ]
