@@ -1,18 +1,11 @@
 /**
  * Composable for loading and managing spaces
- * Personal local-first version — all spaces always available
+ *
+ * Hybrid loading: built-in spaces + marketplace-installed spaces (from Go backend).
+ * Graceful fallback: if Go backend not ready, just uses built-ins.
  */
 
-// Direct imports of space configs
-import codeSpace from '~/spaces/code/space.config'
-import kanbanSpace from '~/spaces/kanban/space.config'
-import architectSpace from '~/spaces/architect/space.config'
-import notesSpace from '~/spaces/notes/space.config'
-import gitSpace from '~/spaces/git/space.config'
-import terminalSpace from '~/spaces/terminal/space.config'
-import designSpace from '~/spaces/design/space.config'
-import docsSpace from '~/spaces/docs/space.config'
-import calendarSpace from '~/spaces/calendar/space.config'
+import { builtinSpaces } from '~/spaces/builtin'
 
 export interface SpaceToolbarItem {
   id: string
@@ -53,6 +46,31 @@ export interface SpaceConfig {
 
   scope?: 'company' | 'project' | 'both'
   permission?: string
+
+  // Marketplace metadata (only set for installed spaces)
+  isInstalled?: boolean
+  version?: string
+  author?: string
+}
+
+/** Convert a marketplace manifest to SpaceConfig */
+function manifestToSpaceConfig(manifest: Record<string, unknown>): SpaceConfig {
+  return {
+    name: manifest.name as string,
+    displayName: (manifest.display_name as string) || (manifest.name as string),
+    description: (manifest.description as string) || '',
+    icon: (manifest.icon as string) || 'i-lucide-box',
+    pages: [{ path: '', label: 'Overview', default: true }],
+    navigation: {
+      label: (manifest.display_name as string) || (manifest.name as string),
+      icon: (manifest.icon as string) || 'i-lucide-box',
+      to: manifest.name as string,
+      order: (manifest.order as number) || 100,
+    },
+    isInstalled: true,
+    version: manifest.version as string,
+    author: manifest.author as string,
+  }
 }
 
 /**
@@ -63,28 +81,36 @@ export function useSpaces() {
   const loading = ref(false)
 
   /**
-   * Load all available spaces
+   * Load all available spaces — built-in + installed from marketplace
    */
   const loadSpaces = async () => {
     loading.value = true
     try {
-      const allSpaces: SpaceConfig[] = [
-        codeSpace,
-        designSpace,
-        kanbanSpace,
-        docsSpace,
-        architectSpace,
-        notesSpace,
-        gitSpace,
-        terminalSpace,
-        calendarSpace,
-      ]
+      // Start with built-in spaces
+      const allSpaces: SpaceConfig[] = [...builtinSpaces]
+
+      // Try to load marketplace-installed spaces from Go backend
+      try {
+        const { useContextService } = await import('@/composables/useContextService')
+        const contextService = useContextService()
+        if (contextService.connected.value) {
+          const result = await contextService.sendRequest<{ spaces: Record<string, unknown>[] }>('spaces.list_installed')
+          if (result?.spaces?.length) {
+            const installedSpaces = result.spaces
+              .map(manifestToSpaceConfig)
+              .filter(s => !allSpaces.some(b => b.name === s.name)) // Skip duplicates
+            allSpaces.push(...installedSpaces)
+          }
+        }
+      } catch {
+        // Go backend not ready — use built-ins only
+      }
 
       // Sort by order
       spaces.value = allSpaces.sort((a, b) => (a.navigation.order || 0) - (b.navigation.order || 0))
     } catch (error) {
       console.error('Failed to load spaces:', error)
-      spaces.value = []
+      spaces.value = [...builtinSpaces].sort((a, b) => (a.navigation.order || 0) - (b.navigation.order || 0))
     } finally {
       loading.value = false
     }

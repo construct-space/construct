@@ -4,7 +4,6 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useProjectStore } from '@/stores/project'
 import { useSpaces } from '@/composables/useSpaces'
-import { getSpace as getSpaceConfig } from '@/config/spaces'
 import {
   Calendar, FolderPlus, FolderOpen, Clock, ArrowRight, X,
 } from 'lucide-vue-next'
@@ -108,18 +107,6 @@ const openFolder = async () => {
   }
 }
 
-const navigateToSpace = (spaceName: string) => {
-  router.push(`/app/${spaceName}`)
-}
-
-const spaceShortcuts = computed(() => {
-  return spaces.value.slice(0, 8).map(s => ({
-    name: s.name,
-    label: s.displayName || s.name,
-    config: getSpaceConfig(s.name),
-  }))
-})
-
 onMounted(async () => {
   if (spaces.value.length === 0) {
     await loadSpaces()
@@ -194,17 +181,22 @@ onMounted(async () => {
         </div>
       </div>
 
-      <!-- Space shortcuts -->
+      <!-- Quick links -->
       <div>
-        <span class="text-sm text-app-muted uppercase tracking-wider font-medium">Spaces</span>
+        <span class="text-sm text-app-muted uppercase tracking-wider font-medium">Quick Links</span>
         <div class="flex flex-wrap gap-2 mt-3">
           <button
-            v-for="space in spaceShortcuts"
-            :key="space.name"
             class="group flex items-center gap-2 px-3 py-2 rounded-md border border-app hover:border-app-accent/30 hover:bg-[color-mix(in_srgb,var(--app-accent)_3%,transparent)] transition-all text-sm"
-            @click="navigateToSpace(space.name)"
+            @click="router.push('/app/spaces')"
           >
-            <span :class="space.config.color">{{ space.label }}</span>
+            <span class="text-app-muted">All Spaces</span>
+            <ArrowRight class="size-3 text-app-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+          </button>
+          <button
+            class="group flex items-center gap-2 px-3 py-2 rounded-md border border-app hover:border-app-accent/30 hover:bg-[color-mix(in_srgb,var(--app-accent)_3%,transparent)] transition-all text-sm"
+            @click="router.push('/app/marketplace')"
+          >
+            <span class="text-app-muted">Marketplace</span>
             <ArrowRight class="size-3 text-app-muted opacity-0 group-hover:opacity-100 transition-opacity" />
           </button>
         </div>

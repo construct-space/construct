@@ -29,5 +29,15 @@ export async function authGuard(
     return next('/app')
   }
 
+  // Onboarding check: if authenticated + navigating to app + not yet onboarded → redirect
+  if (
+    authStore.isAuthenticated &&
+    to.path.startsWith('/app') &&
+    to.path !== '/onboarding' &&
+    !localStorage.getItem('onboarding_complete')
+  ) {
+    return next('/onboarding')
+  }
+
   next()
 }

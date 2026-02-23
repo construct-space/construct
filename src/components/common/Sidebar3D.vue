@@ -2,20 +2,23 @@
 /**
  * Sidebar3D - 2-panel rotating sidebar with CSS 3D transforms
  *
- * Personal local-first version:
+ * Dock model (like macOS):
  * - 72px wide, dark bg
  * - Large rounded icon buttons (~42px) with generous spacing
  * - Active state: accent/10 bg with accent text
- * - Main panel: Home + all spaces dynamically loaded + Settings
+ * - Main panel: Home + pinned spaces + divider + All Spaces + Settings
  * - Space panel: sub-pages within a multi-page space
  */
 
 import { useSpaces } from '@/composables/useSpaces'
+import { usePinnedStore, createSpacePin } from '@/stores/pinned'
+import { getSpace as getSpaceConfig } from '@/config/spaces'
 
 const router = useRouter()
 const route = useRoute()
 const { state, setPanel, exitSpace } = useSidebar()
 const authStore = useAuthStore()
+const pinnedStore = usePinnedStore()
 const { spaces, loadSpaces } = useSpaces()
 
 const showUserMenu = ref(false)
@@ -24,6 +27,9 @@ const showUserMenu = ref(false)
 onMounted(async () => {
   if (spaces.value.length === 0) {
     await loadSpaces()
+  }
+  if (pinnedStore.items.length === 0) {
+    await pinnedStore.init()
   }
 })
 
@@ -59,14 +65,18 @@ const spaceIconMap: Record<string, string> = {
   calendar: 'i-lucide-calendar',
 }
 
-// Dynamic nav items from spaces — sidebar always goes to space index (no project query)
-const spaceNavItems = computed(() => {
-  return spaces.value.map(space => ({
-    id: space.name,
-    label: space.displayName || space.name,
-    icon: spaceIconMap[space.name] || space.navigation?.icon || 'i-lucide-circle',
-    to: `/app/${space.name}`,
-  }))
+// Pinned spaces — from the pinned store, type='space'
+const pinnedSpaceNavItems = computed(() => {
+  const pinned = pinnedStore.pinnedByType('space')
+  return pinned.map(pin => {
+    const spaceId = pin.metadata?.spaceId || pin.path.replace('/app/', '').split('?')[0]
+    return {
+      id: spaceId,
+      label: pin.name,
+      icon: spaceIconMap[spaceId] || pin.icon || 'i-lucide-circle',
+      to: `/app/${spaceId}`,
+    }
+  })
 })
 
 // Active route detection — match /app/spaceName*
@@ -74,6 +84,8 @@ const activeId = computed(() => {
   const path = route.path
   if (path === '/app' || path === '/app/') return 'home'
   if (path.startsWith('/app/settings')) return 'settings'
+  if (path === '/app/spaces') return 'all-spaces'
+  if (path.startsWith('/app/marketplace')) return 'marketplace'
 
   // Match first segment after /app/
   const seg = path.replace('/app/', '').split('/')[0]
@@ -116,7 +128,7 @@ const getSpaceIcon = (spaceName: string) => {
           transform: `rotateY(${rotationY}deg)`,
         }"
       >
-        <!-- ====== Front Panel (main) — Home + all spaces + Settings ====== -->
+        <!-- ====== Front Panel (main) — Home + pinned spaces + All Spaces + Settings ====== -->
         <div
           class="absolute inset-0 w-full h-full flex flex-col items-center gap-1 pt-2 overflow-y-auto scrollbar-none"
           style="backface-visibility: hidden; transform: translateZ(20px)"
@@ -133,9 +145,9 @@ const getSpaceIcon = (spaceName: string) => {
 
           <div class="w-8 h-px bg-[var(--app-border)] my-0.5" />
 
-          <!-- All spaces -->
+          <!-- Pinned spaces -->
           <RouterLink
-            v-for="item in spaceNavItems"
+            v-for="item in pinnedSpaceNavItems"
             :key="item.id"
             :to="item.to"
             class="sidebar-btn"
@@ -145,7 +157,27 @@ const getSpaceIcon = (spaceName: string) => {
             <Icon :name="item.icon" class="size-5" />
           </RouterLink>
 
+          <!-- Empty state hint when no spaces pinned -->
+          <div
+            v-if="pinnedSpaceNavItems.length === 0"
+            class="flex flex-col items-center gap-1 py-2"
+          >
+            <span class="text-[9px] text-[var(--app-muted)] text-center leading-tight px-1">Pin spaces below</span>
+          </div>
+
           <div class="flex-1" />
+
+          <div class="w-8 h-px bg-[var(--app-border)] my-0.5" />
+
+          <!-- All Spaces (Launchpad) -->
+          <RouterLink
+            to="/app/spaces"
+            class="sidebar-btn"
+            :class="activeId === 'all-spaces' ? 'sidebar-btn-active' : 'sidebar-btn-inactive'"
+            title="All Spaces"
+          >
+            <Icon name="i-lucide-grid-2x2" class="size-5" />
+          </RouterLink>
 
           <!-- Settings at bottom -->
           <RouterLink

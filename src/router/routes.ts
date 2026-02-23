@@ -1,4 +1,5 @@
 import type { RouteRecordRaw } from 'vue-router'
+import { BUILTIN_SPACE_NAMES } from '~/spaces/builtin'
 
 export const routes: RouteRecordRaw[] = [
   // Public routes
@@ -25,6 +26,14 @@ export const routes: RouteRecordRaw[] = [
     meta: { guest: true },
   },
 
+  // Onboarding (first-time space picker)
+  {
+    path: '/onboarding',
+    name: 'onboarding',
+    component: () => import('@/pages/OnboardingPage.vue'),
+    meta: { requiresAuth: true },
+  },
+
   // App routes (authenticated)
   {
     path: '/app',
@@ -36,6 +45,20 @@ export const routes: RouteRecordRaw[] = [
         path: '',
         name: 'home',
         component: () => import('@/pages/HomePage.vue'),
+      },
+
+      // All Spaces (Launchpad grid)
+      {
+        path: 'spaces',
+        name: 'spaces',
+        component: () => import('@/pages/SpacesPage.vue'),
+      },
+
+      // Marketplace
+      {
+        path: 'marketplace',
+        name: 'marketplace',
+        component: () => import('@/pages/MarketplacePage.vue'),
       },
 
       // ===== Spaces — top-level =====
@@ -175,7 +198,25 @@ export const routes: RouteRecordRaw[] = [
             path: 'updates',
             component: () => import('@/pages/settings/UpdatesSettings.vue'),
           },
+          {
+            path: 'spaces',
+            component: () => import('@/pages/settings/SpacesSettings.vue'),
+          },
         ],
+      },
+
+      // Dynamic catch-all for marketplace-installed spaces
+      {
+        path: ':spaceName',
+        component: () => import('@/spaces/_dynamic/DynamicSpacePage.vue'),
+        props: true,
+        beforeEnter: (to) => {
+          // Reject if spaceName matches a built-in space (those have their own routes above)
+          const name = to.params.spaceName as string
+          if (BUILTIN_SPACE_NAMES.includes(name)) {
+            return false
+          }
+        },
       },
     ],
   },

@@ -2,7 +2,7 @@
 import {
   Palette, Bot, Cpu, Server, Puzzle,
   Download, Brush, Keyboard, CircleUser,
-  Settings, FolderOpen,
+  Settings, FolderOpen, LayoutGrid,
 } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -32,6 +32,7 @@ const navGroups = [
       { label: 'LLMs & Models',  path: '/app/settings/llms',  icon: Cpu },
       { label: 'MCP Servers',    path: '/app/settings/mcp',   icon: Server },
       { label: 'Skills & Hooks', path: '/app/settings/skills', icon: Puzzle },
+      { label: 'Spaces',        path: '/app/settings/spaces', icon: LayoutGrid },
     ],
   },
   {
