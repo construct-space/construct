@@ -198,7 +198,7 @@ const handleUpload = async () => {
     const baseURL = appConfig.apiBase
 
     // Get token from localStorage
-    const token = localStorage.getItem('auth_token')
+    const token = localStorage.getItem('cp_auth_token')
 
     const response = await fetch(`${baseURL}/media`, {
       method: 'POST',

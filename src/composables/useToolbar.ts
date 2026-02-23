@@ -290,7 +290,7 @@ export function useToolbar() {
   // ============================================
 
   const loadToolbarLayout = async () => {
-    if (!import.meta.client) return
+    if (typeof window === 'undefined') return
     state.loading = true
     try {
       const preferencesStore = usePreferencesStore()

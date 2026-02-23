@@ -8,7 +8,7 @@ const CHAT_PINNED_WIDTH = 384
 let initialized = false
 
 function initChatPanelState() {
-  if (initialized || !import.meta.client) return
+  if (initialized || typeof window === 'undefined') return
   initialized = true
 
   try {
@@ -22,7 +22,7 @@ function initChatPanelState() {
 }
 
 function persistPinnedState() {
-  if (!import.meta.client) return
+  if (typeof window === 'undefined') return
   try {
     localStorage.setItem(CHAT_PIN_STORAGE_KEY, isPinned.value ? '1' : '0')
   } catch (error) {

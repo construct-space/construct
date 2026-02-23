@@ -69,14 +69,14 @@ async function handleContinue() {
     }
 
     // Mark onboarding as complete
-    localStorage.setItem('onboarding_complete', 'true')
+    localStorage.setItem('cp_onboarding_complete', 'true')
 
     // Navigate to app
     router.push('/app')
   } catch (error) {
     console.error('Onboarding error:', error)
     // Still mark complete so user isn't stuck
-    localStorage.setItem('onboarding_complete', 'true')
+    localStorage.setItem('cp_onboarding_complete', 'true')
     router.push('/app')
   } finally {
     isLoading.value = false

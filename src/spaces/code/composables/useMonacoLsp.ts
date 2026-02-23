@@ -130,7 +130,7 @@ export const useMonacoLsp = () => {
     }
 
     try {
-      if (!import.meta.client) return null
+      if (typeof window === 'undefined') return null
 
       const monaco = await import('monaco-editor')
       monacoInstance = monaco

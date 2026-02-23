@@ -10,7 +10,7 @@ import { ref, computed } from 'vue'
 import type { AIProvider } from './useContextService'
 
 // Storage key for default model (stores "providerId:modelId")
-const MODEL_STORAGE_KEY = 'app-default-ai-model'
+const MODEL_STORAGE_KEY = 'cp_default_ai_model'
 const DEFAULT_MODEL = 'zai:glm-4.7' // Z.AI default
 const AUTO_MODEL_SENTINELS = new Set(['', 'auto', 'conductor'])
 
@@ -43,7 +43,7 @@ const isNotConnectedError = (error: unknown): boolean =>
 
 // Load from localStorage on init
 const loadFromStorage = () => {
-  if (import.meta.client) {
+  if (typeof window !== 'undefined') {
     const stored = localStorage.getItem(MODEL_STORAGE_KEY)?.trim() || ''
     if (stored) {
       defaultModelId.value = isAutoModelId(stored) ? 'auto' : stored
@@ -68,7 +68,7 @@ export const isVisionModel = (modelId: string): boolean => {
 }
 
 // Load on first import (client-side only)
-if (import.meta.client && !initialized.value) {
+if (typeof window !== 'undefined' && !initialized.value) {
   loadFromStorage()
 }
 
@@ -132,7 +132,7 @@ export const useAIModel = () => {
     if (!candidate) return
     const normalized = isAutoModelId(candidate) ? 'auto' : candidate
     defaultModelId.value = normalized
-    if (import.meta.client) {
+    if (typeof window !== 'undefined') {
       localStorage.setItem(MODEL_STORAGE_KEY, normalized)
     }
   }
@@ -239,7 +239,7 @@ export const useAIModel = () => {
       }
 
       // If model is not explicitly set on this device yet, use backend default model.
-      if (defaultModelFromServer && import.meta.client && !localStorage.getItem(MODEL_STORAGE_KEY)) {
+      if (defaultModelFromServer && typeof window !== 'undefined' && !localStorage.getItem(MODEL_STORAGE_KEY)) {
         defaultModelId.value = defaultModelFromServer
       }
 
@@ -247,7 +247,7 @@ export const useAIModel = () => {
       // selection when the provider catalog is incomplete (e.g. OAuth providers
       // not yet loaded).  Only persist if the model was truly resolved to a
       // different available model, not when it fell through to a generic fallback.
-      const stored = import.meta.client ? localStorage.getItem(MODEL_STORAGE_KEY) : null
+      const stored = typeof window !== 'undefined' ? localStorage.getItem(MODEL_STORAGE_KEY) : null
       const resolved = resolveModelId(defaultModelId.value, {
         allowAuto: true,
         fallbackModelId: providerDefaultModelId.value || DEFAULT_MODEL,
@@ -262,7 +262,7 @@ export const useAIModel = () => {
         defaultModelId.value = stored
       } else {
         defaultModelId.value = resolved
-        if (import.meta.client && resolved !== stored) {
+        if (typeof window !== 'undefined' && resolved !== stored) {
           localStorage.setItem(MODEL_STORAGE_KEY, resolved)
         }
       }
@@ -292,7 +292,7 @@ export const useAIModel = () => {
 
   // Auto-init if not initialized. Guard with a shared promise so multiple
   // simultaneous imports don't trigger parallel init() calls.
-  if (import.meta.client && !initialized.value && !loading.value) {
+  if (typeof window !== 'undefined' && !initialized.value && !loading.value) {
     if (!initPromise) {
       initPromise = init().finally(() => { initPromise = null })
     }

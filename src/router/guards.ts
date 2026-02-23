@@ -34,7 +34,7 @@ export async function authGuard(
     authStore.isAuthenticated &&
     to.path.startsWith('/app') &&
     to.path !== '/onboarding' &&
-    !localStorage.getItem('onboarding_complete')
+    !localStorage.getItem('cp_onboarding_complete')
   ) {
     return next('/onboarding')
   }

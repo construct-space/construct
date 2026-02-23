@@ -2,7 +2,7 @@ import { appConfig } from '@/utils/config'
 
 // Helper for localStorage-based token storage (for Tauri)
 function useLocalStorageToken() {
-  const TOKEN_KEY = 'auth_token'
+  const TOKEN_KEY = 'cp_auth_token'
 
   return computed({
     get: () => {
@@ -20,7 +20,7 @@ function useLocalStorageToken() {
 
 // Helper for cookie-based token storage (web)
 function useCookieToken() {
-  const TOKEN_KEY = 'auth_token'
+  const TOKEN_KEY = 'cp_auth_token'
 
   function getCookie(name: string): string | null {
     const match = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/([.$?*|{}()[\]\\/+^])/g, '\\$1') + '=([^;]*)'))

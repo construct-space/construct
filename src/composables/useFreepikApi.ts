@@ -260,8 +260,8 @@ export function useFreepikApi() {
       )
 
       const token = isDesktopApp
-        ? localStorage.getItem('auth_token')
-        : document.cookie.match(/(?:^|; )auth_token=([^;]*)/)?.[1] || null
+        ? localStorage.getItem('cp_auth_token')
+        : document.cookie.match(/(?:^|; )cp_auth_token=([^;]*)/)?.[1] || null
 
       const formData = new FormData()
       formData.append('file', blob, filename)

@@ -625,7 +625,7 @@ export async function migrateFromLocalStorage(key: string, category?: string): P
 export async function migratePinnedItems(): Promise<void> {
   if (typeof window === 'undefined') return
 
-  const LEGACY_KEY = 'construct_pinned_items'
+  const LEGACY_KEY = 'cp_pinned_items'
   const storage = useStorage()
 
   if (!storage.isAvailable.value) return

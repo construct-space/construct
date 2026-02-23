@@ -5,7 +5,7 @@
  * Uses SQLite (context.db) for Tauri, localStorage fallback for web.
  */
 
-const STORAGE_KEY = 'construct_pinned_items'
+const STORAGE_KEY = 'cp_pinned_items'
 const isContextNotConnectedError = (error: unknown): boolean =>
   String(error).toLowerCase().includes('not connected')
 

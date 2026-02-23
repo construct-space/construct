@@ -160,7 +160,7 @@ const loadRepoSourcesForCompanyScope = async (): Promise<RepoSource[]> => {
   await projectStore.loadProjects()
 
   const projects = [...projectStore.projects]
-  if (!import.meta.client || projects.length === 0) return []
+  if (typeof window === 'undefined' || projects.length === 0) return []
 
   const settings = await db.project_settings.bulkGet(projects.map(project => project.id) as any)
   const settingsByProjectId = new Map<string | number, string>()
@@ -261,7 +261,7 @@ watch(() => props.scope, (scope, previousScope) => {
 })
 
 const loadGitUxLevel = () => {
-  if (!import.meta.client) return
+  if (typeof window === 'undefined') return
   const stored = window.localStorage.getItem(gitUxLevelStorageKey.value)
   if (stored === 'beginner' || stored === 'pro') {
     gitUxLevel.value = stored
@@ -271,7 +271,7 @@ const loadGitUxLevel = () => {
 }
 
 watch(gitUxLevel, (level) => {
-  if (!import.meta.client) return
+  if (typeof window === 'undefined') return
   window.localStorage.setItem(gitUxLevelStorageKey.value, level)
 })
 

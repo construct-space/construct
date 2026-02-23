@@ -114,8 +114,8 @@ func main() {
 	if err != nil {
 		homeDir = "."
 	}
-	dataDir := homeDir + "/.construct"
-	dbPath := dataDir + "/context.db"
+	dataDir := homeDir + "/.construct-personal"
+	dbPath := dataDir + "/personal.db"
 
 	// Initialize storage
 	startStorage := time.Now()

@@ -9,7 +9,7 @@ const STORAGE_KEY = 'construct_projects_view_mode'
 
 // Get initial value from localStorage or default to 'list'
 const getInitialViewMode = (): ProjectsViewMode => {
-  if (import.meta.client) {
+  if (typeof window !== 'undefined') {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored && ['wheel', 'list', 'grid'].includes(stored)) {
       return stored as ProjectsViewMode
@@ -23,7 +23,7 @@ const viewMode = ref<ProjectsViewMode>(getInitialViewMode())
 export function useProjectsView() {
   const setViewMode = (mode: ProjectsViewMode) => {
     viewMode.value = mode
-    if (import.meta.client) {
+    if (typeof window !== 'undefined') {
       localStorage.setItem(STORAGE_KEY, mode)
     }
   }

@@ -47,7 +47,7 @@ export interface UpdateTaskData {
 export const TASK_STATUSES = ['backlog', 'todo', 'in_progress', 'review', 'done'] as const
 export const TASK_PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const
 
-const STORAGE_KEY = 'construct_tasks'
+const STORAGE_KEY = 'cp_tasks'
 
 let nextId = 1
 

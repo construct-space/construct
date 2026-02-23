@@ -173,6 +173,20 @@ export const useAuthStore = defineStore('auth', {
       this.clearAuthState()
       this.clearPersistedState()
 
+      // Clear all user-scoped data so a new login starts fresh
+      localStorage.removeItem('cp_tasks')
+      localStorage.removeItem('cp_pinned_items')
+      localStorage.removeItem('cp_onboarding_complete')
+
+      // Clear pinned items from SQLite (Tauri)
+      try {
+        const { usePinnedStore } = await import('@/stores/pinned')
+        const pinnedStore = usePinnedStore()
+        await pinnedStore.clearAll()
+      } catch {
+        // Safe to ignore if store not ready
+      }
+
       try {
         await api.request('/auth/logout', { method: 'POST', skipErrorHandling: true })
       } catch {
@@ -225,26 +239,40 @@ export const useAuthStore = defineStore('auth', {
         return false
       }
 
+      if (!this.user) {
+        this.clearAuthState()
+        this.clearPersistedState()
+        return false
+      }
+
+      // In local-first / Tauri mode, trust the persisted auth state.
+      // Only verify against the remote API when it's reachable.
+      const { useApi } = await import('@/composables/useApi')
+      const api = useApi()
+      api.setToken(this.token)
+
       try {
-        if (!this.user || !this.token) {
+        await api.get('/profile')
+        this.isAuthenticated = true
+      } catch (error: unknown) {
+        // If the server explicitly rejected the token (401), clear auth.
+        // For network errors (server unreachable), keep the local session alive.
+        const is401 = error instanceof Error && error.message.includes('401')
+        const isSessionExpired = error instanceof Error && error.message.toLowerCase().includes('session expired')
+
+        if (is401 || isSessionExpired) {
+          console.warn('Auth token rejected by server, clearing session')
           this.clearAuthState()
           this.clearPersistedState()
           return false
         }
 
-        const { useApi } = await import('@/composables/useApi')
-        const api = useApi()
-        api.setToken(this.token)
-
-        await api.get('/profile')
+        // Network error / server unreachable — trust local state
+        console.info('Auth server unreachable, keeping local session')
         this.isAuthenticated = true
-        return true
-      } catch (error: unknown) {
-        console.error('Auth check failed:', error)
-        this.clearAuthState()
-        this.clearPersistedState()
-        return false
       }
+
+      return this.isAuthenticated
     },
 
     clearAuthState() {
@@ -264,7 +292,7 @@ export const useAuthStore = defineStore('auth', {
       }
 
       const stateJson = JSON.stringify(authState)
-      localStorage.setItem('construct_auth', stateJson)
+      localStorage.setItem('cp_auth', stateJson)
 
       // Also try SQLite for Tauri
       try {
@@ -300,14 +328,14 @@ export const useAuthStore = defineStore('auth', {
 
       try {
         // Phase 1 (SYNC): Read from localStorage — instant
-        const stored = localStorage.getItem('construct_auth')
+        const stored = localStorage.getItem('cp_auth')
 
         if (stored) {
           const authState = JSON.parse(stored)
           this._applyAuthState(authState)
         } else {
           // Check for legacy token
-          const legacyToken = localStorage.getItem('auth_token')
+          const legacyToken = localStorage.getItem('cp_auth_token')
           if (legacyToken) {
             this.token = legacyToken
             const { useApi } = await import('@/composables/useApi')
@@ -375,7 +403,7 @@ export const useAuthStore = defineStore('auth', {
           const authState = JSON.parse(sqliteState)
           if (authState.token) {
             this._applyAuthState(authState)
-            localStorage.setItem('construct_auth', sqliteState)
+            localStorage.setItem('cp_auth', sqliteState)
           }
         }
       } catch (error) {
@@ -390,8 +418,8 @@ export const useAuthStore = defineStore('auth', {
     async clearPersistedState() {
       if (typeof window === 'undefined') return
 
-      localStorage.removeItem('construct_auth')
-      localStorage.removeItem('auth_token')
+      localStorage.removeItem('cp_auth')
+      localStorage.removeItem('cp_auth_token')
 
       try {
         const { useContextDB } = await import('@/composables/useContextDB')

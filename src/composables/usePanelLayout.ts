@@ -59,7 +59,7 @@ export function usePanelLayout(space: SpaceType) {
 
   // Load saved layout from localStorage
   function loadLayout() {
-    if (import.meta.client) {
+    if (typeof window !== 'undefined') {
       const saved = localStorage.getItem(`${STORAGE_KEY_PREFIX}${space}`)
       if (saved) {
         try {
@@ -73,7 +73,7 @@ export function usePanelLayout(space: SpaceType) {
 
   // Save layout to localStorage
   function saveLayout() {
-    if (import.meta.client) {
+    if (typeof window !== 'undefined') {
       localStorage.setItem(`${STORAGE_KEY_PREFIX}${space}`, JSON.stringify(currentLayout.value))
     }
   }

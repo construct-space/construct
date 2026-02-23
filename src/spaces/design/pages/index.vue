@@ -61,14 +61,13 @@ const loadDesigns = async () => {
 }
 
 // Create
-const _handleCreate = async (name: string) => {
+const newDesignName = ref('')
+const handleCreate = async () => {
+  const name = newDesignName.value.trim()
   if (!name) return
-  if (!isProjectScope.value) {
-    toast.add({ title: 'Project required', description: 'Open a project to create a design.', color: 'warning' })
-    return
-  }
   const design = await localDesigns.createDesign(projectId.value ? Number(projectId.value) : null, name)
   showCreateModal.value = false
+  newDesignName.value = ''
 
   const editorQuery: Record<string, string> = { localId: design.localId, name: design.name }
   if (projectId.value) editorQuery.project = String(projectId.value)
@@ -100,11 +99,7 @@ const confirmDelete = async () => {
 }
 
 const openCreateModal = () => {
-  if (!isProjectScope.value) {
-    toast.add({ title: 'Project required', description: 'Open a project to create a design.', color: 'warning' })
-    router.push('/app')
-    return
-  }
+  newDesignName.value = ''
   showCreateModal.value = true
 }
 
@@ -117,15 +112,8 @@ const handleKeyDown = (e: KeyboardEvent) => {
 }
 
 const syncToolbar = () => {
-  if (isProjectScope.value) {
-    setPageItems([
-      { id: 'design-new', icon: 'i-lucide-plus', label: 'New Design', type: 'action', category: 'space', onClick: openCreateModal },
-      { id: 'design-refresh', icon: 'i-lucide-refresh-cw', label: 'Refresh', type: 'action', category: 'space', onClick: loadDesigns },
-    ])
-    return
-  }
   setPageItems([
-    { id: 'design-projects', icon: 'i-lucide-folder-open', label: 'Projects', type: 'action', category: 'space', onClick: () => router.push('/app') },
+    { id: 'design-new', icon: 'i-lucide-plus', label: 'New Design', type: 'action', category: 'space', onClick: openCreateModal },
     { id: 'design-refresh', icon: 'i-lucide-refresh-cw', label: 'Refresh', type: 'action', category: 'space', onClick: loadDesigns },
   ])
 }
@@ -154,11 +142,11 @@ watch(projectId, () => { loadDesigns() })
   <div class="h-full flex flex-col bg-app">
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3 border-b border-app">
-      <h1 class="text-lg font-medium text-app">{{ isProjectScope ? 'Designs' : 'Company Designs' }}</h1>
+      <h1 class="text-lg font-medium text-app">{{ isProjectScope ? 'Designs' : 'All Designs' }}</h1>
       <Button
-        :icon="isProjectScope ? 'i-lucide-plus' : 'i-lucide-folder-open'"
-        :label="isProjectScope ? 'New Design' : 'Open Projects'"
-        @click="isProjectScope ? openCreateModal() : router.push('/app')"
+        icon="i-lucide-plus"
+        label="New Design"
+        @click="openCreateModal()"
       />
     </div>
 
@@ -170,7 +158,6 @@ watch(projectId, () => { loadDesigns() })
       <div v-else-if="allDesignFiles.length === 0" class="text-center py-12">
         <p class="text-app-muted mb-4">No designs yet</p>
         <Button
-          v-if="isProjectScope"
           icon="i-lucide-plus"
           label="Create your first design"
           @click="openCreateModal()"
@@ -211,6 +198,40 @@ watch(projectId, () => { loadDesigns() })
         </div>
       </div>
     </div>
+
+    <!-- Create Design Modal -->
+    <Teleport to="body">
+      <div v-if="showCreateModal" class="fixed inset-0 z-50 flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/50" @click="showCreateModal = false" />
+        <div class="relative bg-[var(--app-surface)] border border-[var(--app-border)] rounded-xl p-6 w-full max-w-sm shadow-xl">
+          <h2 class="text-lg font-semibold text-[var(--app-foreground)] mb-4">New Design</h2>
+          <input
+            v-model="newDesignName"
+            type="text"
+            placeholder="Design name"
+            class="w-full px-3 py-2 rounded-lg border border-[var(--app-border)] bg-[var(--app-background)] text-[var(--app-foreground)] placeholder:text-[var(--app-muted)] focus:outline-none focus:border-[var(--app-accent)]"
+            autofocus
+            @keydown.enter="handleCreate"
+            @keydown.escape="showCreateModal = false"
+          />
+          <div class="flex justify-end gap-2 mt-4">
+            <button
+              class="px-4 py-2 rounded-lg text-sm text-[var(--app-muted)] hover:text-[var(--app-foreground)] transition-colors"
+              @click="showCreateModal = false"
+            >
+              Cancel
+            </button>
+            <button
+              class="px-4 py-2 rounded-lg text-sm bg-[var(--app-accent)] text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+              :disabled="!newDesignName.trim()"
+              @click="handleCreate"
+            >
+              Create
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <!-- Delete Confirmation Modal -->
     <ConfirmationModal

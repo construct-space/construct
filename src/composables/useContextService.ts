@@ -469,7 +469,7 @@ export function useContextService(): UseContextServiceReturn {
   async function callTool(toolCall: ToolCall, token?: string): Promise<ToolResult> {
     if (isTauri.value) {
       // Get auth token from localStorage if not provided
-      const authToken = token || localStorage.getItem('auth_token') || ''
+      const authToken = token || localStorage.getItem('cp_auth_token') || ''
       return tauriInvoke('context_call_tool', { toolCall, token: authToken })
     }
     throw new Error('Not running in Tauri')
