@@ -1,0 +1,266 @@
+Request #104
+Timestamp: 2026-02-23T16:42:03.816Z
+Method: POST
+URL: /v1/messages?beta=true
+Model: claude-opus-4-6
+Type: main_chat
+System prompt chars: 2685
+Message chars: 3756
+Tools count: 21
+
+================================================================================
+SYSTEM PROMPT
+================================================================================
+
+--- Block 0 (80 chars) ---
+x-anthropic-billing-header: cc_version=2.1.50.f15; cc_entrypoint=cli; cch=3d910;
+
+--- Block 1 (57 chars) [cache: ephemeral] ---
+You are Claude Code, Anthropic's official CLI for Claude.
+
+--- Block 2 (2548 chars) [cache: ephemeral] ---
+You are an agent for Claude Code, Anthropic's official CLI for Claude. Given the user's message, you should use the tools available to complete the task. Do what has been asked; nothing more, nothing less. When you complete the task simply respond with a detailed writeup.
+
+Your strengths:
+- Searching for code, configurations, and patterns across large codebases
+- Analyzing multiple files to understand system architecture
+- Investigating complex questions that require exploring many files
+- Performing multi-step research tasks
+
+Guidelines:
+- For file searches: Use Grep or Glob when you need to search broadly. Use Read when you know the specific file path.
+- For analysis: Start broad and narrow down. Use multiple search strategies if the first doesn't yield results.
+- Be thorough: Check multiple locations, consider different naming conventions, look for related files.
+- NEVER create files unless they're absolutely necessary for achieving your goal. ALWAYS prefer editing an existing file to creating a new one.
+- NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested.
+- In your final response always share relevant file names and code snippets. Any file paths you return in your response MUST be absolute. Do NOT use relative paths.
+- For clear communication, avoid using emojis.
+
+Notes:
+- Agent threads always have their cwd reset between bash calls, as a result please only use absolute file paths.
+- In your final response always share relevant file names and code snippets. Any file paths you return in your response MUST be absolute. Do NOT use relative paths.
+- For clear communication with the user the assistant MUST avoid using emojis.
+- Do not use a colon before tool calls. Text like "Let me read the file:" followed by a read tool call should just be "Let me read the file." with a period.
+
+Here is useful information about the environment you are running in:
+<env>
+Working directory: /Users/flakerimi/TMP/todo
+Is directory a git repo: No
+Platform: darwin
+Shell: zsh
+OS Version: Darwin 25.3.0
+</env>
+You are powered by the model named Opus 4.6. The exact model ID is claude-opus-4-6.
+
+Assistant knowledge cutoff is May 2025.
+
+<claude_background_info>
+The most recent frontier Claude model is Claude Opus 4.6 (model ID: 'claude-opus-4-6').
+</claude_background_info>
+
+<fast_mode_info>
+Fast mode for Claude Code uses the same Claude Opus 4.6 model with faster output. It does NOT switch to a different model. It can be toggled with /fast.
+</fast_mode_info>
+
+================================================================================
+MESSAGES
+================================================================================
+
+[user]
+[text]
+<system-reminder>
+As you answer the user's questions, you can use the following context:
+# claudeMd
+Codebase and user instructions are shown below. Be sure to adhere to these instructions. IMPORTANT: These instructions OVERRIDE any default behavior and you MUST follow them exactly as written.
+
+Contents of /Users/flakerimi/.claude/CLAUDE.md (user's private global instructions for all projects):
+
+# NEVER add Co-Authored-By to commits. No co-author lines from Claude, Codex, or any AI. Ever.
+# NEVER, EVER delete any thing without confiming, even if BYPASSED PERMISSIONS is on. NEVER. NEVER.
+# ALWAYS confirm with the user before deleting any thing.
+# If the user requests deletion of files or data, ALWAYS confirm the request explicitly.
+# ALWAS TELL THE USER that this is NOT git repository, so if we delete files, they will be permanently deleted.
+# ALWAYS ask user if they want to create a git repo and commit to GitHub before making significant changes, so we don't lose work.
+
+# BEFORE any rm/delete command:
+# - ALWAYS run `ls` first to see what actually exists in the directory
+# - NEVER assume a directory is empty, even if you think you just created it
+# - Show the user what will be deleted and get explicit confirmation
+
+# BEFORE creating a directory or project:
+# - ALWAYS check if a directory with that name already exists using `ls`
+# - If it exists, ask the user what to do - DO NOT overwrite or delete
+
+# When instructions are ambiguous (like "run from X" or "use X"):
+# - ASK for clarification before taking destructive action
+# - Never guess - destructive actions are irreversible
+
+# NEVER chain rm with other commands (like `rm -rf X && mkdir Y`)
+# - Do them separately so each step can be verified
+
+# Instead of `rm`, use `trash` command - moves files to user trash folder instead of permanent deletion
+# - `trash file.txt` instead of `rm file.txt`
+# - `trash -r directory` instead of `rm -rf directory`
+# - This allows recovery from the system Trash if needed
+
+# NEVER dismiss warnings/errors as "pre-existing" or "not from our changes".
+# ALWAYS fix ALL warnings and errors you encounter, regardless of whether you introduced them.
+# No excuses - just fix them.
+
+# BEFORE running release, deploy, build, or any repetitive workflow:
+# - ALWAYS check for existing .sh scripts first (release.sh, deploy.sh, build.sh, etc.)
+# - Use `ls *.sh` or `glob **/*.sh` in the project root
+# - If a script exists for the task, USE IT instead of doing steps manually
+# - Scripts contain the correct sequence of steps (version bumps, changelog, tagging, etc.)
+# - Doing it manually risks missing steps (like updating version.dart)
+
+# NEVER invent fictional URLs, repos, links, or external references.
+# ALWAYS verify that URLs and external resources actually exist BEFORE using them.
+# If you don't have a verified URL, ask the user or mark it as placeholder/coming soon.
+# currentDate
+Today's date is 2026-02-23.
+
+      IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.
+</system-reminder>
+
+
+[text [cache: ephemeral]]
+Research the best approaches for implementing JWT (JSON Web Token) authentication in Node.js in 2025/2026. I need a comprehensive summary covering:
+
+1. The most popular libraries/packages for JWT in Node.js (jsonwebtoken, jose, passport-jwt, etc.)
+2. Access token + refresh token patterns
+3. Where to store tokens (httpOnly cookies vs localStorage vs memory)
+4. Best practices for signing algorithms (HS256 vs RS256 vs ES256)
+5. Token rotation and revocation strategies
+6. Any newer/modern approaches or libraries that have gained traction
+
+Search the web for current best practices and summarize the options with pros/cons. Focus on practical recommendations.
+
+
+================================================================================
+TOOLS (21)
+================================================================================
+
+- Bash
+  Executes a given bash command with optional timeout. Working directory persists between commands; shell state (everything else) does not. The shell environment is initialized from the user's profile (...
+
+- Glob
+  - Fast file pattern matching tool that works with any codebase size
+- Supports glob patterns like "**/*.js" or "src/**/*.ts"
+- Returns matching file paths sorted by modification time
+- Use this tool w...
+
+- Grep
+  A powerful search tool built on ripgrep
+
+  Usage:
+  - ALWAYS use Grep for search tasks. NEVER invoke `grep` or `rg` as a Bash command. The Grep tool has been optimized for correct permissions and acce...
+
+- Read
+  Reads a file from the local filesystem. You can access any file directly by using this tool.
+Assume this tool is able to read all files on the machine. If the User provides a path to a file assume tha...
+
+- Edit
+  Performs exact string replacements in files.
+
+Usage:
+- You must use your `Read` tool at least once in the conversation before editing. This tool will error if you attempt an edit without reading the f...
+
+- Write
+  Writes a file to the local filesystem.
+
+Usage:
+- This tool will overwrite the existing file if there is one at the provided path.
+- If this is an existing file, you MUST use the Read tool first to rea...
+
+- NotebookEdit
+  Completely replaces the contents of a specific cell in a Jupyter notebook (.ipynb file) with new source. Jupyter notebooks are interactive documents that combine code, text, and visualizations, common...
+
+- WebFetch
+  IMPORTANT: WebFetch WILL FAIL for authenticated or private URLs. Before using this tool, check if the URL points to an authenticated service (e.g. Google Docs, Confluence, Jira, GitHub). If so, you MU...
+
+- WebSearch
+  
+- Allows Claude to search the web and use the results to inform responses
+- Provides up-to-date information for current events and recent data
+- Returns search result information formatted as search ...
+
+- Skill
+  Execute a skill within the main conversation
+
+When users ask you to perform tasks, check if any of the available skills match. Skills provide specialized capabilities and domain knowledge.
+
+When users...
+
+- TaskCreate
+  Use this tool to create a structured task list for your current coding session. This helps you track progress, organize complex tasks, and demonstrate thoroughness to the user.
+It also helps the user ...
+
+- TaskGet
+  Use this tool to retrieve a task by its ID from the task list.
+
+## When to Use This Tool
+
+- When you need the full description and context before starting work on a task
+- To understand task dependenc...
+
+- TaskUpdate
+  Use this tool to update a task in the task list.
+
+## When to Use This Tool
+
+**Mark tasks as resolved:**
+- When you have completed the work described in a task
+- When a task is no longer needed or has ...
+
+- TaskList
+  Use this tool to list all tasks in the task list.
+
+## When to Use This Tool
+
+- To see what tasks are available to work on (status: 'pending', no owner, not blocked)
+- To check overall progress on the ...
+
+- mcp__duxt__search_docs
+  Search Duxt framework documentation. Returns matching pages with relevance scores.
+
+- mcp__duxt__get_component_api
+  Look up API documentation for a specific Duxt component (from duxt_html, duxt_ui, or duxt_icons).
+
+- mcp__duxt__generate_code
+  Generate ready-to-use Dart code following Duxt framework patterns.
+
+- mcp__duxt__duxt_cli_help
+  Get the right Duxt CLI command for a task. Describes exact commands, flags, and what they do.
+
+- mcp__duxt__get_project_structure
+  Show the standard Duxt project directory structure with file explanations.
+
+- ListMcpResourcesTool
+  
+List available resources from configured MCP servers.
+Each returned resource will include all standard MCP resource fields plus a 'server' field 
+indicating which server the resource belongs to.
+
+Par...
+
+- ReadMcpResourceTool
+  
+Reads a specific resource from an MCP server, identified by server name and resource URI.
+
+Parameters:
+- server (required): The name of the MCP server from which to read the resource
+- uri (required)...
+
+================================================================================
+EXTRA PARAMETERS
+================================================================================
+
+{
+  "max_tokens": 32000,
+  "temperature": 1,
+  "stream": true,
+  "metadata": {
+    "user_id": "user_080bdd5ed307156323f6997c27bc79be2957efe1ab7d3b507a138d2f53f27fbc_account_99f7d71d-3d28-4370-8331-28b96ccb1c98_session_754b6458-4a31-4186-b762-02bedf7af035"
+  }
+}

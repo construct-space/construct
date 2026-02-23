@@ -1,0 +1,129 @@
+Request #36
+Timestamp: 2026-02-23T16:36:15.606Z
+Method: POST
+URL: /v1/messages?beta=true
+Model: claude-haiku-4-5-20251001
+Type: other
+System prompt chars: 1177
+Message chars: 2017
+Tools count: 0
+
+================================================================================
+SYSTEM PROMPT
+================================================================================
+
+--- Block 0 (80 chars) ---
+x-anthropic-billing-header: cc_version=2.1.50.4c4; cc_entrypoint=cli; cch=813ad;
+
+--- Block 1 (57 chars) [cache: ephemeral] ---
+You are Claude Code, Anthropic's official CLI for Claude.
+
+--- Block 2 (1040 chars) [cache: ephemeral] ---
+Extract any file paths that this command reads or modifies. For commands like "git diff" and "cat", include the paths of files being shown. Use paths verbatim -- don't add any slashes or try to resolve them. Do not try to infer paths that were not explicitly listed in the command output.
+
+IMPORTANT: Commands that do not display the contents of the files should not return any filepaths. For eg. "ls", pwd", "find". Even more complicated commands that don't display the contents should not be considered: eg "find . -type f -exec ls -la {} + | sort -k5 -nr | head -5"
+
+First, determine if the command displays the contents of the files. If it does, then <is_displaying_contents> tag should be true. If it does not, then <is_displaying_contents> tag should be false.
+
+Format your response as:
+<is_displaying_contents>
+true
+</is_displaying_contents>
+
+<filepaths>
+path/to/file1
+path/to/file2
+</filepaths>
+
+If no files are read or modified, return empty filepaths tags:
+<filepaths>
+</filepaths>
+
+Do not include any other text in your response.
+
+================================================================================
+MESSAGES
+================================================================================
+
+[user]
+[text [cache: ephemeral]]
+Command: rmdir /Users/flakerimi/TMP/todo && cd /Users/flakerimi/TMP && duxt create todo --template=server
+Output: Resolving dependencies...
+Downloading packages...
+  _fe_analyzer_shared 94.0.0 (96.0.0 available)
+  analyzer 10.0.2 (10.2.0 available)
+  built_value 8.12.3 (8.12.4 available)
+  jaspr 0.22.2 (0.22.3 available)
+  jaspr_content 0.4.5 (0.5.0 available)
+  petitparser 7.0.1 (7.0.2 available)
+No dependencies would change in `/Volumes/External/Duxt/duxt`.
+6 packages have newer versions incompatible with dependency constraints.
+Try `dart pub outdated` for more information.
+
+[36m               88[0m
+[36m               88[0m
+[36m      .d88888b 88  db       db  db        db d88888888b[0m
+[36m    .8P       Y88  88       88   `8b    d8'      88[0m
+[36m    88         88  88       88     `8bd8'        88[0m
+[36m    88         88  88       88     .dPYb.        88[0m
+[36m    `8L       d89  88b     d88   .8P    Y8.      88[0m
+[36m     `Y888888P8J    ~Y88888'88  dP        Yb     `Y88P[0m
+
+[36m                     oooooooooooooooooooo[0m
+
+  Creating project: [1mtodo[0m
+
+
+  Template: [36mServer (SSR)[0m
+
+
+  [32m✓[0m Created server project with DuxtORM
+
+  lib/
+    ├── home/pages/index.dart       → /
+    ├── blog/pages/
+    │   ├── index.dart              → /blog (SSR listing)
+    │   └── _slug_.dart             → /blog/:slug
+    ├── models/post.dart
+    ├── shared/layouts/
+    ├── .generated/routes.dart      (auto-generated)
+    └── app.dart
+
+  server/                           (DuxtORM + API)
+    ├── main.dart
+    ├── db.dart
+    └── api/posts.dart
+
+  [36mDevelopment:[0m
+    duxt dev                        Start dev server
+
+  [36mProduction:[0m
+    duxt build && docker build -t todo .
+
+
+[90m→[0m Installing dependencies...
+  [32m✓[0m Dependencies installed
+
+[90m→[0m Warming build cache (this only happens once)...
+  [33m![0m Build cache warmup failed (first `duxt dev` will be slower)
+
+[32m✓[0m Project created successfully!
+
+Next steps:
+  cd todo
+  duxt dev
+
+
+
+================================================================================
+EXTRA PARAMETERS
+================================================================================
+
+{
+  "max_tokens": 32000,
+  "temperature": 1,
+  "stream": true,
+  "metadata": {
+    "user_id": "user_080bdd5ed307156323f6997c27bc79be2957efe1ab7d3b507a138d2f53f27fbc_account_99f7d71d-3d28-4370-8331-28b96ccb1c98_session_754b6458-4a31-4186-b762-02bedf7af035"
+  }
+}

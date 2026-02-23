@@ -1,0 +1,68 @@
+Request #30
+Timestamp: 2026-02-23T16:35:37.086Z
+Method: POST
+URL: /v1/messages?beta=true
+Model: claude-haiku-4-5-20251001
+Type: other
+System prompt chars: 1177
+Message chars: 162
+Tools count: 0
+
+================================================================================
+SYSTEM PROMPT
+================================================================================
+
+--- Block 0 (80 chars) ---
+x-anthropic-billing-header: cc_version=2.1.50.e95; cc_entrypoint=cli; cch=0335d;
+
+--- Block 1 (57 chars) [cache: ephemeral] ---
+You are Claude Code, Anthropic's official CLI for Claude.
+
+--- Block 2 (1040 chars) [cache: ephemeral] ---
+Extract any file paths that this command reads or modifies. For commands like "git diff" and "cat", include the paths of files being shown. Use paths verbatim -- don't add any slashes or try to resolve them. Do not try to infer paths that were not explicitly listed in the command output.
+
+IMPORTANT: Commands that do not display the contents of the files should not return any filepaths. For eg. "ls", pwd", "find". Even more complicated commands that don't display the contents should not be considered: eg "find . -type f -exec ls -la {} + | sort -k5 -nr | head -5"
+
+First, determine if the command displays the contents of the files. If it does, then <is_displaying_contents> tag should be true. If it does not, then <is_displaying_contents> tag should be false.
+
+Format your response as:
+<is_displaying_contents>
+true
+</is_displaying_contents>
+
+<filepaths>
+path/to/file1
+path/to/file2
+</filepaths>
+
+If no files are read or modified, return empty filepaths tags:
+<filepaths>
+</filepaths>
+
+Do not include any other text in your response.
+
+================================================================================
+MESSAGES
+================================================================================
+
+[user]
+[text [cache: ephemeral]]
+Command: ls -la /Users/flakerimi/TMP/todo/
+Output: total 0
+drwxr-xr-x  2 flakerimi  staff   64 Feb 17 19:29 .
+drwxr-xr-x  4 flakerimi  staff  128 Feb 17 19:29 ..
+
+
+
+================================================================================
+EXTRA PARAMETERS
+================================================================================
+
+{
+  "max_tokens": 32000,
+  "temperature": 1,
+  "stream": true,
+  "metadata": {
+    "user_id": "user_080bdd5ed307156323f6997c27bc79be2957efe1ab7d3b507a138d2f53f27fbc_account_99f7d71d-3d28-4370-8331-28b96ccb1c98_session_754b6458-4a31-4186-b762-02bedf7af035"
+  }
+}

@@ -1,0 +1,72 @@
+Request #0
+Timestamp: 2026-02-23T16:08:41.240Z
+Method: POST
+URL: /v1/messages?beta=true
+Model: claude-haiku-4-5-20251001
+Type: topic_detection
+System prompt chars: 394
+Message chars: 2
+Tools count: 0
+
+================================================================================
+SYSTEM PROMPT
+================================================================================
+
+--- Block 0 (80 chars) ---
+x-anthropic-billing-header: cc_version=2.1.50.d4b; cc_entrypoint=cli; cch=159d1;
+
+--- Block 1 (57 chars) ---
+You are Claude Code, Anthropic's official CLI for Claude.
+
+--- Block 2 (257 chars) ---
+Analyze if this message indicates a new conversation topic. If it does, extract a 2-3 word title that captures the new topic. Format your response as a JSON object with two fields: 'isNewTopic' (boolean) and 'title' (string, or null if isNewTopic is false).
+
+================================================================================
+MESSAGES
+================================================================================
+
+[user]
+[text]
+Hi
+
+
+================================================================================
+EXTRA PARAMETERS
+================================================================================
+
+{
+  "max_tokens": 32000,
+  "temperature": 1,
+  "stream": true,
+  "output_config": {
+    "format": {
+      "type": "json_schema",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "isNewTopic": {
+            "type": "boolean"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "isNewTopic",
+          "title"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "metadata": {
+    "user_id": "user_080bdd5ed307156323f6997c27bc79be2957efe1ab7d3b507a138d2f53f27fbc_account__session_0348b251-762a-4be4-b2f4-f70a46883e1d"
+  }
+}

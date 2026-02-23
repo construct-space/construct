@@ -1,0 +1,2015 @@
+Request #139
+Timestamp: 2026-02-23T16:46:15.792Z
+Method: POST
+URL: /v1/messages?beta=true
+Model: claude-opus-4-6
+Type: main_chat
+System prompt chars: 2685
+Message chars: 4680
+Tools count: 21
+
+================================================================================
+SYSTEM PROMPT
+================================================================================
+
+--- Block 0 (80 chars) ---
+x-anthropic-billing-header: cc_version=2.1.50.f15; cc_entrypoint=cli; cch=b8934;
+
+--- Block 1 (57 chars) [cache: ephemeral] ---
+You are Claude Code, Anthropic's official CLI for Claude.
+
+--- Block 2 (2548 chars) [cache: ephemeral] ---
+You are an agent for Claude Code, Anthropic's official CLI for Claude. Given the user's message, you should use the tools available to complete the task. Do what has been asked; nothing more, nothing less. When you complete the task simply respond with a detailed writeup.
+
+Your strengths:
+- Searching for code, configurations, and patterns across large codebases
+- Analyzing multiple files to understand system architecture
+- Investigating complex questions that require exploring many files
+- Performing multi-step research tasks
+
+Guidelines:
+- For file searches: Use Grep or Glob when you need to search broadly. Use Read when you know the specific file path.
+- For analysis: Start broad and narrow down. Use multiple search strategies if the first doesn't yield results.
+- Be thorough: Check multiple locations, consider different naming conventions, look for related files.
+- NEVER create files unless they're absolutely necessary for achieving your goal. ALWAYS prefer editing an existing file to creating a new one.
+- NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested.
+- In your final response always share relevant file names and code snippets. Any file paths you return in your response MUST be absolute. Do NOT use relative paths.
+- For clear communication, avoid using emojis.
+
+Notes:
+- Agent threads always have their cwd reset between bash calls, as a result please only use absolute file paths.
+- In your final response always share relevant file names and code snippets. Any file paths you return in your response MUST be absolute. Do NOT use relative paths.
+- For clear communication with the user the assistant MUST avoid using emojis.
+- Do not use a colon before tool calls. Text like "Let me read the file:" followed by a read tool call should just be "Let me read the file." with a period.
+
+Here is useful information about the environment you are running in:
+<env>
+Working directory: /Users/flakerimi/TMP/todo
+Is directory a git repo: No
+Platform: darwin
+Shell: zsh
+OS Version: Darwin 25.3.0
+</env>
+You are powered by the model named Opus 4.6. The exact model ID is claude-opus-4-6.
+
+Assistant knowledge cutoff is May 2025.
+
+<claude_background_info>
+The most recent frontier Claude model is Claude Opus 4.6 (model ID: 'claude-opus-4-6').
+</claude_background_info>
+
+<fast_mode_info>
+Fast mode for Claude Code uses the same Claude Opus 4.6 model with faster output. It does NOT switch to a different model. It can be toggled with /fast.
+</fast_mode_info>
+
+================================================================================
+MESSAGES
+================================================================================
+
+[user]
+[text]
+<system-reminder>
+As you answer the user's questions, you can use the following context:
+# claudeMd
+Codebase and user instructions are shown below. Be sure to adhere to these instructions. IMPORTANT: These instructions OVERRIDE any default behavior and you MUST follow them exactly as written.
+
+Contents of /Users/flakerimi/.claude/CLAUDE.md (user's private global instructions for all projects):
+
+# NEVER add Co-Authored-By to commits. No co-author lines from Claude, Codex, or any AI. Ever.
+# NEVER, EVER delete any thing without confiming, even if BYPASSED PERMISSIONS is on. NEVER. NEVER.
+# ALWAYS confirm with the user before deleting any thing.
+# If the user requests deletion of files or data, ALWAYS confirm the request explicitly.
+# ALWAS TELL THE USER that this is NOT git repository, so if we delete files, they will be permanently deleted.
+# ALWAYS ask user if they want to create a git repo and commit to GitHub before making significant changes, so we don't lose work.
+
+# BEFORE any rm/delete command:
+# - ALWAYS run `ls` first to see what actually exists in the directory
+# - NEVER assume a directory is empty, even if you think you just created it
+# - Show the user what will be deleted and get explicit confirmation
+
+# BEFORE creating a directory or project:
+# - ALWAYS check if a directory with that name already exists using `ls`
+# - If it exists, ask the user what to do - DO NOT overwrite or delete
+
+# When instructions are ambiguous (like "run from X" or "use X"):
+# - ASK for clarification before taking destructive action
+# - Never guess - destructive actions are irreversible
+
+# NEVER chain rm with other commands (like `rm -rf X && mkdir Y`)
+# - Do them separately so each step can be verified
+
+# Instead of `rm`, use `trash` command - moves files to user trash folder instead of permanent deletion
+# - `trash file.txt` instead of `rm file.txt`
+# - `trash -r directory` instead of `rm -rf directory`
+# - This allows recovery from the system Trash if needed
+
+# NEVER dismiss warnings/errors as "pre-existing" or "not from our changes".
+# ALWAYS fix ALL warnings and errors you encounter, regardless of whether you introduced them.
+# No excuses - just fix them.
+
+# BEFORE running release, deploy, build, or any repetitive workflow:
+# - ALWAYS check for existing .sh scripts first (release.sh, deploy.sh, build.sh, etc.)
+# - Use `ls *.sh` or `glob **/*.sh` in the project root
+# - If a script exists for the task, USE IT instead of doing steps manually
+# - Scripts contain the correct sequence of steps (version bumps, changelog, tagging, etc.)
+# - Doing it manually risks missing steps (like updating version.dart)
+
+# NEVER invent fictional URLs, repos, links, or external references.
+# ALWAYS verify that URLs and external resources actually exist BEFORE using them.
+# If you don't have a verified URL, ask the user or mark it as placeholder/coming soon.
+# currentDate
+Today's date is 2026-02-23.
+
+      IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.
+</system-reminder>
+
+
+[text]
+Do a thorough security review of ALL code files in the Duxt/Dart todo API project at /Users/flakerimi/TMP/todo/. Focus on the server-side code:
+
+Files to review:
+- server/api/auth.dart
+- server/api/todos.dart
+- server/middleware/auth_middleware.dart
+- server/utils/password.dart
+- server/utils/session_manager.dart
+- server/main.dart
+- server/db.dart
+- lib/models/user.dart
+- lib/models/todo.dart
+- lib/models/session.dart
+- pubspec.yaml
+
+Check for these categories of security issues:
+1. Authentication/Authorization flaws (session management, cookie handling, password storage)
+2. Input validation gaps (missing validation, type confusion, injection)
+3. Information leakage (error messages, timing attacks, stack traces)
+4. OWASP Top 10 issues (injection, broken auth, sensitive data exposure, XSS, etc.)
+5. Session management issues (fixation, expiry, cookie flags)
+6. Race conditions or concurrency issues
+7. Missing security headers or CORS misconfiguration
+8. Dependency security concerns
+
+For each issue found, note:
+- File and line number
+- Severity (Critical/High/Medium/Low/Info)
+- Description of the vulnerability
+- Recommended fix
+
+Be thorough — check every file. This is a READ-ONLY task, do not modify any files.
+
+
+[assistant]
+[text]
+
+
+I'll perform a thorough security review of all the specified files. Let me start by reading every file in parallel.
+
+[tool_use: Read]
+{
+  "file_path": "/Users/flakerimi/TMP/todo/server/api/auth.dart"
+}
+
+[tool_use: Read]
+{
+  "file_path": "/Users/flakerimi/TMP/todo/server/api/todos.dart"
+}
+
+[tool_use: Read]
+{
+  "file_path": "/Users/flakerimi/TMP/todo/server/middleware/auth_middleware.dart"
+}
+
+[tool_use: Read]
+{
+  "file_path": "/Users/flakerimi/TMP/todo/server/utils/password.dart"
+}
+
+[tool_use: Read]
+{
+  "file_path": "/Users/flakerimi/TMP/todo/server/utils/session_manager.dart"
+}
+
+[tool_use: Read]
+{
+  "file_path": "/Users/flakerimi/TMP/todo/server/main.dart"
+}
+
+[tool_use: Read]
+{
+  "file_path": "/Users/flakerimi/TMP/todo/server/db.dart"
+}
+
+[tool_use: Read]
+{
+  "file_path": "/Users/flakerimi/TMP/todo/lib/models/user.dart"
+}
+
+[tool_use: Read]
+{
+  "file_path": "/Users/flakerimi/TMP/todo/lib/models/todo.dart"
+}
+
+[tool_use: Read]
+{
+  "file_path": "/Users/flakerimi/TMP/todo/lib/models/session.dart"
+}
+
+[tool_use: Read]
+{
+  "file_path": "/Users/flakerimi/TMP/todo/pubspec.yaml"
+}
+
+
+[user]
+[tool_result: toolu_01GyeBWV5beH1b69q2wMPqFq]
+     1→import 'package:duxt/server.dart';
+     2→import 'package:todo/models/user.dart';
+     3→import '../middleware/auth_middleware.dart';
+     4→import '../utils/password.dart';
+     5→import '../utils/session_manager.dart';
+     6→
+     7→const _cookieFlags = 'HttpOnly; SameSite=Strict; Path=/; Max-Age=86400';
+     8→
+     9→void registerAuthApi(DuxtServer server) {
+    10→  // POST /api/auth/register
+    11→  server.post('/api/auth/register', (req) async {
+    12→    final body = req.body as Map<String, dynamic>?;
+    13→    if (body == null) {
+    14→      return json({'error': 'Request body required'}, statusCode: 400);
+    15→    }
+    16→
+    17→    final email = (body['email'] as String?)?.trim();
+    18→    final password = body['password'] as String?;
+    19→    final name = (body['name'] as String?)?.trim();
+    20→
+    21→    if (email == null || email.isEmpty) {
+    22→      return json({'error': 'Email is required'}, statusCode: 400);
+    23→    }
+    24→    if (password == null || password.length < 6) {
+    25→      return json({'error': 'Password must be at least 6 characters'},
+    26→          statusCode: 400);
+    27→    }
+    28→    if (name == null || name.isEmpty) {
+    29→      return json({'error': 'Name is required'}, statusCode: 400);
+    30→    }
+    31→
+    32→    // Check for existing user
+    33→    final existing = await User.findByEmail(email);
+    34→    if (existing != null) {
+    35→      return json({'error': 'Email already registered'}, statusCode: 409);
+    36→    }
+    37→
+    38→    // Create user
+    39→    final hashedPassword = PasswordHelper.hash(password);
+    40→    final user = User(
+    41→      email: email,
+    42→      password: hashedPassword,
+    43→      name: name,
+    44→    );
+    45→    await user.save();
+    46→
+    47→    // Create session
+    48→    final token = await SessionManager.createSession(user.id as int);
+    49→
+    50→    return json(
+    51→      {'user': user.toSafeMap()},
+    52→      statusCode: 201,
+    53→      headers: {'Set-Cookie': 'session_token=$token; $_cookieFlags'},
+    54→    );
+    55→  });
+    56→
+    57→  // POST /api/auth/login
+    58→  server.post('/api/auth/login', (req) async {
+    59→    final body = req.body as Map<String, dynamic>?;
+    60→    if (body == null) {
+    61→      return json({'error': 'Request body required'}, statusCode: 400);
+    62→    }
+    63→
+    64→    final email = (body['email'] as String?)?.trim();
+    65→    final password = body['password'] as String?;
+    66→
+    67→    if (email == null ||
+    68→        email.isEmpty ||
+    69→        password == null ||
+    70→        password.isEmpty) {
+    71→      return json({'error': 'Email and password are required'},
+    72→          statusCode: 400);
+    73→    }
+    74→
+    75→    final user = await User.findByEmail(email);
+    76→    if (user == null || !PasswordHelper.verify(password, user.password)) {
+    77→      return json({'error': 'Invalid email or password'}, statusCode: 401);
+    78→    }
+    79→
+    80→    final token = await SessionManager.createSession(user.id as int);
+    81→
+    82→    return json(
+    83→      {'user': user.toSafeMap()},
+    84→      headers: {'Set-Cookie': 'session_token=$token; $_cookieFlags'},
+    85→    );
+    86→  });
+    87→
+    88→  // POST /api/auth/logout
+    89→  server.post('/api/auth/logout', (req) async {
+    90→    final user = await getAuthUser(req);
+    91→    if (user == null) {
+    92→      return json({'error': 'Authentication required'}, statusCode: 401);
+    93→    }
+    94→
+    95→    final cookieHeader = req.headers['cookie'] ?? '';
+    96→    final token = extractCookie(cookieHeader, 'session_token');
+    97→    if (token != null) {
+    98→      await SessionManager.deleteSession(token);
+    99→    }
+   100→
+   101→    return json(
+   102→      {'message': 'Logged out'},
+   103→      headers: {
+   104→        'Set-Cookie':
+   105→            'session_token=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'
+   106→      },
+   107→    );
+   108→  });
+   109→
+   110→  // GET /api/auth/me
+   111→  server.get('/api/auth/me', (req) async {
+   112→    final user = await getAuthUser(req);
+   113→    if (user == null) {
+   114→      return json({'error': 'Authentication required'}, statusCode: 401);
+   115→    }
+   116→
+   117→    return json({'user': user.toSafeMap()});
+   118→  });
+   119→}
+   120→
+
+[tool_result: toolu_011x7sku64BnfWYTiCKKhrYe]
+     1→import 'package:duxt/server.dart';
+     2→import 'package:duxt_orm/duxt_orm.dart';
+     3→import 'package:todo/models/todo.dart';
+     4→import '../middleware/auth_middleware.dart';
+     5→
+     6→void registerTodoApi(DuxtServer server) {
+     7→  // GET /api/todos - List current user's todos
+     8→  server.get('/api/todos', (req) async {
+     9→    final user = await getAuthUser(req);
+    10→    if (user == null) {
+    11→      return json({'error': 'Authentication required'}, statusCode: 401);
+    12→    }
+    13→
+    14→    final todos = await Model<Todo>()
+    15→        .query()
+    16→        .where('user_id', user.id)
+    17→        .orderByDesc('created_at')
+    18→        .get();
+    19→
+    20→    return json({'todos': todos.map((t) => t.toJson()).toList()});
+    21→  });
+    22→
+    23→  // POST /api/todos - Create a todo
+    24→  server.post('/api/todos', (req) async {
+    25→    final user = await getAuthUser(req);
+    26→    if (user == null) {
+    27→      return json({'error': 'Authentication required'}, statusCode: 401);
+    28→    }
+    29→
+    30→    final body = req.body as Map<String, dynamic>?;
+    31→    if (body == null) {
+    32→      return json({'error': 'Request body required'}, statusCode: 400);
+    33→    }
+    34→
+    35→    final title = (body['title'] as String?)?.trim();
+    36→    if (title == null || title.isEmpty) {
+    37→      return json({'error': 'Title is required'}, statusCode: 400);
+    38→    }
+    39→
+    40→    final todo = Todo(
+    41→      title: title,
+    42→      completed: body['completed'] as bool? ?? false,
+    43→      userId: user.id as int,
+    44→    );
+    45→    await todo.save();
+    46→
+    47→    return json({'todo': todo.toJson()}, statusCode: 201);
+    48→  });
+    49→
+    50→  // GET /api/todos/:id - Get a single todo
+    51→  server.get('/api/todos/:id', (req) async {
+    52→    final user = await getAuthUser(req);
+    53→    if (user == null) {
+    54→      return json({'error': 'Authentication required'}, statusCode: 401);
+    55→    }
+    56→
+    57→    final id = int.tryParse(req.params['id'] ?? '');
+    58→    if (id == null) {
+    59→      return json({'error': 'Invalid ID'}, statusCode: 400);
+    60→    }
+    61→
+    62→    final todo = await Model<Todo>().find(id);
+    63→    if (todo == null || todo.userId != user.id) {
+    64→      return json({'error': 'Todo not found'}, statusCode: 404);
+    65→    }
+    66→
+    67→    return json({'todo': todo.toJson()});
+    68→  });
+    69→
+    70→  // PUT /api/todos/:id - Update a todo
+    71→  server.put('/api/todos/:id', (req) async {
+    72→    final user = await getAuthUser(req);
+    73→    if (user == null) {
+    74→      return json({'error': 'Authentication required'}, statusCode: 401);
+    75→    }
+    76→
+    77→    final id = int.tryParse(req.params['id'] ?? '');
+    78→    if (id == null) {
+    79→      return json({'error': 'Invalid ID'}, statusCode: 400);
+    80→    }
+    81→
+    82→    final todo = await Model<Todo>().find(id);
+    83→    if (todo == null || todo.userId != user.id) {
+    84→      return json({'error': 'Todo not found'}, statusCode: 404);
+    85→    }
+    86→
+    87→    final body = req.body as Map<String, dynamic>?;
+    88→    if (body == null) {
+    89→      return json({'error': 'Request body required'}, statusCode: 400);
+    90→    }
+    91→
+    92→    todo.title = (body['title'] as String?)?.trim() ?? todo.title;
+    93→    todo.completed = body['completed'] as bool? ?? todo.completed;
+    94→
+    95→    await todo.save();
+    96→    return json({'todo': todo.toJson()});
+    97→  });
+    98→
+    99→  // DELETE /api/todos/:id - Delete a todo
+   100→  server.delete('/api/todos/:id', (req) async {
+   101→    final user = await getAuthUser(req);
+   102→    if (user == null) {
+   103→      return json({'error': 'Authentication required'}, statusCode: 401);
+   104→    }
+   105→
+   106→    final id = int.tryParse(req.params['id'] ?? '');
+   107→    if (id == null) {
+   108→      return json({'error': 'Invalid ID'}, statusCode: 400);
+   109→    }
+   110→
+   111→    final todo = await Model<Todo>().find(id);
+   112→    if (todo == null || todo.userId != user.id) {
+   113→      return json({'error': 'Todo not found'}, statusCode: 404);
+   114→    }
+   115→
+   116→    await todo.forceDelete();
+   117→    return json({'message': 'Todo deleted'});
+   118→  });
+   119→}
+   120→
+
+[tool_result: toolu_01TGBrWKsBksjRbpRrciXkai]
+     1→import 'package:shelf/shelf.dart';
+     2→import 'package:todo/models/user.dart';
+     3→import '../utils/session_manager.dart';
+     4→
+     5→/// Extracts the session_token cookie, validates the session, and returns
+     6→/// the authenticated User or null if invalid.
+     7→Future<User?> getAuthUser(Request req) async {
+     8→  final cookieHeader = req.headers['cookie'] ?? '';
+     9→  final token = extractCookie(cookieHeader, 'session_token');
+    10→
+    11→  if (token == null || token.isEmpty) return null;
+    12→
+    13→  return SessionManager.getUserFromToken(token);
+    14→}
+    15→
+    16→String? extractCookie(String cookieHeader, String name) {
+    17→  final cookies = cookieHeader.split(';');
+    18→  for (final cookie in cookies) {
+    19→    final parts = cookie.trim().split('=');
+    20→    if (parts.length == 2 && parts[0].trim() == name) {
+    21→      return parts[1].trim();
+    22→    }
+    23→  }
+    24→  return null;
+    25→}
+    26→
+
+[tool_result: toolu_018RCa3Nq5cG8cnMwikUy52X]
+     1→import 'package:dbcrypt/dbcrypt.dart';
+     2→
+     3→class PasswordHelper {
+     4→  static final _bcrypt = DBCrypt();
+     5→
+     6→  static String hash(String password) {
+     7→    final salt = _bcrypt.gensaltWithRounds(12);
+     8→    return _bcrypt.hashpw(password, salt);
+     9→  }
+    10→
+    11→  static bool verify(String password, String hashed) {
+    12→    return _bcrypt.checkpw(password, hashed);
+    13→  }
+    14→}
+    15→
+
+[tool_result: toolu_01NMG4DaFCbZjzbWWyWzk4By]
+     1→import 'package:duxt_orm/duxt_orm.dart';
+     2→import 'package:uuid/uuid.dart';
+     3→import 'package:todo/models/session.dart';
+     4→import 'package:todo/models/user.dart';
+     5→
+     6→class SessionManager {
+     7→  static const _sessionDuration = Duration(hours: 24);
+     8→  static final _uuid = Uuid();
+     9→
+    10→  /// Creates a new session for the given user ID and returns the token.
+    11→  static Future<String> createSession(int userId) async {
+    12→    final token = _uuid.v4();
+    13→    final expiresAt = DateTime.now().add(_sessionDuration).toIso8601String();
+    14→
+    15→    final session = Session(
+    16→      token: token,
+    17→      userId: userId,
+    18→      expiresAt: expiresAt,
+    19→    );
+    20→    await session.save();
+    21→
+    22→    return token;
+    23→  }
+    24→
+    25→  /// Looks up a session by token and returns the associated User, or null.
+    26→  static Future<User?> getUserFromToken(String token) async {
+    27→    final session =
+    28→        await Model<Session>().query().where('token', token).first();
+    29→
+    30→    if (session == null || session.isExpired) {
+    31→      // Clean up expired session
+    32→      if (session != null) await session.forceDelete();
+    33→      return null;
+    34→    }
+    35→
+    36→    return Model<User>().find(session.userId);
+    37→  }
+    38→
+    39→  /// Deletes a session by token (logout).
+    40→  static Future<void> deleteSession(String token) async {
+    41→    final session =
+    42→        await Model<Session>().query().where('token', token).first();
+    43→    if (session != null) {
+    44→      await session.forceDelete();
+    45→    }
+    46→  }
+    47→}
+    48→
+
+[tool_result: toolu_01WopoLuBTTGdrBihiaD6W2a]
+     1→import 'dart:io';
+     2→import 'package:duxt/server.dart';
+     3→import 'db.dart';
+     4→import 'api/auth.dart';
+     5→import 'api/todos.dart';
+     6→
+     7→void main() async {
+     8→  // Initialize ORM and run migrations
+     9→  await Db.init();
+    10→
+    11→  final port = int.tryParse(Platform.environment['PORT'] ?? '') ?? 3001;
+    12→
+    13→  final server = DuxtServer(
+    14→    port: port,
+    15→    middleware: [
+    16→      securityHeaders(),
+    17→      bodyLimit(),
+    18→      cors(origins: ['http://localhost:4000']),
+    19→      jsonBody(),
+    20→      logger(),
+    21→    ],
+    22→  );
+    23→
+    24→  // Register API routes
+    25→  registerAuthApi(server);
+    26→  registerTodoApi(server);
+    27→
+    28→  server.start();
+    29→}
+    30→
+
+[tool_result: toolu_017saztRXaUFJsnCZd9KDeWX]
+     1→import 'dart:io';
+     2→import 'package:duxt_orm/duxt_orm.dart';
+     3→import 'package:todo/models/post.dart';
+     4→import 'package:todo/models/user.dart';
+     5→import 'package:todo/models/todo.dart';
+     6→import 'package:todo/models/session.dart';
+     7→
+     8→class Db {
+     9→  static Future<void> init() async {
+    10→    // Register models
+    11→    Post.register();
+    12→    User.register();
+    13→    Todo.register();
+    14→    Session.register();
+    15→
+    16→    // Initialize ORM with SQLite
+    17→    final dataDir = Platform.environment['DATA_DIR'] ?? '.';
+    18→    await DuxtOrm.init((
+    19→      driver: 'sqlite',
+    20→      host: '',
+    21→      port: 0,
+    22→      database: '',
+    23→      username: '',
+    24→      password: '',
+    25→      path: '$dataDir/app.db',
+    26→      ssl: false,
+    27→    ));
+    28→
+    29→    // Run migrations (creates tables)
+    30→    await DuxtOrm.migrate();
+    31→  }
+    32→}
+    33→
+
+[tool_result: toolu_018q2QbyfN8Ty1QANWiR9boE]
+     1→import 'package:duxt_orm/duxt_orm.dart';
+     2→
+     3→class User extends Entity {
+     4→  int? _id;
+     5→  String email;
+     6→  String password;
+     7→  String name;
+     8→  DateTime? createdAt;
+     9→
+    10→  User({
+    11→    int? id,
+    12→    required this.email,
+    13→    required this.password,
+    14→    required this.name,
+    15→    this.createdAt,
+    16→  }) : _id = id;
+    17→
+    18→  @override
+    19→  dynamic get id => _id;
+    20→
+    21→  @override
+    22→  set id(dynamic value) => _id = value as int?;
+    23→
+    24→  @override
+    25→  Map<String, dynamic> toMap() => {
+    26→        'email': email,
+    27→        'password': password,
+    28→        'name': name,
+    29→      };
+    30→
+    31→  /// Returns user data without the password hash.
+    32→  Map<String, dynamic> toSafeMap() => {
+    33→        'id': id,
+    34→        'email': email,
+    35→        'name': name,
+    36→        'created_at': createdAt?.toIso8601String(),
+    37→      };
+    38→
+    39→  factory User.fromRow(Map<String, dynamic> row) => User(
+    40→        id: row['id'] as int?,
+    41→        email: row['email'] as String,
+    42→        password: row['password'] as String,
+    43→        name: row['name'] as String,
+    44→        createdAt: row['created_at'] != null
+    45→            ? DateTime.tryParse(row['created_at'] as String)
+    46→            : null,
+    47→      );
+    48→
+    49→  static void register() {
+    50→    Entity.registerModel<User>(
+    51→      User.fromRow,
+    52→      schema: {
+    53→        'id': Column.integer().primaryKey().autoIncrement(),
+    54→        'email': Column.string(255).notNull().unique(),
+    55→        'password': Column.string(255).notNull(),
+    56→        'name': Column.string(100).notNull(),
+    57→        'created_at': Column.dateTime().nullable(),
+    58→        'updated_at': Column.dateTime().nullable(),
+    59→      },
+    60→    );
+    61→  }
+    62→
+    63→  static Future<User?> findByEmail(String email) async {
+    64→    return Model<User>().query().where('email', email).first();
+    65→  }
+    66→}
+    67→
+
+[tool_result: toolu_013vQnttb5K7AfYxo9YuCvD9]
+     1→import 'package:duxt_orm/duxt_orm.dart';
+     2→
+     3→class Todo extends Entity {
+     4→  int? _id;
+     5→  String title;
+     6→  bool completed;
+     7→  int userId;
+     8→  DateTime? createdAt;
+     9→
+    10→  Todo({
+    11→    int? id,
+    12→    required this.title,
+    13→    this.completed = false,
+    14→    required this.userId,
+    15→    this.createdAt,
+    16→  }) : _id = id;
+    17→
+    18→  @override
+    19→  dynamic get id => _id;
+    20→
+    21→  @override
+    22→  set id(dynamic value) => _id = value as int?;
+    23→
+    24→  @override
+    25→  Map<String, dynamic> toMap() => {
+    26→        'title': title,
+    27→        'completed': completed ? 1 : 0,
+    28→        'user_id': userId,
+    29→      };
+    30→
+    31→  Map<String, dynamic> toJson() => {
+    32→        'id': id,
+    33→        'title': title,
+    34→        'completed': completed,
+    35→        'user_id': userId,
+    36→        'created_at': createdAt?.toIso8601String(),
+    37→      };
+    38→
+    39→  factory Todo.fromRow(Map<String, dynamic> row) => Todo(
+    40→        id: row['id'] as int?,
+    41→        title: row['title'] as String,
+    42→        completed: (row['completed'] as int?) == 1,
+    43→        userId: row['user_id'] as int,
+    44→        createdAt: row['created_at'] != null
+    45→            ? DateTime.tryParse(row['created_at'] as String)
+    46→            : null,
+    47→      );
+    48→
+    49→  static void register() {
+    50→    Entity.registerModel<Todo>(
+    51→      Todo.fromRow,
+    52→      schema: {
+    53→        'id': Column.integer().primaryKey().autoIncrement(),
+    54→        'title': Column.string(255).notNull(),
+    55→        'completed': Column.boolean().defaultValue(false),
+    56→        'user_id': Column.integer().notNull().references('users'),
+    57→        'created_at': Column.dateTime().nullable(),
+    58→        'updated_at': Column.dateTime().nullable(),
+    59→      },
+    60→    );
+    61→  }
+    62→}
+    63→
+
+[tool_result: toolu_01GqQSn1FFZwydrLFNMLRjv5]
+     1→import 'package:duxt_orm/duxt_orm.dart';
+     2→
+     3→class Session extends Entity {
+     4→  int? _id;
+     5→  String token;
+     6→  int userId;
+     7→  String expiresAt;
+     8→
+     9→  Session({
+    10→    int? id,
+    11→    required this.token,
+    12→    required this.userId,
+    13→    required this.expiresAt,
+    14→  }) : _id = id;
+    15→
+    16→  @override
+    17→  dynamic get id => _id;
+    18→
+    19→  @override
+    20→  set id(dynamic value) => _id = value as int?;
+    21→
+    22→  bool get isExpired {
+    23→    final expiry = DateTime.tryParse(expiresAt);
+    24→    if (expiry == null) return true;
+    25→    return DateTime.now().isAfter(expiry);
+    26→  }
+    27→
+    28→  @override
+    29→  Map<String, dynamic> toMap() => {
+    30→        'token': token,
+    31→        'user_id': userId,
+    32→        'expires_at': expiresAt,
+    33→      };
+    34→
+    35→  factory Session.fromRow(Map<String, dynamic> row) => Session(
+    36→        id: row['id'] as int?,
+    37→        token: row['token'] as String,
+    38→        userId: row['user_id'] as int,
+    39→        expiresAt: row['expires_at'] as String,
+    40→      );
+    41→
+    42→  static void register() {
+    43→    Entity.registerModel<Session>(
+    44→      Session.fromRow,
+    45→      schema: {
+    46→        'id': Column.integer().primaryKey().autoIncrement(),
+    47→        'token': Column.string(255).notNull().unique(),
+    48→        'user_id': Column.integer().notNull().references('users'),
+    49→        'expires_at': Column.dateTime().notNull(),
+    50→        'created_at': Column.dateTime().nullable(),
+    51→        'updated_at': Column.dateTime().nullable(),
+    52→      },
+    53→    );
+    54→  }
+    55→}
+    56→
+
+[tool_result: toolu_01VWhs9cGRicd4Nu48v5KdV3]
+1→name: todo
+     2→description: A Duxt project
+     3→version: 0.1.0
+     4→publish_to: none
+     5→
+     6→environment:
+     7→  sdk: ^3.0.0
+     8→
+     9→dependencies:
+    10→  jaspr:
+    11→  jaspr_router:
+    12→  duxt:
+    13→  duxt_html:
+    14→  duxt_orm:
+    15→  sqlite3:
+    16→  dbcrypt: ^2.0.0
+    17→  uuid: ^4.0.0
+    18→
+    19→dev_dependencies:
+    20→  build_runner:
+    21→  build_web_compilers:
+    22→  jaspr_builder:
+    23→  lints:
+    24→
+    25→jaspr:
+    26→  mode: server
+    27→
+
+<system-reminder>
+The task tools haven't been used recently. If you're working on tasks that would benefit from tracking progress, consider using TaskCreate to add new tasks and TaskUpdate to update task status (set to in_progress when starting, completed when done). Also consider cleaning up the task list if it has become stale. Only use these if relevant to the current work. This is just a gentle reminder - ignore if not applicable. Make sure that you NEVER mention this reminder to the user
+
+</system-reminder>
+
+
+[assistant]
+[text]
+Now let me check if there are any additional files I should look at, such as configuration files or other server-side code.
+
+[tool_use: Glob]
+{
+  "pattern": "**/*.dart",
+  "path": "/Users/flakerimi/TMP/todo"
+}
+
+[tool_use: Glob]
+{
+  "pattern": "**/*.yaml",
+  "path": "/Users/flakerimi/TMP/todo"
+}
+
+[tool_use: Glob]
+{
+  "pattern": "**/*.lock",
+  "path": "/Users/flakerimi/TMP/todo"
+}
+
+
+[user]
+[tool_result: toolu_01DPwdHNsviA7jjvUVHbm4vy]
+/Users/flakerimi/TMP/todo/duxt.config.dart
+/Users/flakerimi/TMP/todo/lib/app.dart
+/Users/flakerimi/TMP/todo/lib/main.client.dart
+/Users/flakerimi/TMP/todo/lib/main.server.dart
+/Users/flakerimi/TMP/todo/lib/shared/layouts/default.dart
+/Users/flakerimi/TMP/todo/lib/home/pages/index.dart
+/Users/flakerimi/TMP/todo/lib/blog/pages/index.dart
+/Users/flakerimi/TMP/todo/lib/blog/pages/_slug_.dart
+/Users/flakerimi/TMP/todo/lib/models/post.dart
+/Users/flakerimi/TMP/todo/server/api/posts.dart
+/Users/flakerimi/TMP/todo/.dart_tool/build/entrypoint/build.dart
+/Users/flakerimi/TMP/todo/lib/main.server.options.dart
+/Users/flakerimi/TMP/todo/lib/main.client.options.dart
+/Users/flakerimi/TMP/todo/.dart_tool/build/generated/todo/web/main.client.dart
+/Users/flakerimi/TMP/todo/lib/models/user.dart
+/Users/flakerimi/TMP/todo/lib/models/todo.dart
+/Users/flakerimi/TMP/todo/lib/models/session.dart
+/Users/flakerimi/TMP/todo/server/utils/password.dart
+/Users/flakerimi/TMP/todo/server/utils/session_manager.dart
+/Users/flakerimi/TMP/todo/server/db.dart
+/Users/flakerimi/TMP/todo/server/main.dart
+/Users/flakerimi/TMP/todo/server/middleware/auth_middleware.dart
+/Users/flakerimi/TMP/todo/server/api/auth.dart
+/Users/flakerimi/TMP/todo/server/api/todos.dart
+
+[tool_result: toolu_01JqyZu41wAvDKuBQRBwZjrV]
+/Users/flakerimi/TMP/todo/build.yaml
+/Users/flakerimi/TMP/todo/pubspec.yaml
+
+[tool_result: toolu_016Jw5kgLHi7UHdSVgV7uvJn]
+/Users/flakerimi/TMP/todo/pubspec.lock
+
+
+[assistant]
+[text]
+Let me also check the posts API (another server endpoint) and the duxt config for any security-relevant configuration.
+
+[tool_use: Read]
+{
+  "file_path": "/Users/flakerimi/TMP/todo/server/api/posts.dart"
+}
+
+[tool_use: Read]
+{
+  "file_path": "/Users/flakerimi/TMP/todo/duxt.config.dart"
+}
+
+[tool_use: Read]
+{
+  "file_path": "/Users/flakerimi/TMP/todo/build.yaml"
+}
+
+[tool_use: Read]
+{
+  "file_path": "/Users/flakerimi/TMP/todo/pubspec.lock"
+}
+
+
+[user]
+[tool_result: toolu_01GYj7V3LyRNnJDqDR8WzxUL]
+     1→import 'package:duxt/server.dart';
+     2→import 'package:duxt_orm/duxt_orm.dart';
+     3→import 'package:todo/models/post.dart';
+     4→
+     5→void registerPostRoutes(DuxtServer server) {
+     6→  // GET /api/posts - List all published posts
+     7→  server.get('/api/posts', (req) async {
+     8→    final posts = await Post.findAll(publishedOnly: true);
+     9→    return json({'posts': posts.map((p) => p.toJson()).toList()});
+    10→  });
+    11→
+    12→  // GET /api/posts/:slug - Get single post by slug
+    13→  server.get('/api/posts/:slug', (req) async {
+    14→    final slug = req.params['slug'];
+    15→    if (slug == null) return json({'error': 'Slug required'}, statusCode: 400);
+    16→
+    17→    final post = await Post.findBySlug(slug);
+    18→    if (post == null) return json({'error': 'Not found'}, statusCode: 404);
+    19→
+    20→    return json({'post': post.toJson()});
+    21→  });
+    22→
+    23→  // POST /api/posts - Create new post
+    24→  server.post('/api/posts', (req) async {
+    25→    final body = req.body as Map<String, dynamic>?;
+    26→    if (body == null) return json({'error': 'Body required'}, statusCode: 400);
+    27→
+    28→    try {
+    29→      final post = Post.fromJson(body);
+    30→      await post.save();
+    31→      return json({'post': post.toJson()}, statusCode: 201);
+    32→    } catch (e) {
+    33→      print('Create failed: $e');
+    34→      return json({'error': 'Invalid request data'}, statusCode: 400);
+    35→    }
+    36→  });
+    37→
+    38→  // PUT /api/posts/:id - Update post
+    39→  server.put('/api/posts/:id', (req) async {
+    40→    final id = int.tryParse(req.params['id'] ?? '');
+    41→    if (id == null) return json({'error': 'Invalid ID'}, statusCode: 400);
+    42→
+    43→    final body = req.body as Map<String, dynamic>?;
+    44→    if (body == null) return json({'error': 'Body required'}, statusCode: 400);
+    45→
+    46→    final post = await Model<Post>().find(id);
+    47→    if (post == null) return json({'error': 'Not found'}, statusCode: 404);
+    48→
+    49→    // Update fields
+    50→    post.title = body['title'] as String? ?? post.title;
+    51→    post.slug = body['slug'] as String? ?? post.slug;
+    52→    post.content = body['content'] as String? ?? post.content;
+    53→    post.excerpt = body['excerpt'] as String? ?? post.excerpt;
+    54→    post.published = body['published'] as bool? ?? post.published;
+    55→
+    56→    await post.save();
+    57→    return json({'post': post.toJson()});
+    58→  });
+    59→
+    60→  // DELETE /api/posts/:id - Delete post
+    61→  server.delete('/api/posts/:id', (req) async {
+    62→    final id = int.tryParse(req.params['id'] ?? '');
+    63→    if (id == null) return json({'error': 'Invalid ID'}, statusCode: 400);
+    64→
+    65→    final post = await Model<Post>().find(id);
+    66→    if (post == null) return json({'error': 'Not found'}, statusCode: 404);
+    67→
+    68→    await post.destroy();
+    69→    return json({'success': true});
+    70→  });
+    71→}
+    72→
+
+[tool_result: toolu_01A8gqFgKwQfBXhMqwFkD2tN]
+     1→/// Duxt application configuration.
+     2→///
+     3→/// Central config file for your Duxt project. All application settings
+     4→/// live here: app metadata, rendering mode, API base, server port, and
+     5→/// database connection. Values use String.fromEnvironment so you can
+     6→/// set defaults for development and override via environment variables
+     7→/// in production.
+     8→///
+     9→/// Usage: import this file and access DuxtConfig.* anywhere in your app.
+    10→/// Docs: https://duxt.dev/duxt/configuration
+    11→class DuxtConfig {
+    12→  static const app = (
+    13→    name: 'todo',
+    14→    description: 'A Duxt application',
+    15→  );
+    16→
+    17→  /// Rendering mode: 'static', 'server', 'client'
+    18→  static const String mode = 'server';
+    19→
+    20→  /// API base URL
+    21→  static const String apiBase = '/api';
+    22→
+    23→  /// Development server port
+    24→  static const int port = 3000;
+    25→
+    26→  /// Database configuration — passed to DuxtOrm.init(DuxtConfig.database).
+    27→  /// Defaults to SQLite. Set environment variables to switch:
+    28→  ///
+    29→  /// MySQL:
+    30→  ///   DB_DRIVER=mysql DB_HOST=localhost DB_PORT=3306 DB_NAME=todo DB_USER=root DB_PASS=secret duxt dev
+    31→  ///
+    32→  /// PostgreSQL:
+    33→  ///   DB_DRIVER=postgres DB_HOST=localhost DB_PORT=5432 DB_NAME=todo DB_USER=postgres DB_PASS=secret duxt dev
+    34→  static const database = (
+    35→    driver: String.fromEnvironment('DB_DRIVER', defaultValue: 'sqlite'),
+    36→    host: String.fromEnvironment('DB_HOST', defaultValue: 'localhost'),
+    37→    port: int.fromEnvironment('DB_PORT', defaultValue: 5432),
+    38→    database: String.fromEnvironment('DB_NAME', defaultValue: 'todo'),
+    39→    username: String.fromEnvironment('DB_USER', defaultValue: ''),
+    40→    password: String.fromEnvironment('DB_PASS', defaultValue: ''),
+    41→    path: String.fromEnvironment('DB_PATH', defaultValue: 'data/todo.db'),
+    42→    ssl: bool.fromEnvironment('DB_SSL', defaultValue: false),
+    43→  );
+    44→}
+    45→
+
+[tool_result: toolu_017A12YQiXsFok3aLA3P5nrU]
+     1→targets:
+     2→  $default:
+     3→    builders:
+     4→      # Scope Jaspr module builders to lib/ only — the heavy ones (3000+ inputs → ~100)
+     5→      jaspr_builder|codec_module:
+     6→        generate_for:
+     7→          include:
+     8→            - lib/**/*.dart
+     9→          exclude:
+    10→            - lib/.generated/**
+    11→      jaspr_builder|styles_module:
+    12→        generate_for:
+    13→          include:
+    14→            - lib/**/*.dart
+    15→          exclude:
+    16→            - lib/.generated/**
+    17→      jaspr_builder|client_module:
+    18→        generate_for:
+    19→          include:
+    20→            - lib/**/*.dart
+    21→          exclude:
+    22→            - lib/.generated/**
+    23→
+
+[tool_result: toolu_01WSSgcPZ1nSYmWS1p2QYXzT]
+     1→# Generated by pub
+     2→# See https://dart.dev/tools/pub/glossary#lockfile
+     3→packages:
+     4→  _fe_analyzer_shared:
+     5→    dependency: transitive
+     6→    description:
+     7→      name: _fe_analyzer_shared
+     8→      sha256: "5b7468c326d2f8a4f630056404ca0d291ade42918f4a3c6233618e724f39da8e"
+     9→      url: "https://pub.dev"
+    10→    source: hosted
+    11→    version: "92.0.0"
+    12→  analyzer:
+    13→    dependency: transitive
+    14→    description:
+    15→      name: analyzer
+    16→      sha256: "70e4b1ef8003c64793a9e268a551a82869a8a96f39deb73dea28084b0e8bf75e"
+    17→      url: "https://pub.dev"
+    18→    source: hosted
+    19→    version: "9.0.0"
+    20→  ansicolor:
+    21→    dependency: transitive
+    22→    description:
+    23→      name: ansicolor
+    24→      sha256: "50e982d500bc863e1d703448afdbf9e5a72eb48840a4f766fa361ffd6877055f"
+    25→      url: "https://pub.dev"
+    26→    source: hosted
+    27→    version: "2.0.3"
+    28→  archive:
+    29→    dependency: transitive
+    30→    description:
+    31→      name: archive
+    32→      sha256: a96e8b390886ee8abb49b7bd3ac8df6f451c621619f52a26e815fdcf568959ff
+    33→      url: "https://pub.dev"
+    34→    source: hosted
+    35→    version: "4.0.9"
+    36→  args:
+    37→    dependency: transitive
+    38→    description:
+    39→      name: args
+    40→      sha256: d0481093c50b1da8910eb0bb301626d4d8eb7284aa739614d2b394ee09e3ea04
+    41→      url: "https://pub.dev"
+    42→    source: hosted
+    43→    version: "2.7.0"
+    44→  async:
+    45→    dependency: transitive
+    46→    description:
+    47→      name: async
+    48→      sha256: "758e6d74e971c3e5aceb4110bfd6698efc7f501675bcfe0c775459a8140750eb"
+    49→      url: "https://pub.dev"
+    50→    source: hosted
+    51→    version: "2.13.0"
+    52→  bazel_worker:
+    53→    dependency: transitive
+    54→    description:
+    55→      name: bazel_worker
+    56→      sha256: "87cae9150fcf9942b8057e5f51c4848a3efde1289e97411e1c8f01e350120999"
+    57→      url: "https://pub.dev"
+    58→    source: hosted
+    59→    version: "1.1.5"
+    60→  boolean_selector:
+    61→    dependency: transitive
+    62→    description:
+    63→      name: boolean_selector
+    64→      sha256: "8aab1771e1243a5063b8b0ff68042d67334e3feab9e95b9490f9a6ebf73b42ea"
+    65→      url: "https://pub.dev"
+    66→    source: hosted
+    67→    version: "2.1.2"
+    68→  buffer:
+    69→    dependency: transitive
+    70→    description:
+    71→      name: buffer
+    72→      sha256: "389da2ec2c16283c8787e0adaede82b1842102f8c8aae2f49003a766c5c6b3d1"
+    73→      url: "https://pub.dev"
+    74→    source: hosted
+    75→    version: "1.2.3"
+    76→  build:
+    77→    dependency: transitive
+    78→    description:
+    79→      name: build
+    80→      sha256: "275bf6bb2a00a9852c28d4e0b410da1d833a734d57d39d44f94bfc895a484ec3"
+    81→      url: "https://pub.dev"
+    82→    source: hosted
+    83→    version: "4.0.4"
+    84→  build_config:
+    85→    dependency: transitive
+    86→    description:
+    87→      name: build_config
+    88→      sha256: "4f64382b97504dc2fcdf487d5aae33418e08b4703fc21249e4db6d804a4d0187"
+    89→      url: "https://pub.dev"
+    90→    source: hosted
+    91→    version: "1.2.0"
+    92→  build_daemon:
+    93→    dependency: transitive
+    94→    description:
+    95→      name: build_daemon
+    96→      sha256: bf05f6e12cfea92d3c09308d7bcdab1906cd8a179b023269eed00c071004b957
+    97→      url: "https://pub.dev"
+    98→    source: hosted
+    99→    version: "4.1.1"
+   100→  build_modules:
+   101→    dependency: transitive
+   102→    description:
+   103→      name: build_modules
+   104→      sha256: "2e30f22597d45fd49058bb29f47e947d3a045db2a72d3fec27a064cb2164337e"
+   105→      url: "https://pub.dev"
+   106→    source: hosted
+   107→    version: "5.1.7"
+   108→  build_runner:
+   109→    dependency: "direct dev"
+   110→    description:
+   111→      name: build_runner
+   112→      sha256: "39ad4ca8a2876779737c60e4228b4bcd35d4352ef7e14e47514093edc012c734"
+   113→      url: "https://pub.dev"
+   114→    source: hosted
+   115→    version: "2.11.1"
+   116→  build_web_compilers:
+   117→    dependency: "direct dev"
+   118→    description:
+   119→      name: build_web_compilers
+   120→      sha256: a9e26a88296e0ef0a4bbe1e8da40dc42ce1e45563c8820a962ac1907ace3e07b
+   121→      url: "https://pub.dev"
+   122→    source: hosted
+   123→    version: "4.4.12"
+   124→  built_collection:
+   125→    dependency: transitive
+   126→    description:
+   127→      name: built_collection
+   128→      sha256: "376e3dd27b51ea877c28d525560790aee2e6fbb5f20e2f85d5081027d94e2100"
+   129→      url: "https://pub.dev"
+   130→    source: hosted
+   131→    version: "5.1.1"
+   132→  built_value:
+   133→    dependency: transitive
+   134→    description:
+   135→      name: built_value
+   136→      sha256: "6ae8a6435a8c6520c7077b107e77f1fb4ba7009633259a4d49a8afd8e7efc5e9"
+   137→      url: "https://pub.dev"
+   138→    source: hosted
+   139→    version: "8.12.4"
+   140→  characters:
+   141→    dependency: transitive
+   142→    description:
+   143→      name: characters
+   144→      sha256: faf38497bda5ead2a8c7615f4f7939df04333478bf32e4173fcb06d428b5716b
+   145→      url: "https://pub.dev"
+   146→    source: hosted
+   147→    version: "1.4.1"
+   148→  charcode:
+   149→    dependency: transitive
+   150→    description:
+   151→      name: charcode
+   152→      sha256: fb0f1107cac15a5ea6ef0a6ef71a807b9e4267c713bb93e00e92d737cc8dbd8a
+   153→      url: "https://pub.dev"
+   154→    source: hosted
+   155→    version: "1.4.0"
+   156→  checked_yaml:
+   157→    dependency: transitive
+   158→    description:
+   159→      name: checked_yaml
+   160→      sha256: "959525d3162f249993882720d52b7e0c833978df229be20702b33d48d91de70f"
+   161→      url: "https://pub.dev"
+   162→    source: hosted
+   163→    version: "2.0.4"
+   164→  clock:
+   165→    dependency: transitive
+   166→    description:
+   167→      name: clock
+   168→      sha256: fddb70d9b5277016c77a80201021d40a2247104d9f4aa7bab7157b7e3f05b84b
+   169→      url: "https://pub.dev"
+   170→    source: hosted
+   171→    version: "1.1.2"
+   172→  code_builder:
+   173→    dependency: transitive
+   174→    description:
+   175→      name: code_builder
+   176→      sha256: "6a6cab2ba4680d6423f34a9b972a4c9a94ebe1b62ecec4e1a1f2cba91fd1319d"
+   177→      url: "https://pub.dev"
+   178→    source: hosted
+   179→    version: "4.11.1"
+   180→  collection:
+   181→    dependency: transitive
+   182→    description:
+   183→      name: collection
+   184→      sha256: "2f5709ae4d3d59dd8f7cd309b4e023046b57d8a6c82130785d2b0e5868084e76"
+   185→      url: "https://pub.dev"
+   186→    source: hosted
+   187→    version: "1.19.1"
+   188→  convert:
+   189→    dependency: transitive
+   190→    description:
+   191→      name: convert
+   192→      sha256: b30acd5944035672bc15c6b7a8b47d773e41e2f17de064350988c5d02adb1c68
+   193→      url: "https://pub.dev"
+   194→    source: hosted
+   195→    version: "3.1.2"
+   196→  crypto:
+   197→    dependency: transitive
+   198→    description:
+   199→      name: crypto
+   200→      sha256: c8ea0233063ba03258fbcf2ca4d6dadfefe14f02fab57702265467a19f27fadf
+   201→      url: "https://pub.dev"
+   202→    source: hosted
+   203→    version: "3.0.7"
+   204→  csslib:
+   205→    dependency: transitive
+   206→    description:
+   207→      name: csslib
+   208→      sha256: "09bad715f418841f976c77db72d5398dc1253c21fb9c0c7f0b0b985860b2d58e"
+   209→      url: "https://pub.dev"
+   210→    source: hosted
+   211→    version: "1.0.2"
+   212→  dart_style:
+   213→    dependency: transitive
+   214→    description:
+   215→      name: dart_style
+   216→      sha256: a9c30492da18ff84efe2422ba2d319a89942d93e58eb0b73d32abe822ef54b7b
+   217→      url: "https://pub.dev"
+   218→    source: hosted
+   219→    version: "3.1.3"
+   220→  dbcrypt:
+   221→    dependency: "direct main"
+   222→    description:
+   223→      name: dbcrypt
+   224→      sha256: b32a786486509ddc31b1fa97932a2fc9a3838bbed5d82e43bd636604c96b031e
+   225→      url: "https://pub.dev"
+   226→    source: hosted
+   227→    version: "2.0.0"
+   228→  duxt:
+   229→    dependency: "direct main"
+   230→    description:
+   231→      name: duxt
+   232→      sha256: a733e8fba05a827155f68aa9b5901a5cb9cf622b83e49197ad5bee8e10d600bd
+   233→      url: "https://pub.dev"
+   234→    source: hosted
+   235→    version: "0.5.7"
+   236→  duxt_html:
+   237→    dependency: "direct main"
+   238→    description:
+   239→      name: duxt_html
+   240→      sha256: e4bdd85b83f4ec2090c2176edbb814c9c0a859857e36288e8b1dce962281f540
+   241→      url: "https://pub.dev"
+   242→    source: hosted
+   243→    version: "1.0.0"
+   244→  duxt_orm:
+   245→    dependency: "direct main"
+   246→    description:
+   247→      name: duxt_orm
+   248→      sha256: "3c22d99075bd36a0203c9f82e884c87e69d111eef41d41a580ec9d4be936c54b"
+   249→      url: "https://pub.dev"
+   250→    source: hosted
+   251→    version: "0.4.0"
+   252→  fbh_front_matter:
+   253→    dependency: transitive
+   254→    description:
+   255→      name: fbh_front_matter
+   256→      sha256: "18b2f355326ff2b7ebd64eb1d969c091895ffa755ab55ede5de68f59cf115024"
+   257→      url: "https://pub.dev"
+   258→    source: hosted
+   259→    version: "0.0.1"
+   260→  fetch_api:
+   261→    dependency: transitive
+   262→    description:
+   263→      name: fetch_api
+   264→      sha256: "24cbd5616f3d4008c335c197bb90bfa0eb43b9e55c6de5c60d1f805092636034"
+   265→      url: "https://pub.dev"
+   266→    source: hosted
+   267→    version: "2.3.1"
+   268→  fetch_client:
+   269→    dependency: transitive
+   270→    description:
+   271→      name: fetch_client
+   272→      sha256: "3766964cc49ad1d007c261d7acecea61a73581e31fdbd948b446025851766bc8"
+   273→      url: "https://pub.dev"
+   274→    source: hosted
+   275→    version: "1.2.0"
+   276→  ffi:
+   277→    dependency: transitive
+   278→    description:
+   279→      name: ffi
+   280→      sha256: "6d7fd89431262d8f3125e81b50d3847a091d846eafcd4fdb88dd06f36d705a45"
+   281→      url: "https://pub.dev"
+   282→    source: hosted
+   283→    version: "2.2.0"
+   284→  file:
+   285→    dependency: transitive
+   286→    description:
+   287→      name: file
+   288→      sha256: a3b4f84adafef897088c160faf7dfffb7696046cb13ae90b508c2cbc95d3b8d4
+   289→      url: "https://pub.dev"
+   290→    source: hosted
+   291→    version: "7.0.1"
+   292→  fixnum:
+   293→    dependency: transitive
+   294→    description:
+   295→      name: fixnum
+   296→      sha256: b6dc7065e46c974bc7c5f143080a6764ec7a4be6da1285ececdc37be96de53be
+   297→      url: "https://pub.dev"
+   298→    source: hosted
+   299→    version: "1.1.1"
+   300→  gato:
+   301→    dependency: transitive
+   302→    description:
+   303→      name: gato
+   304→      sha256: "03fa3a33d50f71a912e30827ddf47c89e06e9acfd2b6b178aff0e1aa2f1e8b90"
+   305→      url: "https://pub.dev"
+   306→    source: hosted
+   307→    version: "0.0.5+1"
+   308→  glob:
+   309→    dependency: transitive
+   310→    description:
+   311→      name: glob
+   312→      sha256: c3f1ee72c96f8f78935e18aa8cecced9ab132419e8625dc187e1c2408efc20de
+   313→      url: "https://pub.dev"
+   314→    source: hosted
+   315→    version: "2.1.3"
+   316→  graphs:
+   317→    dependency: transitive
+   318→    description:
+   319→      name: graphs
+   320→      sha256: "741bbf84165310a68ff28fe9e727332eef1407342fca52759cb21ad8177bb8d0"
+   321→      url: "https://pub.dev"
+   322→    source: hosted
+   323→    version: "2.3.2"
+   324→  hotreloader:
+   325→    dependency: transitive
+   326→    description:
+   327→      name: hotreloader
+   328→      sha256: bc167a1163807b03bada490bfe2df25b0d744df359227880220a5cbd04e5734b
+   329→      url: "https://pub.dev"
+   330→    source: hosted
+   331→    version: "4.3.0"
+   332→  html:
+   333→    dependency: transitive
+   334→    description:
+   335→      name: html
+   336→      sha256: "6d1264f2dffa1b1101c25a91dff0dc2daee4c18e87cd8538729773c073dbf602"
+   337→      url: "https://pub.dev"
+   338→    source: hosted
+   339→    version: "0.15.6"
+   340→  html_unescape:
+   341→    dependency: transitive
+   342→    description:
+   343→      name: html_unescape
+   344→      sha256: "15362d7a18f19d7b742ef8dcb811f5fd2a2df98db9f80ea393c075189e0b61e3"
+   345→      url: "https://pub.dev"
+   346→    source: hosted
+   347→    version: "2.0.0"
+   348→  http:
+   349→    dependency: transitive
+   350→    description:
+   351→      name: http
+   352→      sha256: "87721a4a50b19c7f1d49001e51409bddc46303966ce89a65af4f4e6004896412"
+   353→      url: "https://pub.dev"
+   354→    source: hosted
+   355→    version: "1.6.0"
+   356→  http_multi_server:
+   357→    dependency: transitive
+   358→    description:
+   359→      name: http_multi_server
+   360→      sha256: aa6199f908078bb1c5efb8d8638d4ae191aac11b311132c3ef48ce352fb52ef8
+   361→      url: "https://pub.dev"
+   362→    source: hosted
+   363→    version: "3.2.2"
+   364→  http_parser:
+   365→    dependency: transitive
+   366→    description:
+   367→      name: http_parser
+   368→      sha256: "178d74305e7866013777bab2c3d8726205dc5a4dd935297175b19a23a2e66571"
+   369→      url: "https://pub.dev"
+   370→    source: hosted
+   371→    version: "4.1.2"
+   372→  intl:
+   373→    dependency: transitive
+   374→    description:
+   375→      name: intl
+   376→      sha256: "3df61194eb431efc39c4ceba583b95633a403f46c9fd341e550ce0bfa50e9aa5"
+   377→      url: "https://pub.dev"
+   378→    source: hosted
+   379→    version: "0.20.2"
+   380→  io:
+   381→    dependency: transitive
+   382→    description:
+   383→      name: io
+   384→      sha256: dfd5a80599cf0165756e3181807ed3e77daf6dd4137caaad72d0b7931597650b
+   385→      url: "https://pub.dev"
+   386→    source: hosted
+   387→    version: "1.0.5"
+   388→  jaspr:
+   389→    dependency: "direct main"
+   390→    description:
+   391→      name: jaspr
+   392→      sha256: "1ef6f6bf5996209a8e2e650159c3554c07ad77613f5db2174d4f47b6204b6a19"
+   393→      url: "https://pub.dev"
+   394→    source: hosted
+   395→    version: "0.22.3"
+   396→  jaspr_builder:
+   397→    dependency: "direct dev"
+   398→    description:
+   399→      name: jaspr_builder
+   400→      sha256: "77d777d7bbd0ec795dee9d16a68c38c659d7b3b9a00992b857c2061954ae8a79"
+   401→      url: "https://pub.dev"
+   402→    source: hosted
+   403→    version: "0.22.3"
+   404→  jaspr_content:
+   405→    dependency: transitive
+   406→    description:
+   407→      name: jaspr_content
+   408→      sha256: d0444c3c1eee79ea7a29e0a72c7f4c63712f07c1ae668ee2dcd7f0645bfd32cf
+   409→      url: "https://pub.dev"
+   410→    source: hosted
+   411→    version: "0.4.5"
+   412→  jaspr_router:
+   413→    dependency: "direct main"
+   414→    description:
+   415→      name: jaspr_router
+   416→      sha256: a82899af7e1717ef1643889a00a9f1a738983b58a7db13f1512a0066056d6a1e
+   417→      url: "https://pub.dev"
+   418→    source: hosted
+   419→    version: "0.8.1"
+   420→  json_annotation:
+   421→    dependency: transitive
+   422→    description:
+   423→      name: json_annotation
+   424→      sha256: cb09e7dac6210041fad964ed7fbee004f14258b4eca4040f72d1234062ace4c8
+   425→      url: "https://pub.dev"
+   426→    source: hosted
+   427→    version: "4.11.0"
+   428→  lints:
+   429→    dependency: "direct dev"
+   430→    description:
+   431→      name: lints
+   432→      sha256: "12f842a479589fea194fe5c5a3095abc7be0c1f2ddfa9a0e76aed1dbd26a87df"
+   433→      url: "https://pub.dev"
+   434→    source: hosted
+   435→    version: "6.1.0"
+   436→  liquify:
+   437→    dependency: transitive
+   438→    description:
+   439→      name: liquify
+   440→      sha256: "23aaa728dd2adc15dcc863772dec64425e8bc35bfa3f81323e0726fb83e1e28f"
+   441→      url: "https://pub.dev"
+   442→    source: hosted
+   443→    version: "1.5.1"
+   444→  logging:
+   445→    dependency: transitive
+   446→    description:
+   447→      name: logging
+   448→      sha256: c8245ada5f1717ed44271ed1c26b8ce85ca3228fd2ffdb75468ab01979309d61
+   449→      url: "https://pub.dev"
+   450→    source: hosted
+   451→    version: "1.3.0"
+   452→  markdown:
+   453→    dependency: transitive
+   454→    description:
+   455→      name: markdown
+   456→      sha256: "935e23e1ff3bc02d390bad4d4be001208ee92cc217cb5b5a6c19bc14aaa318c1"
+   457→      url: "https://pub.dev"
+   458→    source: hosted
+   459→    version: "7.3.0"
+   460→  matcher:
+   461→    dependency: transitive
+   462→    description:
+   463→      name: matcher
+   464→      sha256: "12956d0ad8390bbcc63ca2e1469c0619946ccb52809807067a7020d57e647aa6"
+   465→      url: "https://pub.dev"
+   466→    source: hosted
+   467→    version: "0.12.18"
+   468→  meta:
+   469→    dependency: transitive
+   470→    description:
+   471→      name: meta
+   472→      sha256: "9f29b9bcc8ee287b1a31e0d01be0eae99a930dbffdaecf04b3f3d82a969f296f"
+   473→      url: "https://pub.dev"
+   474→    source: hosted
+   475→    version: "1.18.1"
+   476→  mime:
+   477→    dependency: transitive
+   478→    description:
+   479→      name: mime
+   480→      sha256: "41a20518f0cb1256669420fdba0cd90d21561e560ac240f26ef8322e45bb7ed6"
+   481→      url: "https://pub.dev"
+   482→    source: hosted
+   483→    version: "2.0.0"
+   484→  mustache_template:
+   485→    dependency: transitive
+   486→    description:
+   487→      name: mustache_template
+   488→      sha256: "4326d0002ff58c74b9486990ccbdab08157fca3c996fe9e197aff9d61badf307"
+   489→      url: "https://pub.dev"
+   490→    source: hosted
+   491→    version: "2.0.3"
+   492→  mysql_client:
+   493→    dependency: transitive
+   494→    description:
+   495→      name: mysql_client
+   496→      sha256: "6a0fdcbe3e0721c637f97ad24649be2f70dbce2b21ede8f962910e640f753fc2"
+   497→      url: "https://pub.dev"
+   498→    source: hosted
+   499→    version: "0.0.27"
+   500→  package_config:
+   501→    dependency: transitive
+   502→    description:
+   503→      name: package_config
+   504→      sha256: f096c55ebb7deb7e384101542bfba8c52696c1b56fca2eb62827989ef2353bbc
+   505→      url: "https://pub.dev"
+   506→    source: hosted
+   507→    version: "2.2.0"
+   508→  path:
+   509→    dependency: transitive
+   510→    description:
+   511→      name: path
+   512→      sha256: "75cca69d1490965be98c73ceaea117e8a04dd21217b37b292c9ddbec0d955bc5"
+   513→      url: "https://pub.dev"
+   514→    source: hosted
+   515→    version: "1.9.1"
+   516→  petitparser:
+   517→    dependency: transitive
+   518→    description:
+   519→      name: petitparser
+   520→      sha256: "91bd59303e9f769f108f8df05e371341b15d59e995e6806aefab827b58336675"
+   521→      url: "https://pub.dev"
+   522→    source: hosted
+   523→    version: "7.0.2"
+   524→  pool:
+   525→    dependency: transitive
+   526→    description:
+   527→      name: pool
+   528→      sha256: "978783255c543aa3586a1b3c21f6e9d720eb315376a915872c61ef8b5c20177d"
+   529→      url: "https://pub.dev"
+   530→    source: hosted
+   531→    version: "1.5.2"
+   532→  posix:
+   533→    dependency: transitive
+   534→    description:
+   535→      name: posix
+   536→      sha256: "185ef7606574f789b40f289c233efa52e96dead518aed988e040a10737febb07"
+   537→      url: "https://pub.dev"
+   538→    source: hosted
+   539→    version: "6.5.0"
+   540→  postgres:
+   541→    dependency: transitive
+   542→    description:
+   543→      name: postgres
+   544→      sha256: fefbbfe749c6130e5096588b9c4459173684c695952cd7636ab19be76f255469
+   545→      url: "https://pub.dev"
+   546→    source: hosted
+   547→    version: "3.5.9"
+   548→  protobuf:
+   549→    dependency: transitive
+   550→    description:
+   551→      name: protobuf
+   552→      sha256: "75ec242d22e950bdcc79ee38dd520ce4ee0bc491d7fadc4ea47694604d22bf06"
+   553→      url: "https://pub.dev"
+   554→    source: hosted
+   555→    version: "6.0.0"
+   556→  pub_semver:
+   557→    dependency: transitive
+   558→    description:
+   559→      name: pub_semver
+   560→      sha256: "5bfcf68ca79ef689f8990d1160781b4bad40a3bd5e5218ad4076ddb7f4081585"
+   561→      url: "https://pub.dev"
+   562→    source: hosted
+   563→    version: "2.2.0"
+   564→  pubspec_parse:
+   565→    dependency: transitive
+   566→    description:
+   567→      name: pubspec_parse
+   568→      sha256: "0560ba233314abbed0a48a2956f7f022cce7c3e1e73df540277da7544cad4082"
+   569→      url: "https://pub.dev"
+   570→    source: hosted
+   571→    version: "1.5.0"
+   572→  scratch_space:
+   573→    dependency: transitive
+   574→    description:
+   575→      name: scratch_space
+   576→      sha256: "3417e014d20b12cebc5bfb1c0b1f63806054177158596cc31cc4d9aaca767a60"
+   577→      url: "https://pub.dev"
+   578→    source: hosted
+   579→    version: "1.2.0"
+   580→  shelf:
+   581→    dependency: transitive
+   582→    description:
+   583→      name: shelf
+   584→      sha256: e7dd780a7ffb623c57850b33f43309312fc863fb6aa3d276a754bb299839ef12
+   585→      url: "https://pub.dev"
+   586→    source: hosted
+   587→    version: "1.4.2"
+   588→  shelf_gzip:
+   589→    dependency: transitive
+   590→    description:
+   591→      name: shelf_gzip
+   592→      sha256: "4f4b793c0f969f348aece1ab4cc05fceba9fea431c1ce76b1bc0fa369cecfc15"
+   593→      url: "https://pub.dev"
+   594→    source: hosted
+   595→    version: "4.1.0"
+   596→  shelf_proxy:
+   597→    dependency: transitive
+   598→    description:
+   599→      name: shelf_proxy
+   600→      sha256: a71d2307f4393211930c590c3d2c00630f6c5a7a77edc1ef6436dfd85a6a7ee3
+   601→      url: "https://pub.dev"
+   602→    source: hosted
+   603→    version: "1.0.4"
+   604→  shelf_static:
+   605→    dependency: transitive
+   606→    description:
+   607→      name: shelf_static
+   608→      sha256: c87c3875f91262785dade62d135760c2c69cb217ac759485334c5857ad89f6e3
+   609→      url: "https://pub.dev"
+   610→    source: hosted
+   611→    version: "1.1.3"
+   612→  shelf_web_socket:
+   613→    dependency: transitive
+   614→    description:
+   615→      name: shelf_web_socket
+   616→      sha256: "3632775c8e90d6c9712f883e633716432a27758216dfb61bd86a8321c0580925"
+   617→      url: "https://pub.dev"
+   618→    source: hosted
+   619→    version: "3.0.0"
+   620→  source_gen:
+   621→    dependency: transitive
+   622→    description:
+   623→      name: source_gen
+   624→      sha256: "1d562a3c1f713904ebbed50d2760217fd8a51ca170ac4b05b0db490699dbac17"
+   625→      url: "https://pub.dev"
+   626→    source: hosted
+   627→    version: "4.2.0"
+   628→  source_maps:
+   629→    dependency: transitive
+   630→    description:
+   631→      name: source_maps
+   632→      sha256: "190222579a448b03896e0ca6eca5998fa810fda630c1d65e2f78b3f638f54812"
+   633→      url: "https://pub.dev"
+   634→    source: hosted
+   635→    version: "0.10.13"
+   636→  source_span:
+   637→    dependency: transitive
+   638→    description:
+   639→      name: source_span
+   640→      sha256: "56a02f1f4cd1a2d96303c0144c93bd6d909eea6bee6bf5a0e0b685edbd4c47ab"
+   641→      url: "https://pub.dev"
+   642→    source: hosted
+   643→    version: "1.10.2"
+   644→  sqlite3:
+   645→    dependency: "direct main"
+   646→    description:
+   647→      name: sqlite3
+   648→      sha256: "3145bd74dcdb4fd6f5c6dda4d4e4490a8087d7f286a14dee5d37087290f0f8a2"
+   649→      url: "https://pub.dev"
+   650→    source: hosted
+   651→    version: "2.9.4"
+   652→  stack_trace:
+   653→    dependency: transitive
+   654→    description:
+   655→      name: stack_trace
+   656→      sha256: "8b27215b45d22309b5cddda1aa2b19bdfec9df0e765f2de506401c071d38d1b1"
+   657→      url: "https://pub.dev"
+   658→    source: hosted
+   659→    version: "1.12.1"
+   660→  stream_channel:
+   661→    dependency: transitive
+   662→    description:
+   663→      name: stream_channel
+   664→      sha256: "969e04c80b8bcdf826f8f16579c7b14d780458bd97f56d107d3950fdbeef059d"
+   665→      url: "https://pub.dev"
+   666→    source: hosted
+   667→    version: "2.1.4"
+   668→  stream_transform:
+   669→    dependency: transitive
+   670→    description:
+   671→      name: stream_transform
+   672→      sha256: ad47125e588cfd37a9a7f86c7d6356dde8dfe89d071d293f80ca9e9273a33871
+   673→      url: "https://pub.dev"
+   674→    source: hosted
+   675→    version: "2.1.1"
+   676→  string_scanner:
+   677→    dependency: transitive
+   678→    description:
+   679→      name: string_scanner
+   680→      sha256: "921cd31725b72fe181906c6a94d987c78e3b98c2e205b397ea399d4054872b43"
+   681→      url: "https://pub.dev"
+   682→    source: hosted
+   683→    version: "1.4.1"
+   684→  syntax_highlight_lite:
+   685→    dependency: transitive
+   686→    description:
+   687→      name: syntax_highlight_lite
+   688→      sha256: ff54f69159263e26b843c64a2dc556ac7bbbc66690eb6d500aefb341cf4957a0
+   689→      url: "https://pub.dev"
+   690→    source: hosted
+   691→    version: "0.0.1"
+   692→  term_glyph:
+   693→    dependency: transitive
+   694→    description:
+   695→      name: term_glyph
+   696→      sha256: "7f554798625ea768a7518313e58f83891c7f5024f88e46e7182a4558850a4b8e"
+   697→      url: "https://pub.dev"
+   698→    source: hosted
+   699→    version: "1.2.2"
+   700→  test_api:
+   701→    dependency: transitive
+   702→    description:
+   703→      name: test_api
+   704→      sha256: "93167629bfc610f71560ab9312acdda4959de4df6fac7492c89ff0d3886f6636"
+   705→      url: "https://pub.dev"
+   706→    source: hosted
+   707→    version: "0.7.9"
+   708→  timezone:
+   709→    dependency: transitive
+   710→    description:
+   711→      name: timezone
+   712→      sha256: "784a5e34d2eb62e1326f24d6f600aaaee452eb8ca8ef2f384a59244e292d158b"
+   713→      url: "https://pub.dev"
+   714→    source: hosted
+   715→    version: "0.11.0"
+   716→  tuple:
+   717→    dependency: transitive
+   718→    description:
+   719→      name: tuple
+   720→      sha256: a97ce2013f240b2f3807bcbaf218765b6f301c3eff91092bcfa23a039e7dd151
+   721→      url: "https://pub.dev"
+   722→    source: hosted
+   723→    version: "2.0.2"
+   724→  typed_data:
+   725→    dependency: transitive
+   726→    description:
+   727→      name: typed_data
+   728→      sha256: f9049c039ebfeb4cf7a7104a675823cd72dba8297f264b6637062516699fa006
+   729→      url: "https://pub.dev"
+   730→    source: hosted
+   731→    version: "1.4.0"
+   732→  universal_web:
+   733→    dependency: transitive
+   734→    description:
+   735→      name: universal_web
+   736→      sha256: "618a9d8659e9429875f69d4da0fb9c0c143d3d4cdab28b4545502088aa50ed62"
+   737→      url: "https://pub.dev"
+   738→    source: hosted
+   739→    version: "1.1.1+1"
+   740→  uuid:
+   741→    dependency: "direct main"
+   742→    description:
+   743→      name: uuid
+   744→      sha256: "1fef9e8e11e2991bb773070d4656b7bd5d850967a2456cfc83cf47925ba79489"
+   745→      url: "https://pub.dev"
+   746→    source: hosted
+   747→    version: "4.5.3"
+   748→  vm_service:
+   749→    dependency: transitive
+   750→    description:
+   751→      name: vm_service
+   752→      sha256: "45caa6c5917fa127b5dbcfbd1fa60b14e583afdc08bfc96dda38886ca252eb60"
+   753→      url: "https://pub.dev"
+   754→    source: hosted
+   755→    version: "15.0.2"
+   756→  watcher:
+   757→    dependency: transitive
+   758→    description:
+   759→      name: watcher
+   760→      sha256: "1398c9f081a753f9226febe8900fce8f7d0a67163334e1c94a2438339d79d635"
+   761→      url: "https://pub.dev"
+   762→    source: hosted
+   763→    version: "1.2.1"
+   764→  web:
+   765→    dependency: transitive
+   766→    description:
+   767→      name: web
+   768→      sha256: "868d88a33d8a87b18ffc05f9f030ba328ffefba92d6c127917a2ba740f9cfe4a"
+   769→      url: "https://pub.dev"
+   770→    source: hosted
+   771→    version: "1.1.1"
+   772→  web_socket:
+   773→    dependency: transitive
+   774→    description:
+   775→      name: web_socket
+   776→      sha256: "34d64019aa8e36bf9842ac014bb5d2f5586ca73df5e4d9bf5c936975cae6982c"
+   777→      url: "https://pub.dev"
+   778→    source: hosted
+   779→    version: "1.0.1"
+   780→  web_socket_channel:
+   781→    dependency: transitive
+   782→    description:
+   783→      name: web_socket_channel
+   784→      sha256: d645757fb0f4773d602444000a8131ff5d48c9e47adfe9772652dd1a4f2d45c8
+   785→      url: "https://pub.dev"
+   786→    source: hosted
+   787→    version: "3.0.3"
+   788→  yaml:
+   789→    dependency: transitive
+   790→    description:
+   791→      name: yaml
+   792→      sha256: b9da305ac7c39faa3f030eccd175340f968459dae4af175130b3fc47e40d76ce
+   793→      url: "https://pub.dev"
+   794→    source: hosted
+   795→    version: "3.1.3"
+   796→sdks:
+   797→  dart: ">=3.10.0 <3.12.0-z"
+   798→
+
+
+================================================================================
+TOOLS (21)
+================================================================================
+
+- Bash
+  Executes a given bash command with optional timeout. Working directory persists between commands; shell state (everything else) does not. The shell environment is initialized from the user's profile (...
+
+- Glob
+  - Fast file pattern matching tool that works with any codebase size
+- Supports glob patterns like "**/*.js" or "src/**/*.ts"
+- Returns matching file paths sorted by modification time
+- Use this tool w...
+
+- Grep
+  A powerful search tool built on ripgrep
+
+  Usage:
+  - ALWAYS use Grep for search tasks. NEVER invoke `grep` or `rg` as a Bash command. The Grep tool has been optimized for correct permissions and acce...
+
+- Read
+  Reads a file from the local filesystem. You can access any file directly by using this tool.
+Assume this tool is able to read all files on the machine. If the User provides a path to a file assume tha...
+
+- Edit
+  Performs exact string replacements in files.
+
+Usage:
+- You must use your `Read` tool at least once in the conversation before editing. This tool will error if you attempt an edit without reading the f...
+
+- Write
+  Writes a file to the local filesystem.
+
+Usage:
+- This tool will overwrite the existing file if there is one at the provided path.
+- If this is an existing file, you MUST use the Read tool first to rea...
+
+- NotebookEdit
+  Completely replaces the contents of a specific cell in a Jupyter notebook (.ipynb file) with new source. Jupyter notebooks are interactive documents that combine code, text, and visualizations, common...
+
+- WebFetch
+  IMPORTANT: WebFetch WILL FAIL for authenticated or private URLs. Before using this tool, check if the URL points to an authenticated service (e.g. Google Docs, Confluence, Jira, GitHub). If so, you MU...
+
+- WebSearch
+  
+- Allows Claude to search the web and use the results to inform responses
+- Provides up-to-date information for current events and recent data
+- Returns search result information formatted as search ...
+
+- Skill
+  Execute a skill within the main conversation
+
+When users ask you to perform tasks, check if any of the available skills match. Skills provide specialized capabilities and domain knowledge.
+
+When users...
+
+- TaskCreate
+  Use this tool to create a structured task list for your current coding session. This helps you track progress, organize complex tasks, and demonstrate thoroughness to the user.
+It also helps the user ...
+
+- TaskGet
+  Use this tool to retrieve a task by its ID from the task list.
+
+## When to Use This Tool
+
+- When you need the full description and context before starting work on a task
+- To understand task dependenc...
+
+- TaskUpdate
+  Use this tool to update a task in the task list.
+
+## When to Use This Tool
+
+**Mark tasks as resolved:**
+- When you have completed the work described in a task
+- When a task is no longer needed or has ...
+
+- TaskList
+  Use this tool to list all tasks in the task list.
+
+## When to Use This Tool
+
+- To see what tasks are available to work on (status: 'pending', no owner, not blocked)
+- To check overall progress on the ...
+
+- mcp__duxt__search_docs
+  Search Duxt framework documentation. Returns matching pages with relevance scores.
+
+- mcp__duxt__get_component_api
+  Look up API documentation for a specific Duxt component (from duxt_html, duxt_ui, or duxt_icons).
+
+- mcp__duxt__generate_code
+  Generate ready-to-use Dart code following Duxt framework patterns.
+
+- mcp__duxt__duxt_cli_help
+  Get the right Duxt CLI command for a task. Describes exact commands, flags, and what they do.
+
+- mcp__duxt__get_project_structure
+  Show the standard Duxt project directory structure with file explanations.
+
+- ListMcpResourcesTool
+  
+List available resources from configured MCP servers.
+Each returned resource will include all standard MCP resource fields plus a 'server' field 
+indicating which server the resource belongs to.
+
+Par...
+
+- ReadMcpResourceTool
+  
+Reads a specific resource from an MCP server, identified by server name and resource URI.
+
+Parameters:
+- server (required): The name of the MCP server from which to read the resource
+- uri (required)...
+
+================================================================================
+EXTRA PARAMETERS
+================================================================================
+
+{
+  "max_tokens": 32000,
+  "temperature": 1,
+  "stream": true,
+  "metadata": {
+    "user_id": "user_080bdd5ed307156323f6997c27bc79be2957efe1ab7d3b507a138d2f53f27fbc_account_99f7d71d-3d28-4370-8331-28b96ccb1c98_session_754b6458-4a31-4186-b762-02bedf7af035"
+  }
+}

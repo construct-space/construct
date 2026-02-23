@@ -1,0 +1,46 @@
+Request #2
+Timestamp: 2026-02-23T16:08:41.262Z
+Method: POST
+URL: /v1/messages?beta=true
+Model: claude-haiku-4-5-20251001
+Type: other
+System prompt chars: 0
+Message chars: 5
+Tools count: 5
+
+================================================================================
+================================================================================
+MESSAGES
+================================================================================
+
+[user]
+count
+================================================================================
+TOOLS (5)
+================================================================================
+
+- mcp__duxt__search_docs
+  Search Duxt framework documentation. Returns matching pages with relevance scores.
+
+- mcp__duxt__get_component_api
+  Look up API documentation for a specific Duxt component (from duxt_html, duxt_ui, or duxt_icons).
+
+- mcp__duxt__generate_code
+  Generate ready-to-use Dart code following Duxt framework patterns.
+
+- mcp__duxt__duxt_cli_help
+  Get the right Duxt CLI command for a task. Describes exact commands, flags, and what they do.
+
+- mcp__duxt__get_project_structure
+  Show the standard Duxt project directory structure with file explanations.
+
+================================================================================
+EXTRA PARAMETERS
+================================================================================
+
+{
+  "max_tokens": 1,
+  "metadata": {
+    "user_id": "user_080bdd5ed307156323f6997c27bc79be2957efe1ab7d3b507a138d2f53f27fbc_account__session_0348b251-762a-4be4-b2f4-f70a46883e1d"
+  }
+}
