@@ -1,360 +1,301 @@
 import { defineStore } from 'pinia'
-import { db } from '~/utils/db'
+import type { LocalProject, SpaceType } from '@/types/project'
 
-export interface ProjectOwner {
-  id: number
-  first_name: string
-  last_name: string
-  email: string
-}
+// Backward-compatible alias — old code imports `Project` from this store
+export type Project = LocalProject
 
-export interface Project {
-  id: number
-  name: string
-  description: string
-  spaces: string[] // Array of enabled space names like ["code", "design", "git"]
-  company_id?: number
-  owner_id?: number
-  owner?: ProjectOwner
-  local_path?: string // Local filesystem path for project folder
-  created_at: string
-  updated_at: string
-}
+const STORAGE_KEY_RECENTS = 'construct_recent_projects'
+const STORAGE_KEY_EXTERNALS = 'construct_external_paths'
+const STORAGE_KEY_ROOT = 'construct_projects_root'
+const MAX_RECENTS = 20
 
-export interface ProjectMember {
-  id: number
-  member_id: number
-  resource_type: string
-  resource_id: string
-  access_type: string
-  role_id: string
-  created_at: string
-  updated_at: string
-}
-
-export interface SpaceAccess {
-  space: string
-  access_type: string // 'read' | 'write' | 'admin'
-}
-
-export interface MemberSpaceAccess {
-  member_id: number
-  spaces: SpaceAccess[]
-}
+// All spaces available to every project by default
+const DEFAULT_SPACES: SpaceType[] = [
+  'code', 'design', 'kanban', 'docs', 'notes',
+  'architect', 'git', 'terminal', 'calendar'
+]
 
 export const useProjectStore = defineStore('project', {
   state: () => ({
-    currentProject: null as Project | null,
-    projects: [] as Project[],
-    members: [] as ProjectMember[],
-    mySpaces: [] as SpaceAccess[], // Spaces the current user has access to with access types
-    membersSpaces: [] as MemberSpaceAccess[], // All members' space permissions
+    currentProject: null as LocalProject | null,
+    projects: [] as LocalProject[],
+    recentProjects: [] as LocalProject[],
+    externalPaths: [] as string[],
+    projectsRoot: '' as string,
     loading: false,
-    membersLoading: false,
-    mySpacesLoading: false,
-    membersSpacesLoading: false,
-    error: null as string | null
+    error: null as string | null,
   }),
 
   getters: {
     hasProject: (state) => !!state.currentProject,
 
     projectSpaces: (state) => {
-      if (!state.currentProject || !state.currentProject.spaces) {
-        return []
-      }
-      return Array.isArray(state.currentProject.spaces)
-        ? state.currentProject.spaces
-        : []
+      return state.currentProject?.spaces || DEFAULT_SPACES
     },
 
-    hasSpace: (state) => (spaceName: string) => {
-      return state.currentProject?.spaces?.includes(spaceName) || false
+    hasSpace: () => (_spaceName: string) => {
+      // All spaces are always available in personal mode
+      return true
     },
-
-    // Check if user can access a specific space (considers both project spaces and user permissions)
-    canAccessSpace: (state) => (spaceName: string) => {
-      // First check if the space is enabled for the project
-      const spaceEnabled = state.currentProject?.spaces?.includes(spaceName) || false
-      if (!spaceEnabled) return false
-      // Then check if user has permission to access this space
-      return state.mySpaces.some(s => s.space === spaceName)
-    },
-
-    // Get user's access type for a specific space
-    getSpaceAccessType: (state) => (spaceName: string): string | null => {
-      const access = state.mySpaces.find(s => s.space === spaceName)
-      return access?.access_type || null
-    },
-
-    // Get list of space names user can access (intersection of project spaces and user permissions)
-    // Project owners get access to all project spaces
-    accessibleSpaces: (state) => {
-      const projectSpaces = state.currentProject?.spaces || []
-
-      // Check if current user is the project owner - owners get all spaces
-      const authStore = useAuthStore()
-      if (state.currentProject?.owner_id === authStore.user?.id) {
-        return projectSpaces
-      }
-
-      // For non-owners, filter by their granted space permissions
-      const mySpaceNames = state.mySpaces.map(s => s.space)
-      return projectSpaces.filter(space => mySpaceNames.includes(space))
-    },
-
-    // Get member's space access by member_id
-    getMemberSpaces: (state) => (memberId: number): SpaceAccess[] => {
-      const memberAccess = state.membersSpaces.find(m => m.member_id === memberId)
-      return memberAccess?.spaces || []
-    }
   },
 
   actions: {
-    async createProject(data: { name: string; description?: string; spaces?: string[] }) {
-      this.loading = true
-      this.error = null
+    async initialize() {
+      // Load persisted state from localStorage
+      this.projectsRoot = localStorage.getItem(STORAGE_KEY_ROOT) || ''
+      this.externalPaths = JSON.parse(localStorage.getItem(STORAGE_KEY_EXTERNALS) || '[]')
+      this.recentProjects = JSON.parse(localStorage.getItem(STORAGE_KEY_RECENTS) || '[]')
 
-      try {
-        const api = useApi()
-        const project = await api.post<Project>('/projects', {
-          name: data.name,
-          description: data.description || '',
-          spaces: data.spaces || ['code', 'kanban']
-        })
-        this.projects.push(project)
-        return { success: true, data: project }
-      } catch (error) {
-        this.error = (error as Error).message || 'Failed to create project'
-        return { success: false, error: this.error }
-      } finally {
-        this.loading = false
+      // Scan filesystem for projects if root is set
+      if (this.projectsRoot) {
+        await this.loadProjects()
       }
     },
 
-    async fetchProject(projectId: number) {
+    async loadProjects() {
+      if (!this.projectsRoot) return
+
       this.loading = true
       this.error = null
 
       try {
-        const api = useApi()
-        const data = await api.get<Project>(`/projects/${projectId}`)
+        const { useProjectDirectory } = await import('@/composables/useProjectDirectory')
+        const projectDir = useProjectDirectory()
 
-        // Load local_path from IndexedDB (machine-specific, not from API)
-        try {
-          const localSettings = await db.project_settings.get(projectId)
-          if (localSettings?.localPath) {
-            data.local_path = localSettings.localPath
+        // List projects from root directory
+        const entries = await projectDir.listProjects()
+
+        const projects: LocalProject[] = []
+
+        for (const entry of entries) {
+          // Check if it's a valid construct project
+          const isConstruct = await projectDir.isConstructProject(entry.path)
+
+          if (isConstruct) {
+            const config = await projectDir.loadProjectConfig(entry.path)
+            projects.push({
+              id: entry.name,
+              name: config?.name || entry.name,
+              path: entry.path,
+              description: config?.description,
+              spaces: (config?.spaces as SpaceType[]) || DEFAULT_SPACES,
+              last_opened_at: this.getRecentTimestamp(entry.path),
+              is_external: false,
+              created_at: config?.created || new Date().toISOString(),
+              updated_at: config?.updated || new Date().toISOString(),
+            })
+          } else {
+            // Non-construct directories still show as projects
+            projects.push({
+              id: entry.name,
+              name: entry.name,
+              path: entry.path,
+              spaces: DEFAULT_SPACES,
+              last_opened_at: this.getRecentTimestamp(entry.path),
+              is_external: false,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
           }
-        } catch (e) {
-          console.warn('Failed to load local path from IndexedDB:', e)
         }
 
-        this.currentProject = data
-        return data
+        // Add external projects
+        for (const extPath of this.externalPaths) {
+          const name = extPath.split('/').pop() || extPath
+          const existing = projects.find(p => p.path === extPath)
+          if (!existing) {
+            const { useProjectDirectory } = await import('@/composables/useProjectDirectory')
+            const projectDir = useProjectDirectory()
+            const config = await projectDir.loadProjectConfig(extPath).catch(() => null)
+            projects.push({
+              id: `ext-${name}`,
+              name: config?.name || name,
+              path: extPath,
+              description: config?.description,
+              spaces: (config?.spaces as SpaceType[]) || DEFAULT_SPACES,
+              last_opened_at: this.getRecentTimestamp(extPath),
+              is_external: true,
+              created_at: config?.created || new Date().toISOString(),
+              updated_at: config?.updated || new Date().toISOString(),
+            })
+          }
+        }
+
+        // Set local_path alias for backward compat
+        for (const p of projects) {
+          p.local_path = p.path
+        }
+        this.projects = projects
       } catch (error) {
-        this.error = (error as Error).message || 'Failed to fetch project'
-        throw error
+        this.error = (error as Error).message || 'Failed to load projects'
+        console.warn('Failed to load projects:', error)
       } finally {
         this.loading = false
       }
     },
 
-    async fetchProjects() {
+    async createProject(data: { name: string; description?: string; spaces?: SpaceType[] }) {
       this.loading = true
       this.error = null
 
       try {
-        const api = useApi()
-        const response = await api.get<{ data: Project[] }>('/projects')
+        const { useProjectDirectory } = await import('@/composables/useProjectDirectory')
+        const projectDir = useProjectDirectory()
 
-        this.projects = response.data || []
-        return this.projects
+        // Ensure projects root exists
+        if (!this.projectsRoot) {
+          const root = await projectDir.getProjectsRoot()
+          if (root) {
+            this.projectsRoot = root
+            localStorage.setItem(STORAGE_KEY_ROOT, root)
+          } else {
+            throw new Error('No projects root directory set')
+          }
+        }
+
+        const spaces = data.spaces || DEFAULT_SPACES
+        const createdPath = await projectDir.createProjectStructure(data.name, this.projectsRoot, spaces)
+
+        if (!createdPath) {
+          throw new Error('Failed to create project structure')
+        }
+
+        const project: LocalProject = {
+          id: data.name.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
+          name: data.name,
+          path: createdPath,
+          local_path: createdPath,
+          description: data.description,
+          spaces,
+          last_opened_at: new Date().toISOString(),
+          is_external: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }
+
+        this.projects.push(project)
+        this.trackRecentOpen(project)
+
+        return { success: true as const, data: project }
       } catch (error) {
-        this.error = (error as Error).message || 'Failed to fetch projects'
-        throw error
+        this.error = (error as Error).message || 'Failed to create project'
+        return { success: false as const, error: this.error }
       } finally {
         this.loading = false
       }
     },
 
-    setCurrentProject(project: Project | null) {
-      this.currentProject = project
+    openProject(path: string) {
+      const project = this.projects.find(p => p.path === path)
+      if (project) {
+        this.currentProject = project
+        this.trackRecentOpen(project)
+        return project
+      }
+
+      // Project not in list — create a minimal entry
+      const name = path.split('/').pop() || path
+      const newProject: LocalProject = {
+        id: name.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
+        name,
+        path,
+        local_path: path,
+        spaces: DEFAULT_SPACES,
+        last_opened_at: new Date().toISOString(),
+        is_external: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+
+      this.projects.push(newProject)
+      this.currentProject = newProject
+      this.trackRecentOpen(newProject)
+      return newProject
+    },
+
+    async updateProject(_projectId: string | number, data: Partial<{ name: string; description: string; spaces: string[]; local_path: string }>) {
+      // Update in-memory only for local projects
+      if (this.currentProject) {
+        if (data.name) this.currentProject.name = data.name
+        if (data.description) this.currentProject.description = data.description
+        if (data.spaces) this.currentProject.spaces = data.spaces as SpaceType[]
+        this.currentProject.updated_at = new Date().toISOString()
+
+        // Persist to project config file if possible
+        try {
+          const { useProjectDirectory } = await import('@/composables/useProjectDirectory')
+          const projectDir = useProjectDirectory()
+          const config = await projectDir.loadProjectConfig(this.currentProject.path)
+          if (config) {
+            if (data.name) config.name = data.name
+            if (data.description) config.description = data.description
+            if (data.spaces) config.spaces = data.spaces
+            config.updated = new Date().toISOString()
+            await projectDir.saveProjectConfig(this.currentProject.path, config)
+          }
+        } catch {
+          // Config file update is best-effort
+        }
+      }
+      return { success: true, data: this.currentProject }
     },
 
     clearCurrentProject() {
       this.currentProject = null
     },
 
-    async updateProject(projectId: number, data: Partial<Project>) {
-      this.error = null
+    /** Alias for loadProjects — backward compat with old code */
+    async fetchProjects() {
+      return this.loadProjects()
+    },
 
-      try {
-        const api = useApi()
-        const updated = await api.put<Project>(`/projects/${projectId}`, data)
-        this.currentProject = updated
-        // Also update in projects list if present
-        const index = this.projects.findIndex(p => p.id === projectId)
-        if (index !== -1) {
-          this.projects[index] = updated
-        }
-        return { success: true, data: updated }
-      } catch (error) {
-        this.error = (error as Error).message || 'Failed to update project'
-        return { success: false, error: this.error }
+    /** Alias: load a single project by id (path slug) */
+    async fetchProject(id: string | number) {
+      if (this.projects.length === 0) {
+        await this.loadProjects()
+      }
+      const project = this.projects.find(p => p.id === id || p.id === String(id))
+      if (project) {
+        this.currentProject = project
+        this.trackRecentOpen(project)
       }
     },
 
-    async fetchMembers(projectId: number) {
-      this.membersLoading = true
-      this.error = null
+    async addExternalProject(path: string) {
+      if (this.externalPaths.includes(path)) return
 
-      try {
-        const api = useApi()
-        const response = await api.get<{ data: ProjectMember[] }>(`/projects/${projectId}/members`)
-        this.members = response.data || []
-        return this.members
-      } catch (error) {
-        this.error = (error as Error).message || 'Failed to fetch project members'
-        throw error
-      } finally {
-        this.membersLoading = false
+      this.externalPaths.push(path)
+      localStorage.setItem(STORAGE_KEY_EXTERNALS, JSON.stringify(this.externalPaths))
+
+      // Reload projects to include the new external
+      await this.loadProjects()
+    },
+
+    trackRecentOpen(project: LocalProject) {
+      project.last_opened_at = new Date().toISOString()
+
+      // Update in projects list
+      const idx = this.projects.findIndex(p => p.path === project.path)
+      if (idx !== -1) {
+        this.projects[idx] = { ...project }
       }
+
+      // Update recents list
+      const recents = this.recentProjects.filter(p => p.path !== project.path)
+      recents.unshift({ ...project })
+      this.recentProjects = recents.slice(0, MAX_RECENTS)
+
+      localStorage.setItem(STORAGE_KEY_RECENTS, JSON.stringify(this.recentProjects))
     },
 
-    async addMember(projectId: number, memberId: number, accessType: string = 'read') {
-      this.error = null
-
-      try {
-        const api = useApi()
-        const member = await api.post<ProjectMember>(`/projects/${projectId}/members`, {
-          member_id: memberId,
-          access_type: accessType
-        })
-        this.members.push(member)
-        return { success: true, data: member }
-      } catch (error) {
-        this.error = (error as Error).message || 'Failed to add project member'
-        return { success: false, error: this.error }
-      }
+    setProjectsRoot(path: string) {
+      this.projectsRoot = path
+      localStorage.setItem(STORAGE_KEY_ROOT, path)
     },
 
-    async removeMember(projectId: number, memberId: number) {
-      this.error = null
-
-      try {
-        const api = useApi()
-        await api.delete(`/projects/${projectId}/members/${memberId}`)
-        this.members = this.members.filter(m => m.member_id !== memberId)
-        return { success: true }
-      } catch (error) {
-        this.error = (error as Error).message || 'Failed to remove project member'
-        return { success: false, error: this.error }
-      }
+    getRecentTimestamp(path: string): string {
+      const recent = this.recentProjects.find(p => p.path === path)
+      return recent?.last_opened_at || ''
     },
-
-    clearMembers() {
-      this.members = []
-    },
-
-    async fetchMySpaces(projectId: number) {
-      this.mySpacesLoading = true
-      this.error = null
-
-      try {
-        const api = useApi()
-        const response = await api.get<{ spaces: SpaceAccess[] }>(`/projects/${projectId}/my-spaces`)
-        this.mySpaces = response.spaces || []
-        return this.mySpaces
-      } catch (error) {
-        this.error = (error as Error).message || 'Failed to fetch user spaces'
-        // Default to empty array on error
-        this.mySpaces = []
-        throw error
-      } finally {
-        this.mySpacesLoading = false
-      }
-    },
-
-    async fetchMembersSpaces(projectId: number) {
-      this.membersSpacesLoading = true
-      this.error = null
-
-      try {
-        const api = useApi()
-        const response = await api.get<{ data: MemberSpaceAccess[] }>(`/projects/${projectId}/members-spaces`)
-        this.membersSpaces = response.data || []
-        return this.membersSpaces
-      } catch (error) {
-        this.error = (error as Error).message || 'Failed to fetch members spaces'
-        this.membersSpaces = []
-        throw error
-      } finally {
-        this.membersSpacesLoading = false
-      }
-    },
-
-    async addMemberToSpace(projectId: number, memberId: number, spaceName: string, accessType: string = 'read') {
-      this.error = null
-
-      try {
-        const api = useApi()
-        await api.post(`/projects/${projectId}/members/${memberId}/spaces`, {
-          space_name: spaceName,
-          access_type: accessType
-        })
-        // Update local membersSpaces state
-        const memberIndex = this.membersSpaces.findIndex(m => m.member_id === memberId)
-        if (memberIndex !== -1) {
-          const memberEntry = this.membersSpaces[memberIndex]
-          if (memberEntry) {
-            const existingSpaceIndex = memberEntry.spaces.findIndex(s => s.space === spaceName)
-            if (existingSpaceIndex !== -1) {
-              const existingSpace = memberEntry.spaces[existingSpaceIndex]
-              if (existingSpace) {
-                existingSpace.access_type = accessType
-              }
-            } else {
-              memberEntry.spaces.push({ space: spaceName, access_type: accessType })
-            }
-          }
-        } else {
-          this.membersSpaces.push({ member_id: memberId, spaces: [{ space: spaceName, access_type: accessType }] })
-        }
-        return { success: true }
-      } catch (error) {
-        this.error = (error as Error).message || 'Failed to add member to space'
-        return { success: false, error: this.error }
-      }
-    },
-
-    async removeMemberFromSpace(projectId: number, memberId: number, spaceName: string) {
-      this.error = null
-
-      try {
-        const api = useApi()
-        await api.delete(`/projects/${projectId}/members/${memberId}/spaces/${spaceName}`)
-        // Update local membersSpaces state
-        const memberIndex = this.membersSpaces.findIndex(m => m.member_id === memberId)
-        if (memberIndex !== -1) {
-          const memberEntry = this.membersSpaces[memberIndex]
-          if (memberEntry) {
-            memberEntry.spaces = memberEntry.spaces.filter(s => s.space !== spaceName)
-          }
-        }
-        return { success: true }
-      } catch (error) {
-        this.error = (error as Error).message || 'Failed to remove member from space'
-        return { success: false, error: this.error }
-      }
-    },
-
-    clearMySpaces() {
-      this.mySpaces = []
-    },
-
-    clearMembersSpaces() {
-      this.membersSpaces = []
-    }
-  }
+  },
 })

@@ -98,7 +98,7 @@ const handleCreate = async () => {
 
   try {
     const result = await tasksStore.createTask({
-      project_id: projectId,
+      project_id: Number(projectId),
       title: title.value.trim(),
       description: description.value.trim() || undefined,
       status: status.value,
@@ -110,7 +110,7 @@ const handleCreate = async () => {
       emit('created')
       emit('close')
     } else {
-      error.value = result.error || 'Failed to create task'
+      error.value = (result as any).error || 'Failed to create task'
     }
   } catch (e) {
     error.value = (e as Error).message || 'An unexpected error occurred'

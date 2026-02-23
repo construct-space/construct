@@ -820,13 +820,14 @@ onUnmounted(() => {
   window.removeEventListener('keyup', handleKeyUp)
 })
 
-// Conversation key based on route (project + space)
+// Conversation key based on route (space + project query)
 const conversationKey = computed(() => {
   const path = route.path
-  // Extract project ID and space from path like /app/projects/123/ui
-  const match = path.match(/\/app\/projects\/(\d+)\/(\w+)/)
-  if (match) {
-    return `project-${match[1]}-${match[2]}`
+  const project = route.query.project
+  // Extract space from path like /app/code
+  const spaceMatch = path.match(/\/app\/(\w+)/)
+  if (spaceMatch && project) {
+    return `${spaceMatch[1]}-${project}`
   }
   // Fallback to full path for other routes
   return path
@@ -1382,7 +1383,7 @@ const initDocsTauri = async () => {
 // 2. Scan local docs/ folder for .md files
 // 3. Local -> DB: create DB entries for local .md files not in DB
 // 4. DB -> Local: write .md files for DB docs not on disk
-async function syncProjectDocs(projectId: number, projectPath: string | undefined) {
+async function syncProjectDocs(projectId: string | number, projectPath: string | undefined) {
   // Step 1: Load DB docs
   try {
     await documentsStore.fetchProjectDocuments(projectId)
@@ -1440,11 +1441,11 @@ async function syncProjectDocs(projectId: number, projectPath: string | undefine
     if (!dbTitles.has(local.title.toLowerCase())) {
       try {
         const content = await docsTauriFs.readTextFile(local.path)
-        await documentsStore.createProjectDocument(projectId, {
+        await documentsStore.createProjectDocument(Number(projectId), {
           title: local.title,
           content,
           type: guessDocType(local.filename) as 'prd' | 'readme' | 'architecture' | 'roadmap' | 'setup' | 'custom',
-          project_id: projectId
+          project_id: Number(projectId)
         })
         console.log('[AssistantFloat] Synced local doc to DB:', local.title)
       } catch (e) {
@@ -1486,7 +1487,7 @@ async function syncProjectDocs(projectId: number, projectPath: string | undefine
 
 // Fetch designs from sync-api for team-shared context
 // NOTE: Disabled - sync-api service is not available. Designs now loaded via context service.
-async function loadDesignsFromSyncApi(_projectId: number) {
+async function loadDesignsFromSyncApi(_projectId: string | number) {
   // Skip sync-api fetch - designs are loaded via context service (SQLite)
   void _projectId
 }
@@ -1523,32 +1524,8 @@ watch(
       // Load designs from sync-api (team cloud) in parallel
       loadDesignsFromSyncApi(projectId)
 
-      // Load project members for AI context
-      try {
-        await projectStore.fetchMembers(projectId)
-        // Ensure we have user details - fetch if not loaded
-        if (usersStore.users.length === 0) {
-          await usersStore.fetchUsers(1, 100)
-        }
-        // Join members with user data
-        projectMembers.value = projectStore.members.map(member => {
-          const user = usersStore.users.find(u => u.id === member.member_id)
-          // Position from member record (if API returns it) or infer from role
-          const memberAny = member as Record<string, unknown>
-          const position = (memberAny.position as string)
-            || (memberAny.member_type === 'external' ? 'external' : undefined)
-          return {
-            id: member.member_id,
-            name: user ? `${user.first_name} ${user.last_name}`.trim() : `User #${member.member_id}`,
-            email: user?.email || '',
-            position: position || user?.role?.name || undefined,
-            role: member.access_type || 'read'
-          }
-        })
-        console.log('[AssistantFloat] Loaded', projectMembers.value.length, 'project members')
-      } catch (e) {
-        console.warn('[AssistantFloat] Failed to load project members:', e)
-      }
+      // Project members not applicable in personal mode
+      projectMembers.value = []
 
       // Sync documents for ^ autocomplete (bidirectional: DB <-> local docs/)
       try {
@@ -2760,9 +2737,7 @@ function buildSystemPrompt(references?: ParsedReferences, docContents?: string):
     if (project.spaces && project.spaces.length > 0) {
       parts.push(`- Enabled spaces: ${project.spaces.join(', ')}`)
     }
-    if (project.owner) {
-      parts.push(`- Owner: ${project.owner.first_name} ${project.owner.last_name}`)
-    }
+    // Owner not available in personal/local mode (LocalProject has no owner field)
 
     // Add project team members
     if (projectMembers.value.length > 0) {

@@ -17,7 +17,7 @@ interface BreakpointPreset {
 }
 
 const route = useRoute()
-const projectId = computed(() => route.params.id as string)
+const projectId = computed(() => route.query.project as string)
 
 const viewMode = ref<'side-by-side' | 'stacked' | 'single'>('side-by-side')
 const showDeviceFrame = ref(true)
@@ -241,7 +241,7 @@ onUnmounted(() => {
           Start your app from Code Editor (Run/Preview). Once localhost appears in output,
           this view will auto-detect it.
         </p>
-        <RouterLink :to="`/app/projects/${projectId}/code/editor`" class="text-sm text-app-accent hover:underline">
+        <RouterLink :to="{ path: '/app/code/editor', query: { project: projectId } }" class="text-sm text-app-accent hover:underline">
           Go to Code Editor
         </RouterLink>
       </div>

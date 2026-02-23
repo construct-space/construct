@@ -71,7 +71,7 @@ const onSubmit = async () => {
         emit('updated', result.data)
         close()
       } else {
-        error.value = result.error || 'Failed to update project'
+        error.value = (result as any).error || 'Failed to update project'
       }
     } else {
       const result = await projectStore.createProject({

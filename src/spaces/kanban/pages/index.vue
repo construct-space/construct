@@ -15,7 +15,7 @@ const router = useRouter()
 const projectStore = useProjectStore()
 const tasksStore = useTasksStore()
 const { setPageItems, setSearch, clearToolbar } = useToolbar()
-const isProjectScope = computed(() => typeof route.params.id === 'string')
+const isProjectScope = computed(() => typeof route.query.project === 'string')
 
 // Load tasks for current project
 const loading = ref(true)
@@ -45,7 +45,7 @@ async function loadCompanyTasks() {
   loading.value = true
   try {
     if (projectStore.projects.length === 0) {
-      await projectStore.fetchProjects()
+      await projectStore.loadProjects()
     }
     companyProjects.value = companyProjectList.value.length > 0 ? companyProjectList.value : projectStore.projects
     companyTasks.value = await tasksStore.fetchMyTasks(200)
@@ -57,12 +57,12 @@ async function loadCompanyTasks() {
   }
 }
 
-function openProjectKanban(projectId: number) {
-  router.push(`/app/projects/${projectId}/kanban`)
+function openProjectKanban(projectId: string | number) {
+  router.push({ path: '/app/kanban', query: { project: String(projectId) } })
 }
 
 const projectNameById = computed(() => {
-  const map = new Map<number, string>()
+  const map = new Map<string | number, string>()
   for (const project of companyProjects.value) {
     map.set(project.id, project.name)
   }
@@ -114,7 +114,7 @@ const syncToolbar = () => {
       label: 'Projects',
       type: 'action',
       category: 'space',
-      onClick: () => router.push('/app/projects')
+      onClick: () => router.push('/app')
     },
     {
       id: 'kanban-refresh',
@@ -245,7 +245,7 @@ const closeDetailPanel = () => {
           <Button
             icon="i-lucide-folder-open"
             label="Open Projects"
-            @click="router.push('/app/projects')"
+            @click="router.push('/app')"
           />
         </div>
       </div>

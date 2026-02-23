@@ -25,7 +25,6 @@ export function useAppMenu() {
     if (path.includes('/ui')) return 'ui'
     if (path.includes('/kanban')) return 'kanban'
     if (path.includes('/git')) return 'git'
-    if (path.includes('/ai')) return 'ai'
     if (path.includes('/browser')) return 'browser'
     if (path.includes('/terminal')) return 'terminal'
     return 'default'
@@ -60,11 +59,11 @@ export function useAppMenu() {
     }))
 
     unlisteners.push(await listen('menu:projects', () => {
-      router.push('/app/projects')
+      router.push('/app')
     }))
 
     unlisteners.push(await listen('menu:new-project', () => {
-      router.push('/app/projects?action=new')
+      router.push('/app/code')
     }))
 
     unlisteners.push(await listen('menu:about', () => {
@@ -77,7 +76,7 @@ export function useAppMenu() {
 
     unlisteners.push(await listen('menu:toggle-sidebar', () => {
       const sidebar = useSidebar()
-      sidebar.setPanel(sidebar.state.panel === 'main' ? 'project' : 'main')
+      sidebar.setPanel(sidebar.state.panel === 'main' ? 'space' : 'main')
     }))
 
     unlisteners.push(await listen('menu:toggle-assistant', () => {

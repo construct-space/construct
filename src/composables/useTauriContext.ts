@@ -25,7 +25,7 @@ async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T
 
 export function useTauriContext() {
   const connected = ref(false)
-  const mode = ref<'code' | 'design' | 'chat'>('chat')
+  const mode = ref<'code' | 'design'>('code')
   const currentComponent = ref<{ name: string; type: string } | null>(null)
   const project = ref<{ id: number; name: string } | null>(null)
 
@@ -44,7 +44,7 @@ export function useTauriContext() {
 
       // Get initial context
       const ctx = await invoke<{ mode: string; component?: { name: string; type: string }; project?: { id: number; name: string } }>('context_get')
-      mode.value = ctx.mode as 'code' | 'design' | 'chat'
+      mode.value = ctx.mode as 'code' | 'design'
       currentComponent.value = ctx.component || null
       project.value = ctx.project || null
 
@@ -56,7 +56,7 @@ export function useTauriContext() {
   }
 
   // Set mode
-  async function setMode(newMode: 'code' | 'design' | 'chat') {
+  async function setMode(newMode: 'code' | 'design') {
     if (!connected.value) return
     await invoke('context_set_mode', { mode: newMode })
     mode.value = newMode

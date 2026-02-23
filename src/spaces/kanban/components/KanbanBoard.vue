@@ -9,7 +9,7 @@ import { createTaskPin } from '~/stores/pinned'
 
 const route = useRoute()
 const pinnedStore = usePinnedStore()
-const projectId = computed(() => Number(route.params.id))
+const projectId = computed(() => route.query.project as string || '')
 const { formatDateShort } = useDateFormat()
 
 interface Props {

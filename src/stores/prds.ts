@@ -55,184 +55,90 @@ export const usePRDsStore = defineStore('prds', {
   }),
 
   getters: {
-    // Get PRDs sorted by date (newest first)
     sortedPRDs: (state) => {
       return [...state.prds].sort((a, b) => {
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       })
     },
 
-    // Get PRDs linked to projects
     linkedPRDs: (state) => {
       return state.prds.filter(p => p.project_id)
     },
 
-    // Get unlinked PRDs (drafts)
     draftPRDs: (state) => {
       return state.prds.filter(p => !p.project_id)
     }
   },
 
   actions: {
+    // Local-only: no API calls
     async fetchMyPRDs() {
-      this.loading = true
-      this.error = null
-
-      try {
-        const api = useApi()
-        const response = await api.get<PRD[]>('/prds/my')
-        this.prds = response || []
-        return this.prds
-      } catch (error) {
-        this.error = (error as Error).message || 'Failed to fetch PRDs'
-        throw error
-      } finally {
-        this.loading = false
-      }
+      this.loading = false
+      return this.prds
     },
 
-    async fetchPRD(id: number) {
-      this.loading = true
-      this.error = null
-
-      try {
-        const api = useApi()
-        const response = await api.get<PRD>(`/prds/${id}`)
-        this.currentPRD = response
-        return response
-      } catch (error) {
-        this.error = (error as Error).message || 'Failed to fetch PRD'
-        throw error
-      } finally {
-        this.loading = false
-      }
+    async fetchPRD(_id: number) {
+      this.loading = false
+      return this.currentPRD
     },
 
-    async fetchProjectPRD(projectId: number) {
-      this.loading = true
-      this.error = null
-
-      try {
-        const api = useApi()
-        const response = await api.get<PRD>(`/projects/${projectId}/prd`)
-        this.currentPRD = response
-        return response
-      } catch (error) {
-        // No PRD for this project is not an error
-        if ((error as Error).message?.includes('404')) {
-          this.currentPRD = null
-          return null
-        }
-        this.error = (error as Error).message || 'Failed to fetch PRD'
-        throw error
-      } finally {
-        this.loading = false
-      }
+    async fetchProjectPRD(_projectId: number) {
+      this.loading = false
+      return this.currentPRD
     },
 
     async createPRD(data: CreatePRDRequest) {
-      this.error = null
-
-      try {
-        const api = useApi()
-        const response = await api.post<PRD>('/prds', data)
-
-        // Add to list
-        this.prds.unshift({
-          id: response.id,
-          created_at: response.created_at,
-          updated_at: response.updated_at,
-          name: response.name,
-          description: response.description,
-          project_id: response.project_id,
-          company_id: response.company_id
-        })
-
-        this.currentPRD = response
-        return { success: true, data: response }
-      } catch (error) {
-        this.error = (error as Error).message || 'Failed to create PRD'
-        return { success: false, error: this.error }
+      const prd: PRD = {
+        id: Date.now(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        name: data.name,
+        description: data.description,
+        plan_json: data.plan_json,
+        markdown: data.markdown,
+        project_id: data.project_id,
       }
+      this.prds.unshift({
+        id: prd.id,
+        created_at: prd.created_at,
+        updated_at: prd.updated_at,
+        name: prd.name,
+        description: prd.description,
+        project_id: prd.project_id,
+      })
+      this.currentPRD = prd
+      return { success: true as const, data: prd }
     },
 
     async updatePRD(id: number, data: UpdatePRDRequest) {
-      this.error = null
-
-      try {
-        const api = useApi()
-        const response = await api.put<PRD>(`/prds/${id}`, data)
-
-        // Update in list
-        const index = this.prds.findIndex(p => p.id === id)
-        const existing = this.prds[index]
-        if (index !== -1 && existing) {
-          this.prds[index] = {
-            id: existing.id,
-            created_at: existing.created_at,
-            updated_at: response.updated_at,
-            name: response.name,
-            description: response.description,
-            project_id: response.project_id,
-            company_id: existing.company_id
-          }
-        }
-
-        if (this.currentPRD?.id === id) {
-          this.currentPRD = response
-        }
-
-        return { success: true, data: response }
-      } catch (error) {
-        this.error = (error as Error).message || 'Failed to update PRD'
-        return { success: false, error: this.error }
+      const index = this.prds.findIndex(p => p.id === id)
+      const existing = this.prds[index]
+      if (index !== -1 && existing) {
+        existing.updated_at = new Date().toISOString()
+        if (data.name) existing.name = data.name
+        if (data.description) existing.description = data.description
       }
+      if (this.currentPRD?.id === id) {
+        Object.assign(this.currentPRD, data, { updated_at: new Date().toISOString() })
+      }
+      return { success: true as const, data: this.currentPRD as PRD }
     },
 
     async deletePRD(id: number) {
-      this.error = null
-
-      try {
-        const api = useApi()
-        await api.delete(`/prds/${id}`)
-
-        // Remove from list
-        this.prds = this.prds.filter(p => p.id !== id)
-
-        if (this.currentPRD?.id === id) {
-          this.currentPRD = null
-        }
-
-        return { success: true }
-      } catch (error) {
-        this.error = (error as Error).message || 'Failed to delete PRD'
-        return { success: false, error: this.error }
+      this.prds = this.prds.filter(p => p.id !== id)
+      if (this.currentPRD?.id === id) {
+        this.currentPRD = null
       }
+      return { success: true as const }
     },
 
     async linkToProject(prdId: number, projectId: number) {
-      this.error = null
-
-      try {
-        const api = useApi()
-        const response = await api.patch<PRD>(`/prds/${prdId}/link/${projectId}`)
-
-        // Update in list
-        const index = this.prds.findIndex(p => p.id === prdId)
-        const prdItem = this.prds[index]
-        if (index !== -1 && prdItem) {
-          prdItem.project_id = projectId
-        }
-
-        if (this.currentPRD?.id === prdId) {
-          this.currentPRD = response
-        }
-
-        return { success: true, data: response }
-      } catch (error) {
-        this.error = (error as Error).message || 'Failed to link PRD to project'
-        return { success: false, error: this.error }
+      const index = this.prds.findIndex(p => p.id === prdId)
+      const prdItem = this.prds[index]
+      if (index !== -1 && prdItem) {
+        prdItem.project_id = projectId
       }
+      return { success: true as const, data: this.currentPRD as PRD }
     },
 
     clearCurrent() {

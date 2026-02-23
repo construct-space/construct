@@ -9,7 +9,7 @@ import { ref, readonly, onMounted, onUnmounted, computed, getCurrentInstance } f
 import type { Ref } from 'vue'
 
 // Types matching the Go backend
-export type Mode = 'code' | 'ui' | 'chat'
+export type Mode = 'code' | 'ui'
 
 export interface ComponentContext {
   name: string
@@ -287,7 +287,7 @@ async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Prom
 // Shared context service state across all composable consumers.
 const sharedConnected = ref(false)
 const sharedContext = ref<Context | null>(null)
-const sharedMode = ref<Mode>('chat')
+const sharedMode = ref<Mode>('code')
 const sharedCurrentComponent = ref<ComponentContext | null>(null)
 const sharedProject = ref<ProjectContext | null>(null)
 const sharedSelection = ref<SelectionContext | null>(null)
@@ -365,7 +365,7 @@ export function useContextService(): UseContextServiceReturn {
           const _tCtx = performance.now()
           const ctx = await tauriInvoke<{ mode: string; component?: ComponentContext; project?: ProjectContext }>('context_get')
           console.log('[perf] contextService: context_get invoke:', (performance.now() - _tCtx).toFixed(1), 'ms')
-          mode.value = (ctx.mode as Mode) || 'chat'
+          mode.value = (ctx.mode as Mode) || 'code'
           currentComponent.value = ctx.component || null
           project.value = ctx.project || null
         } catch {
@@ -568,7 +568,6 @@ export function useContextService(): UseContextServiceReturn {
         notes: spaceData.notes,
         git: spaceData.git,
         docs: spaceData.docs,
-        chat: spaceData.chat,
       },
     }
   }
@@ -1287,7 +1286,6 @@ export function useContextMode() {
     isTauri,
     isCode: computed(() => mode.value === 'code'),
     isUI: computed(() => mode.value === 'ui'),
-    isChat: computed(() => mode.value === 'chat'),
   }
 }
 

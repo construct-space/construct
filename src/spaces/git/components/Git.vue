@@ -35,7 +35,7 @@ const gitRepo = useGitRepo()
 const toast = useToast()
 
 interface RepoSource {
-  projectId: number
+  projectId: string | number
   projectName: string
   localPath: string
   codePath: string
@@ -84,7 +84,7 @@ const selectedCommitHash = ref<string | null>(null)
 const selectedCommitData = ref<GitCommit | null>(null)
 const selectedCommitFiles = ref<GitFileDiff[]>([])
 const repoSources = ref<RepoSource[]>([])
-const repoProjectLookup = ref(new Map<string, number>())
+const repoProjectLookup = ref(new Map<string, string | number>())
 
 // Expose viewMode and searchResults so pages/index.vue can control them
 defineExpose({
@@ -138,7 +138,7 @@ const initMultiRepo = async () => {
         }]
       : []
 
-    const lookup = new Map<string, number>()
+    const lookup = new Map<string, string | number>()
     for (const repo of gitRepo.repositories.value) {
       if (projectStore.currentProject?.id) {
         lookup.set(repo.path, projectStore.currentProject.id)
@@ -157,13 +157,13 @@ const initMultiRepo = async () => {
 }
 
 const loadRepoSourcesForCompanyScope = async (): Promise<RepoSource[]> => {
-  await projectStore.fetchProjects()
+  await projectStore.loadProjects()
 
   const projects = [...projectStore.projects]
   if (!import.meta.client || projects.length === 0) return []
 
-  const settings = await db.project_settings.bulkGet(projects.map(project => project.id))
-  const settingsByProjectId = new Map<number, string>()
+  const settings = await db.project_settings.bulkGet(projects.map(project => project.id) as any)
+  const settingsByProjectId = new Map<string | number, string>()
   for (const setting of settings) {
     if (setting?.projectId && setting.localPath) {
       settingsByProjectId.set(setting.projectId, setting.localPath)
@@ -189,7 +189,7 @@ const loadRepoSourcesForCompanyScope = async (): Promise<RepoSource[]> => {
 }
 
 const rebuildRepoProjectLookup = () => {
-  const lookup = new Map<string, number>()
+  const lookup = new Map<string, string | number>()
   for (const repo of gitRepo.repositories.value) {
     for (const source of repoSources.value) {
       if (repo.path === source.localPath || repo.path.startsWith(`${source.localPath}/`)) {
@@ -905,7 +905,14 @@ const handleOpenInEditor = (path: string) => {
     : undefined
   const fallbackProjectId = projectStore.currentProject?.id || (props.projectId ? parseInt(props.projectId, 10) : undefined)
   const targetProjectId = scopedProjectId || fallbackProjectId
-  if (!targetProjectId) {
+
+  // Resolve the project's filesystem path for query-based routing
+  const targetSource = targetProjectId
+    ? repoSources.value.find(item => item.projectId === targetProjectId)
+    : undefined
+  const projectPath = targetSource?.localPath || projectStore.currentProject?.path
+
+  if (!projectPath) {
     toast.add({
       title: 'Open in Code failed',
       description: 'Could not determine project for this repository.',
@@ -914,7 +921,7 @@ const handleOpenInEditor = (path: string) => {
     return
   }
   const encodedPath = encodeURIComponent(path)
-  router.push(`/app/projects/${targetProjectId}/code?file=${encodedPath}`)
+  router.push({ path: '/app/code', query: { project: projectPath, file: encodedPath } })
 }
 
 // Plain-key space shortcuts (input guard prevents firing in text inputs)
@@ -1266,7 +1273,7 @@ onUnmounted(() => {
           <Button
             icon="i-lucide-code"
             label="Go to Code Space"
-            @click="router.push(`/app/projects/${projectId}/code`)"
+            @click="router.push({ path: '/app/code', query: { project: projectId } })"
           />
         </div>
       </template>
@@ -1283,7 +1290,7 @@ onUnmounted(() => {
             <Button
               icon="i-lucide-code"
               label="Go to Code Space"
-              @click="router.push(`/app/projects/${projectId}/code`)"
+              @click="router.push({ path: '/app/code', query: { project: projectId } })"
             />
             <Button
               icon="i-lucide-download"
@@ -1306,7 +1313,7 @@ onUnmounted(() => {
           <Button
             icon="i-lucide-folder-open"
             label="Open Projects"
-            @click="router.push('/app/projects')"
+            @click="router.push('/app')"
           />
         </div>
       </template>

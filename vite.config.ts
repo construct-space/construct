@@ -26,12 +26,10 @@ export default defineConfig({
         'src/spaces/code/components',
         'src/spaces/kanban/components',
         'src/spaces/notes/components',
-        'src/spaces/ai/components',
         'src/spaces/architect/components',
         'src/spaces/docs/components',
         'src/spaces/terminal/components',
         'src/spaces/git/components',
-        'src/spaces/chat/components',
         'src/spaces/design/components',
       ],
       dts: 'src/components.d.ts',
@@ -45,7 +43,7 @@ export default defineConfig({
     dedupe: ['vue'],
   },
   server: {
-    port: 3040,
+    port: 3050,
     strictPort: true,
     proxy: {
       '/api': 'http://localhost:8000',

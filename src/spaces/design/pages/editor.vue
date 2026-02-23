@@ -37,12 +37,13 @@ useGoogleFonts()
 const route = useRoute()
 const router = useRouter()
 const projectId = computed(() => {
-  const id = route.params.id
-  if (typeof id !== 'string') return null
-  const parsed = Number.parseInt(id, 10)
-  return Number.isNaN(parsed) ? null : parsed
+  const p = route.query.project
+  return typeof p === 'string' ? p : null
 })
-const designIndexRoute = computed(() => projectId.value ? `/app/projects/${projectId.value}/design` : '/app/design')
+const designIndexRoute = computed(() => {
+  const base = '/app/design'
+  return projectId.value ? `${base}?project=${encodeURIComponent(projectId.value)}` : base
+})
 const state = useUIState()
 const localDesigns = useLocalDesigns()
 const comments = useCommentsState()

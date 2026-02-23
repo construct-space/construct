@@ -5,8 +5,6 @@ import type { AuthUserData, AuthResponse, LoginRequest, RegisterRequest } from '
 interface AuthState {
   user: AuthUserData | null
   token: string | null
-  roleId: number | null
-  isCompanyOwner: boolean
   isAuthenticated: boolean
   isLoading: boolean
   error: string | null
@@ -19,8 +17,6 @@ export const useAuthStore = defineStore('auth', {
   state: (): AuthState => ({
     user: null,
     token: null,
-    roleId: null,
-    isCompanyOwner: false,
     isAuthenticated: false,
     isLoading: false,
     error: null,
@@ -28,7 +24,6 @@ export const useAuthStore = defineStore('auth', {
 
   getters: {
     currentUser: (state) => state.user,
-    hasFullAccess: (state) => state.isCompanyOwner || state.user?.is_company_owner === true,
     userName: (state) => state.user?.name || 'User',
     userEmail: (state) => state.user?.email || '',
     userAvatar: (state) => state.user?.avatar || null,
@@ -88,11 +83,9 @@ export const useAuthStore = defineStore('auth', {
           password: credentials.password,
         })
 
-        // Set the token
         this.token = authData.accessToken
         api.setToken(authData.accessToken)
 
-        // Create user object from auth response
         const userData: AuthUserData = {
           id: authData.id,
           email: authData.email,
@@ -101,8 +94,6 @@ export const useAuthStore = defineStore('auth', {
           last_name: authData.last_name,
           name: `${authData.first_name} ${authData.last_name}`.trim(),
           phone: authData.phone,
-          company_id: authData.company_id,
-          is_company_owner: authData.extend?.is_company_owner === true,
           avatar: authData.avatar_url,
           last_login: authData.last_login,
           created_at: '',
@@ -110,25 +101,10 @@ export const useAuthStore = defineStore('auth', {
         }
 
         this.user = userData
-        this.roleId = authData.extend?.role?.id ?? null
-        this.isCompanyOwner = authData.extend?.is_company_owner === true
         this.isAuthenticated = true
 
-        // Persist to storage for hydration
         await this.persistAuthState()
-
-        // Sync token and API base URL to context service
         await this.syncTokenToContextService(authData.accessToken, userData)
-
-        // Initialize authorization permissions
-        try {
-          await new Promise((resolve) => setTimeout(resolve, 100))
-          const { useAuthorizationStore } = await import('@/stores/authorization')
-          const authorizationStore = useAuthorizationStore()
-          await authorizationStore.initialize()
-        } catch (error) {
-          console.warn('Failed to initialize authorization after login:', error)
-        }
 
         return { success: true as const, data: userData }
       } catch (error: unknown) {
@@ -167,8 +143,6 @@ export const useAuthStore = defineStore('auth', {
           last_name: authData.last_name,
           name: `${authData.first_name} ${authData.last_name}`.trim(),
           phone: authData.phone,
-          company_id: authData.company_id,
-          is_company_owner: authData.extend?.is_company_owner === true,
           avatar: authData.avatar_url,
           last_login: authData.last_login,
           created_at: '',
@@ -176,21 +150,9 @@ export const useAuthStore = defineStore('auth', {
         }
 
         this.user = userDataObj
-        this.roleId = authData.extend?.role?.id ?? null
-        this.isCompanyOwner = authData.extend?.is_company_owner === true
         this.isAuthenticated = true
 
         await this.persistAuthState()
-
-        if (authData.company_id) {
-          try {
-            const { useAuthorizationStore } = await import('@/stores/authorization')
-            const authorizationStore = useAuthorizationStore()
-            await authorizationStore.initialize()
-          } catch (error) {
-            console.warn('Failed to initialize authorization after registration:', error)
-          }
-        }
 
         return { success: true as const, data: userDataObj }
       } catch (error: unknown) {
@@ -215,14 +177,6 @@ export const useAuthStore = defineStore('auth', {
         await api.request('/auth/logout', { method: 'POST', skipErrorHandling: true })
       } catch {
         // Ignore — we already cleared local state
-      }
-
-      try {
-        const { useAuthorizationStore } = await import('@/stores/authorization')
-        const authorizationStore = useAuthorizationStore()
-        authorizationStore.clearPermissionCache()
-      } catch {
-        // Ignore
       }
 
       this.isLoading = false
@@ -296,19 +250,8 @@ export const useAuthStore = defineStore('auth', {
     clearAuthState() {
       this.user = null
       this.token = null
-      this.roleId = null
-      this.isCompanyOwner = false
       this.isAuthenticated = false
       this.error = null
-
-      import('@/stores/authorization').then(({ useAuthorizationStore }) => {
-        try {
-          const authorizationStore = useAuthorizationStore()
-          authorizationStore.clearPermissionCache()
-        } catch {
-          // Authorization store may not be initialized yet
-        }
-      }).catch(() => {})
     },
 
     async persistAuthState() {
@@ -317,8 +260,6 @@ export const useAuthStore = defineStore('auth', {
       const authState = {
         user: this.user,
         token: this.token,
-        roleId: this.roleId,
-        isCompanyOwner: this.isCompanyOwner,
         isAuthenticated: this.isAuthenticated,
       }
 
@@ -340,14 +281,10 @@ export const useAuthStore = defineStore('auth', {
     _applyAuthState(authState: {
       user: AuthUserData | null
       token: string | null
-      roleId: number | null
-      isCompanyOwner: boolean
       isAuthenticated: boolean
     }) {
       this.user = authState.user
       this.token = authState.token
-      this.roleId = authState.roleId
-      this.isCompanyOwner = authState.isCompanyOwner || authState.user?.is_company_owner === true
       this.isAuthenticated = authState.isAuthenticated
 
       if (this.token) {
@@ -385,7 +322,6 @@ export const useAuthStore = defineStore('auth', {
                 first_name: string
                 last_name: string
                 phone?: string
-                company_id?: number
                 avatar_url?: string
               }>('/profile')
 
@@ -398,8 +334,6 @@ export const useAuthStore = defineStore('auth', {
                   last_name: profile.last_name,
                   name: `${profile.first_name} ${profile.last_name}`.trim(),
                   phone: profile.phone,
-                  company_id: profile.company_id,
-                  is_company_owner: false,
                   avatar: profile.avatar_url,
                   created_at: '',
                   updated_at: '',
@@ -480,14 +414,6 @@ export const useAuthStore = defineStore('auth', {
           this.syncTokenToContextService(this.token, this.user).catch((err) =>
             console.warn('Background syncTokenToContextService failed:', err)
           )
-
-          try {
-            const { useAuthorizationStore } = await import('@/stores/authorization')
-            const authorizationStore = useAuthorizationStore()
-            await authorizationStore.initialize()
-          } catch (error) {
-            console.warn('Failed to initialize authorization store:', error)
-          }
         }
       }
     },

@@ -1,15 +1,21 @@
 /**
- * Project-related types
- *
- * Core types (Project, ProjectMember, SpaceAccess, MemberSpaceAccess) are defined
- * in src/stores/project.ts and re-exported here for convenience.
- * Additional input types for create/update operations live here.
+ * Project types — local-first, no remote API
  */
 
-// Re-export types from the store
-export type { Project, ProjectOwner, ProjectMember, SpaceAccess, MemberSpaceAccess } from '@/stores/project'
+export type SpaceType = 'code' | 'design' | 'git' | 'notes' | 'kanban' | 'architect' | 'terminal' | 'docs' | 'calendar'
 
-export type SpaceType = 'code' | 'design' | 'git' | 'ai' | 'chat' | 'notes' | 'kanban' | 'architect' | 'terminal' | 'docs'
+export interface LocalProject {
+  id: string | number  // Path slug (e.g., 'my-app') or numeric ID for backward compat
+  name: string
+  path: string        // Absolute filesystem path
+  local_path?: string // Alias for path — backward compat with old code
+  description?: string
+  spaces: SpaceType[]
+  last_opened_at: string
+  is_external: boolean // Not under projectsRoot
+  created_at: string
+  updated_at: string
+}
 
 export interface CreateProjectInput {
   name: string

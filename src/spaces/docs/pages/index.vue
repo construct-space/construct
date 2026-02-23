@@ -29,12 +29,10 @@ const {
   getDocsPath,
 } = useLocalDocs()
 
-// Get project ID from route
+// Get project from route query
 const projectId = computed(() => {
-  const id = route.params.id
-  if (typeof id !== 'string') return null
-  const parsed = Number.parseInt(id, 10)
-  return Number.isNaN(parsed) ? null : parsed
+  const p = route.query.project
+  return typeof p === 'string' ? p : null
 })
 const isProjectScope = computed(() => projectId.value !== null)
 const companyProjects = ref<Project[]>([])
@@ -70,7 +68,7 @@ const docsProjects = computed(() =>
 async function loadCompanyProjects() {
   try {
     if (projectStore.projects.length === 0) {
-      await projectStore.fetchProjects()
+      await projectStore.loadProjects()
     }
     companyProjects.value = projectStore.projects
   } catch (error) {
@@ -79,8 +77,8 @@ async function loadCompanyProjects() {
   }
 }
 
-function openProjectDocs(id: number) {
-  router.push(`/app/projects/${id}/docs`)
+function openProjectDocs(id: string | number) {
+  router.push({ path: '/app/docs', query: { project: String(id) } })
 }
 
 // Load documents (both API + local)
@@ -137,7 +135,7 @@ async function selectDocument(doc: UnifiedDoc) {
 async function createDocument() {
   if (!projectId.value || !newDocTitle.value.trim()) return
 
-  const result = await documentsStore.createProjectDocument(projectId.value, {
+  const result = await documentsStore.createProjectDocument(Number(projectId.value), {
     title: newDocTitle.value.trim(),
     type: newDocType.value,
     content: ''
@@ -173,7 +171,7 @@ async function createDocument() {
   } else {
     toast.add({
       title: 'Error',
-      description: result.error || 'Failed to create document',
+      description: (result as any).error || 'Failed to create document',
       color: 'error'
     })
   }
@@ -183,7 +181,7 @@ async function createDocument() {
 async function createFromTemplate(type: DocumentType, title: string, content: string) {
   if (!projectId.value) return
 
-  const result = await documentsStore.createProjectDocument(projectId.value, {
+  const result = await documentsStore.createProjectDocument(Number(projectId.value), {
     title,
     type,
     content
@@ -218,7 +216,7 @@ async function createFromTemplate(type: DocumentType, title: string, content: st
   } else {
     toast.add({
       title: 'Error',
-      description: result.error || 'Failed to create document',
+      description: (result as any).error || 'Failed to create document',
       color: 'error'
     })
   }
@@ -287,7 +285,7 @@ async function handleDelete(doc: UnifiedDoc) {
     } else {
       toast.add({
         title: 'Error',
-        description: result.error || 'Failed to delete document',
+        description: (result as any).error || 'Failed to delete document',
         color: 'error'
       })
     }
@@ -331,7 +329,7 @@ async function handleRename(doc: UnifiedDoc, title: string) {
     } else {
       toast.add({
         title: 'Error',
-        description: result.error || 'Failed to rename document',
+        description: (result as any).error || 'Failed to rename document',
         color: 'error'
       })
     }
@@ -405,7 +403,7 @@ const syncToolbar = () => {
       label: 'Projects',
       type: 'action',
       category: 'space',
-      onClick: () => router.push('/app/projects')
+      onClick: () => router.push('/app')
     },
     {
       id: 'docs-refresh-projects',
@@ -465,7 +463,7 @@ onUnmounted(() => {
           <Button
             icon="i-lucide-folder-open"
             label="Open Projects"
-            @click="router.push('/app/projects')"
+            @click="router.push('/app')"
           />
         </div>
 

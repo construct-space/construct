@@ -121,7 +121,7 @@ export function useArchitectKickoff() {
       const projectResult = await projectStore.createProject({
         name: options.name,
         description: options.description,
-        spaces: options.spaces
+        spaces: options.spaces as import('@/types/project').SpaceType[]
       })
 
       if (!projectResult.success || !projectResult.data) {
@@ -144,7 +144,7 @@ export function useArchitectKickoff() {
           : docType === 'roadmap' ? `${options.name} - Roadmap`
           : `${options.name} - Setup`
 
-        const docResult = await documentsStore.createProjectDocument(project.id, {
+        const docResult = await documentsStore.createProjectDocument(Number(project.id), {
           title: docTitle,
           content: docContent,
           type: docType,
@@ -152,7 +152,7 @@ export function useArchitectKickoff() {
         })
 
         if (!docResult.success) {
-          console.warn(`Failed to save ${docType} document:`, docResult.error)
+          console.warn(`Failed to save ${docType} document:`, (docResult as any).error)
         } else if (!firstDocId) {
           firstDocId = docResult.data?.id
         }
@@ -172,7 +172,7 @@ export function useArchitectKickoff() {
         const task = enabledTasks[i]
         if (!task) continue
         await tasksStore.createTask({
-          project_id: project.id,
+          project_id: Number(project.id),
           title: task.title,
           description: task.description,
           status: 'backlog',

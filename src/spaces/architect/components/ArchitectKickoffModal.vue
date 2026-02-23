@@ -14,7 +14,7 @@ const props = defineProps<Props>()
 const open = defineModel<boolean>('open', { default: false })
 
 const emit = defineEmits<{
-  (e: 'created', project: { id: number; name: string }): void
+  (e: 'created', project: { id: string | number; name: string }): void
 }>()
 
 const {

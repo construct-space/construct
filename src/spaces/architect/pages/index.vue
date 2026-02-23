@@ -78,7 +78,7 @@ async function architectChat(messages: Array<{ role: 'user' | 'assistant' | 'sys
 
 // Project context awareness — detect by route, not just store (store persists after navigation)
 const route = useRoute()
-const routeProjectId = computed(() => route.params.id as string | undefined)
+const routeProjectId = computed(() => route.query.project as string | undefined)
 const currentProject = computed(() => routeProjectId.value ? projectStore.currentProject : null)
 const isInsideProject = computed(() => !!routeProjectId.value && !!currentProject.value)
 
@@ -470,9 +470,14 @@ function handleReset() {
   otherInputValue.value = ''
 }
 
-function onProjectCreated(project: { id: number; name: string }) {
+function onProjectCreated(project: { id: string | number; name: string; path?: string }) {
   showKickoff.value = false
-  router.push(`/app/projects/${project.id}`)
+  const projectPath = project.path || projectStore.currentProject?.path
+  if (projectPath) {
+    router.push({ path: '/app/code', query: { project: projectPath } })
+  } else {
+    router.push('/app')
+  }
 }
 
 // ─── Save Feature Plan (when inside existing project) ───
@@ -509,7 +514,7 @@ ${(plan.value.prd?.futureConsiderations || []).map(f => `- ${f}`).join('\n')}
 `
 
     // Save document to existing project
-    const docResult = await documentsStore.createProjectDocument(currentProject.value.id, {
+    const docResult = await documentsStore.createProjectDocument(Number(currentProject.value.id), {
       title: `Feature: ${plan.value.name}`,
       content: featureDoc,
       type: 'prd',
@@ -526,7 +531,7 @@ ${(plan.value.prd?.futureConsiderations || []).map(f => `- ${f}`).join('\n')}
     if (prd?.mvpScope?.length) {
       for (const scope of prd.mvpScope) {
         await tasksStore.createTask({
-          project_id: currentProject.value.id,
+          project_id: Number(currentProject.value.id),
           title: scope,
           description: `Feature "${plan.value.name}": ${scope}`,
           status: 'backlog',

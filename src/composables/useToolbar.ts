@@ -128,12 +128,7 @@ export function useToolbar() {
   }
 
   const getSpaceFromPath = (path: string): string | null => {
-    // Project space: /app/projects/:id/:spaceName
-    const projectMatch = path.match(/\/app\/projects\/[^/]+\/([^/]+)/)
-    if (projectMatch && projectMatch[1] && isValidSpace(projectMatch[1])) {
-      return projectMatch[1]
-    }
-    // Root space: /app/:spaceName
+    // Space: /app/:spaceName
     const rootMatch = path.match(/\/app\/([^/]+)/)
     if (rootMatch && rootMatch[1] && isValidSpace(rootMatch[1])) {
       return rootMatch[1]
@@ -148,8 +143,6 @@ export function useToolbar() {
 
   // Extract the sub-page path segment after the space name
   const getSubPageFromPath = (path: string, spaceName: string): string => {
-    const projectMatch = path.match(new RegExp(`/app/projects/[^/]+/${spaceName}/?(.*)`))
-    if (projectMatch) return projectMatch[1] || ''
     const rootMatch = path.match(new RegExp(`/app/${spaceName}/?(.*)`))
     if (rootMatch) return rootMatch[1] || ''
     return ''

@@ -5,7 +5,6 @@ import Button from '@/components/ui/Button.vue'
 const credits = useCredits()
 const { pool, userAllocation, allocations, packages, transactions, balance, userRemaining, userUsedThisMonth, hasUnlimitedAllocation, usagePercentage, isLowCredits, formatCredits, formatPrice, getTransactionTypeLabel, getTransactionTypeColor } = credits
 const toast = useToast()
-const authStore = useAuthStore()
 
 const loading = ref(true)
 const actionLoading = ref(false)
@@ -13,7 +12,7 @@ const showPurchaseModal = ref(false)
 const showAllocationModal = ref(false)
 const editingAllocation = ref<{ userId: number; monthlyLimit: number } | null>(null)
 
-const isAdmin = computed(() => authStore.hasFullAccess)
+const isAdmin = computed(() => true)
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })

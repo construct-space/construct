@@ -47,16 +47,38 @@ export interface UpdateTaskData {
 export const TASK_STATUSES = ['backlog', 'todo', 'in_progress', 'review', 'done'] as const
 export const TASK_PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const
 
+const STORAGE_KEY = 'construct_tasks'
+
+let nextId = 1
+
+function loadFromStorage(): Task[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return []
+    const tasks = JSON.parse(raw) as Task[]
+    // Update nextId to be higher than any existing id
+    for (const t of tasks) {
+      if (t.id >= nextId) nextId = t.id + 1
+    }
+    return tasks
+  } catch {
+    return []
+  }
+}
+
+function saveToStorage(tasks: Task[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks))
+}
+
 export const useTasksStore = defineStore('tasks', {
   state: () => ({
-    tasks: [] as Task[],
+    tasks: loadFromStorage(),
     currentTask: null as Task | null,
     loading: false,
     error: null as string | null
   }),
 
   getters: {
-    // Get tasks grouped by status for Kanban board
     tasksByStatus: (state) => {
       const grouped: Record<string, Task[]> = {}
       for (const status of TASK_STATUSES) {
@@ -67,30 +89,24 @@ export const useTasksStore = defineStore('tasks', {
       return grouped
     },
 
-    // Get tasks by space
     tasksBySpace: (state) => (spaceName: string) => {
       return state.tasks.filter(t => t.space === spaceName)
     },
 
-    // Get tasks assigned to a specific user
     tasksByAssignee: (state) => (assigneeId: number) => {
       return state.tasks.filter(t => t.assignee_id === assigneeId)
     }
   },
 
   actions: {
-    async fetchProjectTasks(projectId: number) {
+    async fetchProjectTasks(projectId: string | number) {
       this.loading = true
       this.error = null
-
       try {
-        const api = useApi()
-        const response = await api.get<{ data: Task[] }>(`/projects/${projectId}/tasks`)
-        this.tasks = response.data || []
+        // Local-only: filter tasks by project_id
+        const pid = typeof projectId === 'string' ? Number(projectId) || 0 : projectId
+        this.tasks = loadFromStorage().filter(t => t.project_id === pid)
         return this.tasks
-      } catch (error) {
-        this.error = (error as Error).message || 'Failed to fetch tasks'
-        throw error
       } finally {
         this.loading = false
       }
@@ -98,51 +114,51 @@ export const useTasksStore = defineStore('tasks', {
 
     async createTask(data: CreateTaskData) {
       this.error = null
-
-      try {
-        const api = useApi()
-        const task = await api.post<Task>('/tasks', {
-          ...data,
-          status: data.status || 'backlog',
-          priority: data.priority || 'medium'
-        })
-        this.tasks.push(task)
-        return { success: true, data: task }
-      } catch (error) {
-        this.error = (error as Error).message || 'Failed to create task'
-        return { success: false, error: this.error }
+      const task: Task = {
+        id: nextId++,
+        title: data.title,
+        description: data.description || '',
+        status: data.status || 'backlog',
+        priority: data.priority || 'medium',
+        space: data.space || '',
+        due_date: data.due_date || '',
+        sort: data.sort || 0,
+        project_id: data.project_id,
+        assignee_id: data.assignee_id,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       }
+      // Load all tasks (not just filtered), add, save
+      const all = loadFromStorage()
+      all.push(task)
+      saveToStorage(all)
+      this.tasks.push(task)
+      return { success: true as const, data: task }
     },
 
     async updateTask(taskId: number, data: UpdateTaskData) {
       this.error = null
-
-      try {
-        const api = useApi()
-        const updated = await api.put<Task>(`/tasks/${taskId}`, data)
-        const index = this.tasks.findIndex(t => t.id === taskId)
-        if (index !== -1) {
-          this.tasks[index] = updated
-        }
-        return { success: true, data: updated }
-      } catch (error) {
-        this.error = (error as Error).message || 'Failed to update task'
-        return { success: false, error: this.error }
+      const all = loadFromStorage()
+      const index = all.findIndex(t => t.id === taskId)
+      if (index === -1) {
+        return { success: false as const, error: 'Task not found' }
       }
+      Object.assign(all[index], data, { updated_at: new Date().toISOString() })
+      saveToStorage(all)
+
+      const localIdx = this.tasks.findIndex(t => t.id === taskId)
+      if (localIdx !== -1) {
+        this.tasks[localIdx] = { ...all[index] }
+      }
+      return { success: true as const, data: all[index] }
     },
 
     async deleteTask(taskId: number) {
       this.error = null
-
-      try {
-        const api = useApi()
-        await api.delete(`/tasks/${taskId}`)
-        this.tasks = this.tasks.filter(t => t.id !== taskId)
-        return { success: true }
-      } catch (error) {
-        this.error = (error as Error).message || 'Failed to delete task'
-        return { success: false, error: this.error }
-      }
+      const all = loadFromStorage().filter(t => t.id !== taskId)
+      saveToStorage(all)
+      this.tasks = this.tasks.filter(t => t.id !== taskId)
+      return { success: true as const }
     },
 
     async moveTask(taskId: number, newStatus: string, newSort: number) {
@@ -161,14 +177,9 @@ export const useTasksStore = defineStore('tasks', {
     async fetchMyTasks(limit = 10) {
       this.loading = true
       this.error = null
-
       try {
-        const api = useApi()
-        const response = await api.get<{ data: Task[] }>(`/tasks/my?limit=${limit}`)
-        return response.data || []
-      } catch (error) {
-        this.error = (error as Error).message || 'Failed to fetch my tasks'
-        return []
+        const all = loadFromStorage()
+        return all.slice(0, limit)
       } finally {
         this.loading = false
       }

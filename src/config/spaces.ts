@@ -29,14 +29,14 @@ export const spaces: Record<string, SpaceConfig> = {
   kanban: {
     icon: 'i-lucide-kanban',
     label: 'Tasks',
-    description: 'Project tasks and workflows',
+    description: 'Tasks and workflows',
     color: 'text-amber-400',
     bg: 'bg-amber-400/10',
   },
   docs: {
     icon: 'i-lucide-book-open',
     label: 'Docs',
-    description: 'Project documents and PRDs',
+    description: 'Documents and PRDs',
     color: 'text-sky-400',
     bg: 'bg-sky-400/10',
   },
@@ -47,26 +47,12 @@ export const spaces: Record<string, SpaceConfig> = {
     color: 'text-yellow-400',
     bg: 'bg-yellow-400/10',
   },
-  chat: {
-    icon: 'i-lucide-messages-square',
-    label: 'Chat',
-    description: 'Team communication and threads',
-    color: 'text-violet-400',
-    bg: 'bg-violet-400/10',
-  },
   architect: {
     icon: 'i-lucide-compass',
     label: 'Architect',
     description: 'Project planning and architecture',
     color: 'text-orange-400',
     bg: 'bg-orange-400/10',
-  },
-  ai: {
-    icon: 'i-lucide-sparkles',
-    label: 'AI',
-    description: 'AI assistant and automations',
-    color: 'text-cyan-400',
-    bg: 'bg-cyan-400/10',
   },
   terminal: {
     icon: 'i-lucide-terminal',
@@ -81,6 +67,13 @@ export const spaces: Record<string, SpaceConfig> = {
     description: 'Version control and branches',
     color: 'text-red-400',
     bg: 'bg-red-400/10',
+  },
+  calendar: {
+    icon: 'i-lucide-calendar',
+    label: 'Calendar',
+    description: 'Events and scheduling',
+    color: 'text-indigo-400',
+    bg: 'bg-indigo-400/10',
   },
 }
 

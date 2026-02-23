@@ -1,82 +1,34 @@
 /**
- * Simplified permission composable for easy UI element visibility control
- * This provides a generic way to check permissions for hiding/disabling UI elements
+ * Simplified permission composable — personal local-first mode
+ * All permissions return true (no role-based access control)
  */
 
 export const usePermissions = () => {
-  const { hasPermission, usePermissionReactive } = useAuthorization()
+  const can = (_resource: string, _action: string): boolean => true
 
-  /**
-   * Check if current user can perform an action on a resource
-   * @param resource - Resource type (e.g., 'customer', 'order', 'plan')
-   * @param action - Action type (e.g., 'create', 'read', 'update', 'delete', 'list')
-   * @returns boolean
-   */
-  const can = (resource: string, action: string): boolean => {
-    return hasPermission(resource, action)
-  }
+  const canReactive = (_resource: string, _action: string) => computed(() => true)
 
-  /**
-   * Reactive permission check for UI elements
-   * @param resource - Resource type 
-   * @param action - Action type
-   * @returns ComputedRef<boolean>
-   */
-  const canReactive = (resource: string, action: string) => {
-    return usePermissionReactive(resource, action)
-  }
+  const canAny = (_permissions: [string, string][]): boolean => true
 
-  /**
-   * Check multiple permissions (OR logic) - user needs ANY of these permissions
-   * @param permissions - Array of [resource, action] tuples
-   * @returns boolean
-   */
-  const canAny = (permissions: [string, string][]): boolean => {
-    return permissions.some(([resource, action]) => hasPermission(resource, action))
-  }
+  const canAll = (_permissions: [string, string][]): boolean => true
 
-  /**
-   * Check multiple permissions (AND logic) - user needs ALL of these permissions
-   * @param permissions - Array of [resource, action] tuples  
-   * @returns boolean
-   */
-  const canAll = (permissions: [string, string][]): boolean => {
-    return permissions.every(([resource, action]) => hasPermission(resource, action))
-  }
+  const canAnyReactive = (_permissions: [string, string][]) => computed(() => true)
 
-  /**
-   * Reactive version of canAny
-   */
-  const canAnyReactive = (permissions: [string, string][]) => {
-    return computed(() => canAny(permissions))
-  }
+  const canAllReactive = (_permissions: [string, string][]) => computed(() => true)
 
-  /**
-   * Reactive version of canAll
-   */
-  const canAllReactive = (permissions: [string, string][]) => {
-    return computed(() => canAll(permissions))
-  }
-
-  // Common UI permission checks for easy use
   const ui = {
-    // Navigation permissions
-    canAccessCustomers: canReactive('customer', 'list'),
-    canAccessOrders: canReactive('order', 'list'), 
-    canAccessPlans: canReactive('plan', 'list'),
-    canAccessEmployees: canReactive('user', 'list'),
-    canAccessSettings: canReactive('settings', 'read'),
-    canAccessReports: canReactive('report', 'list'),
-
-    // Button permissions
-    canCreateCustomer: canReactive('customer', 'create'),
-    canCreateOrder: canReactive('order', 'create'),
-    canCreatePlan: canReactive('plan', 'create'),
-    canCreateEmployee: canReactive('user', 'create'),
-
-    // Management permissions
-    canManageRoles: canReactive('authorization', 'manage_role'),
-    canManageUsers: canReactive('user', 'update'),
+    canAccessCustomers: computed(() => true),
+    canAccessOrders: computed(() => true),
+    canAccessPlans: computed(() => true),
+    canAccessEmployees: computed(() => true),
+    canAccessSettings: computed(() => true),
+    canAccessReports: computed(() => true),
+    canCreateCustomer: computed(() => true),
+    canCreateOrder: computed(() => true),
+    canCreatePlan: computed(() => true),
+    canCreateEmployee: computed(() => true),
+    canManageRoles: computed(() => true),
+    canManageUsers: computed(() => true),
   }
 
   return {

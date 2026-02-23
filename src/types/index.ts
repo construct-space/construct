@@ -1,6 +1,6 @@
 export * from './auth'
-export * from './authorization'
 export * from './user'
 export * from './common'
 export * from './notification'
 export * from './setting'
+export * from './authorization'

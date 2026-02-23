@@ -68,7 +68,7 @@ export function useArchitectActions() {
   /**
    * Execute task creation
    */
-  async function executeCreateTasks(tasks: TaskItem[], projectId: number): Promise<ActionResult> {
+  async function executeCreateTasks(tasks: TaskItem[], projectId: string | number): Promise<ActionResult> {
     const results: { success: boolean; task?: unknown; error?: string }[] = []
 
     for (const task of tasks) {
@@ -77,7 +77,7 @@ export function useArchitectActions() {
         description: task.description || '',
         priority: mapPriority(task.priority),
         status: 'backlog',
-        project_id: projectId
+        project_id: Number(projectId)
       }
 
       const result = await tasksStore.createTask(taskData)
@@ -210,13 +210,13 @@ export function useArchitectActions() {
    * Execute design file creation
    */
   async function executeCreateDesign(
-    projectId: number,
+    projectId: string | number,
     name: string,
     template?: 'blank' | 'wireframe' | 'dashboard'
   ): Promise<ActionResult> {
     try {
       const { createDesign } = useLocalDesigns()
-      const design = await createDesign(projectId, name)
+      const design = await createDesign(Number(projectId), name)
 
       // TODO: Apply template if specified
       if (template && template !== 'blank') {

@@ -57,8 +57,8 @@ const trackTimeout = (fn: () => void, delay: number): ReturnType<typeof setTimeo
 
 // ── Folder pinning ──────────────────────────────────────────────────
 const projectId = computed(() => {
-  const id = route.params.id
-  return id ? Number(id) : undefined
+  const p = route.query.project
+  return typeof p === 'string' ? p : undefined
 })
 
 const isFolderPinned = computed(() => {

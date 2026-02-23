@@ -75,172 +75,77 @@ export const useDocumentsStore = defineStore('documents', {
   },
 
   actions: {
-    async fetchProjectDocuments(projectId: number) {
-      this.loading = true
-      this.error = null
-
-      try {
-        const api = useApi()
-        const response = await api.get<DocumentListItem[]>(`/project-documents/${projectId}`)
-        this.documents = response || []
-        return this.documents
-      } catch (error) {
-        this.error = (error as Error).message || 'Failed to fetch documents'
-        throw error
-      } finally {
-        this.loading = false
-      }
+    async fetchProjectDocuments(_projectId: string | number) {
+      // Local-only: documents are managed via local filesystem (docs/ folder)
+      this.loading = false
+      return this.documents
     },
 
-    async fetchDocument(id: number) {
-      this.loading = true
-      this.error = null
-
-      try {
-        const api = useApi()
-        const response = await api.get<Document>(`/documents/${id}`)
-        this.currentDocument = response
-        return response
-      } catch (error) {
-        this.error = (error as Error).message || 'Failed to fetch document'
-        throw error
-      } finally {
-        this.loading = false
-      }
+    async fetchDocument(_id: number) {
+      this.loading = false
+      return this.currentDocument
     },
 
     async createDocument(data: CreateDocumentRequest) {
-      this.error = null
-
-      try {
-        const api = useApi()
-        const response = await api.post<Document>('/documents', data)
-
-        // Add to list
-        this.documents.unshift({
-          id: response.id,
-          created_at: response.created_at,
-          updated_at: response.updated_at,
-          title: response.title,
-          type: response.type,
-          project_id: response.project_id,
-          company_id: response.company_id
-        })
-
-        this.currentDocument = response
-        return { success: true, data: response }
-      } catch (error) {
-        this.error = (error as Error).message || 'Failed to create document'
-        return { success: false, error: this.error }
+      const doc: Document = {
+        id: Date.now(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        title: data.title,
+        content: data.content || '',
+        type: data.type || 'custom',
+        plan_json: data.plan_json,
+        project_id: data.project_id,
       }
+      this.documents.unshift({
+        id: doc.id,
+        created_at: doc.created_at,
+        updated_at: doc.updated_at,
+        title: doc.title,
+        type: doc.type,
+        project_id: doc.project_id,
+      })
+      this.currentDocument = doc
+      return { success: true as const, data: doc }
     },
 
-    async createProjectDocument(projectId: number, data: CreateDocumentRequest) {
-      this.error = null
-
-      try {
-        const api = useApi()
-        const response = await api.post<Document>(`/project-documents/${projectId}`, data)
-
-        // Add to list
-        this.documents.unshift({
-          id: response.id,
-          created_at: response.created_at,
-          updated_at: response.updated_at,
-          title: response.title,
-          type: response.type,
-          project_id: response.project_id,
-          company_id: response.company_id
-        })
-
-        this.currentDocument = response
-        return { success: true, data: response }
-      } catch (error) {
-        this.error = (error as Error).message || 'Failed to create document'
-        return { success: false, error: this.error }
-      }
+    async createProjectDocument(_projectId: number, data: CreateDocumentRequest) {
+      return this.createDocument({ ...data, project_id: _projectId })
     },
 
     async updateDocument(id: number, data: UpdateDocumentRequest) {
       this.saving = true
-      this.error = null
-
-      try {
-        const api = useApi()
-        const response = await api.put<Document>(`/documents/${id}`, data)
-
-        // Update in list
-        const index = this.documents.findIndex(d => d.id === id)
-        const existing = this.documents[index]
-        if (index !== -1 && existing) {
-          this.documents[index] = {
-            id: existing.id,
-            created_at: existing.created_at,
-            updated_at: response.updated_at,
-            title: response.title,
-            type: existing.type,
-            project_id: existing.project_id,
-            company_id: existing.company_id
-          }
-        }
-
-        if (this.currentDocument?.id === id) {
-          this.currentDocument = response
-        }
-
-        return { success: true, data: response }
-      } catch (error) {
-        this.error = (error as Error).message || 'Failed to update document'
-        return { success: false, error: this.error }
-      } finally {
-        this.saving = false
+      const index = this.documents.findIndex(d => d.id === id)
+      const existing = this.documents[index]
+      if (index !== -1 && existing) {
+        existing.updated_at = new Date().toISOString()
+        if (data.title) existing.title = data.title
       }
+      if (this.currentDocument?.id === id) {
+        if (data.title) this.currentDocument.title = data.title
+        if (data.content) this.currentDocument.content = data.content
+        if (data.plan_json) this.currentDocument.plan_json = data.plan_json
+        this.currentDocument.updated_at = new Date().toISOString()
+      }
+      this.saving = false
+      return { success: true as const, data: this.currentDocument as Document }
     },
 
     async deleteDocument(id: number) {
-      this.error = null
-
-      try {
-        const api = useApi()
-        await api.delete(`/documents/${id}`)
-
-        // Remove from list
-        this.documents = this.documents.filter(d => d.id !== id)
-
-        if (this.currentDocument?.id === id) {
-          this.currentDocument = null
-        }
-
-        return { success: true }
-      } catch (error) {
-        this.error = (error as Error).message || 'Failed to delete document'
-        return { success: false, error: this.error }
+      this.documents = this.documents.filter(d => d.id !== id)
+      if (this.currentDocument?.id === id) {
+        this.currentDocument = null
       }
+      return { success: true as const }
     },
 
     async linkToProject(docId: number, projectId: number) {
-      this.error = null
-
-      try {
-        const api = useApi()
-        const response = await api.patch<Document>(`/documents/${docId}/link/${projectId}`)
-
-        // Update in list
-        const index = this.documents.findIndex(d => d.id === docId)
-        const docItem = this.documents[index]
-        if (index !== -1 && docItem) {
-          docItem.project_id = projectId
-        }
-
-        if (this.currentDocument?.id === docId) {
-          this.currentDocument = response
-        }
-
-        return { success: true, data: response }
-      } catch (error) {
-        this.error = (error as Error).message || 'Failed to link document to project'
-        return { success: false, error: this.error }
+      const index = this.documents.findIndex(d => d.id === docId)
+      const docItem = this.documents[index]
+      if (index !== -1 && docItem) {
+        docItem.project_id = projectId
       }
+      return { success: true as const, data: this.currentDocument as Document }
     },
 
     setCurrentDocument(doc: Document | null) {
