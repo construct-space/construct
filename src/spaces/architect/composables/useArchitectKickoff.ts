@@ -152,7 +152,7 @@ export function useArchitectKickoff() {
         })
 
         if (!docResult.success) {
-          console.warn(`Failed to save ${docType} document:`, docResult.error)
+          console.warn(`Failed to save ${docType} document:`, (docResult as any).error)
         } else if (!firstDocId) {
           firstDocId = docResult.data?.id
         }

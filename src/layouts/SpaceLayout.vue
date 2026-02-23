@@ -4,14 +4,17 @@
  *
  * Reads ?project= from route query, opens the project in the store,
  * and provides project context to child space pages.
- * Preserves project query param in navigation.
+ * Preserves project query param across space navigation.
+ *
+ * NOTE: Does NOT clear project on unmount — the project persists
+ * when switching between spaces via sidebar. This is intentional:
+ * the user's project context should carry over.
  */
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { useProjectStore } from '@/stores/project'
-import { watch, onMounted, onUnmounted } from 'vue'
+import { watch, onMounted } from 'vue'
 
 const route = useRoute()
-const router = useRouter()
 const projectStore = useProjectStore()
 
 const openProjectFromQuery = () => {
@@ -31,11 +34,6 @@ onMounted(() => {
 // Watch for query changes (e.g., switching projects within a space)
 watch(() => route.query.project, () => {
   openProjectFromQuery()
-})
-
-// Cleanup: clear project on unmount
-onUnmounted(() => {
-  projectStore.clearCurrentProject()
 })
 </script>
 

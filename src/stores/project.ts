@@ -11,8 +11,8 @@ const MAX_RECENTS = 20
 
 // All spaces available to every project by default
 const DEFAULT_SPACES: SpaceType[] = [
-  'code', 'design', 'kanban', 'docs', 'notes', 'chat',
-  'architect', 'ai', 'git', 'terminal', 'calendar'
+  'code', 'design', 'kanban', 'docs', 'notes',
+  'architect', 'git', 'terminal', 'calendar'
 ]
 
 export const useProjectStore = defineStore('project', {

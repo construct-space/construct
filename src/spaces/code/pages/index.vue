@@ -815,10 +815,6 @@ watch(
     syncToolbar()
     if (scope !== previousScope) {
       await loadRepos()
-      return
-    }
-    if (scope) {
-      await loadRepos()
     }
   }
 )
@@ -833,61 +829,40 @@ watch(
         <Icon name="i-lucide-loader-2" class="size-8 animate-spin text-app-muted" />
       </div>
 
-      <!-- Company scope repository list -->
-      <div v-else-if="!isProjectScope" class="h-full">
-        <div v-if="companyRepos.length === 0" class="flex flex-col items-center justify-center h-full text-center">
-          <Icon name="i-lucide-buildings-2" class="size-16 text-app-muted mb-4" />
-          <h2 class="text-lg font-medium text-app mb-2">No Repositories Found</h2>
-          <p class="text-app-muted text-sm mb-4 max-w-md">
-            No repositories were discovered in projects with configured local code folders.
-          </p>
-          <Button
-            icon="i-lucide-folder-open"
-            label="Open Projects"
-            @click="router.push('/app')"
-          />
-        </div>
+      <!-- No project selected — show recent projects to open -->
+      <div v-else-if="!isProjectScope" class="h-full flex items-center justify-center">
+        <div class="w-full max-w-lg text-center">
+          <Icon name="i-lucide-code" class="size-12 text-app-muted mb-3 mx-auto" />
+          <h2 class="text-lg font-medium text-app mb-1">Code Editor</h2>
+          <p class="text-sm text-app-muted mb-6">Select a project to open in the editor.</p>
 
-        <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <Tooltip
-            v-for="repo in companyRepos"
-            :key="`${repo.projectId}-${repo.path}`"
-            :text="`${repo.projectName} · ${repo.name}`"
-            :popper="{ placement: 'top' }"
-          >
-            <div
-              class="p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 cursor-pointer transition-all group"
-              @click="openCompanyRepo(repo)"
+          <!-- Recent projects -->
+          <div v-if="projectStore.recentProjects.length > 0" class="space-y-2 mb-6 text-left">
+            <p class="text-xs text-app-muted uppercase tracking-wider font-medium px-1">Recent Projects</p>
+            <button
+              v-for="project in projectStore.recentProjects.slice(0, 6)"
+              :key="project.path"
+              class="w-full text-left p-3 rounded-lg border border-app hover:border-app-accent/30 hover:bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)] transition-all"
+              @click="router.push({ path: '/app/code/editor', query: { project: project.path } })"
             >
-              <div class="flex items-start justify-between mb-3 gap-3">
-                <div class="flex items-center gap-3 min-w-0">
-                  <div class="p-2 rounded-lg bg-(--app-accent)/10">
-                    <Icon
-                      :name="repo.isRepo ? 'i-lucide-git-branch' : 'i-lucide-folder'"
-                      class="size-5 text-app-accent"
-                    />
-                  </div>
-                  <div class="min-w-0">
-                    <h3 class="font-medium text-app group-hover:text-app-accent transition-colors truncate">
-                      {{ repo.name }}
-                    </h3>
-                    <p class="text-xs text-app-muted truncate">
-                      {{ repo.projectName }}
-                    </p>
-                  </div>
-                </div>
-                <span
-                  class="size-2 rounded-full mt-2"
-                  :class="{
-                    'bg-green-400': repo.status === 'clean',
-                    'bg-yellow-400': repo.status === 'dirty',
-                    'bg-gray-400': repo.status === 'unknown'
-                  }"
-                />
-              </div>
-              <p class="text-xs text-app-muted truncate">{{ repo.path }}</p>
-            </div>
-          </Tooltip>
+              <p class="text-sm font-medium text-app">{{ project.name }}</p>
+              <p class="text-[10px] text-app-muted truncate mt-0.5">{{ project.path }}</p>
+            </button>
+          </div>
+
+          <div class="flex gap-2 justify-center">
+            <Button
+              icon="i-lucide-folder-open"
+              label="Open Folder"
+              @click="importFolder"
+            />
+            <Button
+              icon="i-lucide-plus"
+              label="New Project"
+              variant="soft"
+              @click="openCreateModal"
+            />
+          </div>
         </div>
       </div>
 

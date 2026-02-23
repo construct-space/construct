@@ -1,6 +1,6 @@
 // Type declarations for Context Service API (Tauri)
 
-export type Mode = 'code' | 'design' | 'chat'
+export type Mode = 'code' | 'design'
 
 export interface ComponentContext {
   name: string
@@ -188,11 +188,6 @@ export interface SpaceContextDocs {
   activeDocument: { id: number; title: string; content: string } | null
 }
 
-export interface SpaceContextChat {
-  activeConversation: string | null
-  recentMessages: number
-}
-
 export interface SpaceContext {
   activeSpace: string
   project: SpaceContextProject | null
@@ -202,7 +197,6 @@ export interface SpaceContext {
   notes: SpaceContextNotes
   git: SpaceContextGit
   docs: SpaceContextDocs
-  chat: SpaceContextChat
 }
 
 declare global {

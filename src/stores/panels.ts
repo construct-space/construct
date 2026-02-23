@@ -132,50 +132,34 @@ export const usePanelsStore = defineStore('panels', {
       this.isDirty = true
     },
 
-    // Load layout from API
-    async loadLayout(projectId: number, space: SpaceType) {
+    // Load layout — local-only, use localStorage
+    async loadLayout(_projectId: number, space: SpaceType) {
       this.isLoading = true
-
       try {
-        const api = useApi()
-        const response = await api.get<{ layout: PanelLayout }>(
-          `/projects/${projectId}/spaces/${space}/my-layout`
-        )
-
-        if (response.layout) {
-          this.layouts[space] = response.layout
+        const key = `construct_layout_${space}`
+        const stored = localStorage.getItem(key)
+        if (stored) {
+          this.layouts[space] = JSON.parse(stored)
         } else {
-          // Use default if no custom layout
           this.layouts[space] = { ...DEFAULT_LAYOUTS[space] }
         }
-
         this.isDirty = false
       } catch {
-        // Use default on error
         this.layouts[space] = { ...DEFAULT_LAYOUTS[space] }
       } finally {
         this.isLoading = false
       }
     },
 
-    // Save layout to API
-    async saveLayout(projectId: number, space: SpaceType) {
+    // Save layout — local-only, use localStorage
+    async saveLayout(_projectId: number, space: SpaceType) {
       if (!this.layouts[space]) return
-
-      this.isLoading = true
-
       try {
-        const api = useApi()
-        await api.put(`/projects/${projectId}/spaces/${space}/my-layout`, {
-          layout: this.layouts[space]
-        })
-
+        const key = `construct_layout_${space}`
+        localStorage.setItem(key, JSON.stringify(this.layouts[space]))
         this.isDirty = false
       } catch (error) {
         console.error('Failed to save layout:', error)
-        throw error
-      } finally {
-        this.isLoading = false
       }
     },
 

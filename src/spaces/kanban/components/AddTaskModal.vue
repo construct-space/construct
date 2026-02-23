@@ -110,7 +110,7 @@ const handleCreate = async () => {
       emit('created')
       emit('close')
     } else {
-      error.value = result.error || 'Failed to create task'
+      error.value = (result as any).error || 'Failed to create task'
     }
   } catch (e) {
     error.value = (e as Error).message || 'An unexpected error occurred'

@@ -23,7 +23,6 @@ import type {
   SpaceContextNotes,
   SpaceContextGit,
   SpaceContextDocs,
-  SpaceContextChat,
 } from '~/types/context'
 import { useGitRepo } from '~/spaces/git/composables/useGitRepo'
 import { useCodeEditor } from '~/spaces/code/composables/useCodeEditor'
@@ -48,14 +47,11 @@ export function useSpaceContext() {
   const tasksStore = useTasksStore()
   const notesStore = useNotesStore()
   const documentsStore = useDocumentsStore()
-  const conversationsStore = useConversationsStore()
-
   // storeToRefs preserves reactivity for state properties
   const { currentProject } = storeToRefs(projectStore)
   const { tasks, currentTask } = storeToRefs(tasksStore)
   const { notes } = storeToRefs(notesStore)
   const { documents, currentDocument } = storeToRefs(documentsStore)
-  const { currentConversation } = storeToRefs(conversationsStore)
 
   // Space composables use module-level reactive state, so calling them is safe
   const { state: codeState } = useCodeEditor()
@@ -175,14 +171,6 @@ export function useSpaceContext() {
     }
   })
 
-  const chatContext = computed((): SpaceContextChat => {
-    const conv = currentConversation.value
-    return {
-      activeConversation: conv ? conv.name : null,
-      recentMessages: conv?.messages?.length ?? conv?.message_count ?? 0,
-    }
-  })
-
   // ---------------------------------------------------------------------------
   // Aggregated space context
   // ---------------------------------------------------------------------------
@@ -199,9 +187,8 @@ export function useSpaceContext() {
     if (gitState.currentRepoPath) return 'git'
     if (currentDocument.value) return 'docs'
     if (currentTask.value) return 'tasks'
-    if (currentConversation.value) return 'chat'
     if ((notes.value || []).length > 0) return 'notes'
-    return 'chat' // Default fallback
+    return 'code' // Default fallback
   })
 
   const spaceContext = computed((): SpaceContext => ({
@@ -213,7 +200,6 @@ export function useSpaceContext() {
     notes: notesContext.value,
     git: gitContext.value,
     docs: docsContext.value,
-    chat: chatContext.value,
   }))
 
   // ---------------------------------------------------------------------------
@@ -288,11 +274,6 @@ export function useSpaceContext() {
       }
     }
 
-    // Chat
-    if (ctx.chat.activeConversation) {
-      parts.push(`Chat: "${ctx.chat.activeConversation}" (${ctx.chat.recentMessages} messages)`)
-    }
-
     return parts.join('\n')
   }
 
@@ -360,11 +341,6 @@ export function useSpaceContext() {
           code: ctx.code, // Architecture docs reference code
         }
 
-      case 'chat':
-      case 'ai':
-        // Chat/AI gets everything -- it needs full context to help
-        return ctx
-
       default:
         return ctx
     }
@@ -392,7 +368,6 @@ export function useSpaceContext() {
     notesContext,
     gitContext,
     docsContext,
-    chatContext,
     activeSpace,
   }
 }

@@ -2,7 +2,7 @@
  * Project types — local-first, no remote API
  */
 
-export type SpaceType = 'code' | 'design' | 'git' | 'ai' | 'chat' | 'notes' | 'kanban' | 'architect' | 'terminal' | 'docs' | 'calendar'
+export type SpaceType = 'code' | 'design' | 'git' | 'notes' | 'kanban' | 'architect' | 'terminal' | 'docs' | 'calendar'
 
 export interface LocalProject {
   id: string | number  // Path slug (e.g., 'my-app') or numeric ID for backward compat

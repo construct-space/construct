@@ -53,15 +53,13 @@ const spaceIconMap: Record<string, string> = {
   kanban: 'i-lucide-kanban',
   docs: 'i-lucide-book-open',
   notes: 'i-lucide-file-text',
-  chat: 'i-lucide-messages-square',
   architect: 'i-lucide-compass',
-  ai: 'i-lucide-sparkles',
   terminal: 'i-lucide-terminal',
   git: 'i-lucide-git-branch',
   calendar: 'i-lucide-calendar',
 }
 
-// Dynamic nav items from spaces
+// Dynamic nav items from spaces — sidebar always goes to space index (no project query)
 const spaceNavItems = computed(() => {
   return spaces.value.map(space => ({
     id: space.name,

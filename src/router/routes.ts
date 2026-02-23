@@ -90,30 +90,12 @@ export const routes: RouteRecordRaw[] = [
         ],
       },
 
-      // Chat space
-      {
-        path: 'chat',
-        component: () => import('@/layouts/SpaceLayout.vue'),
-        children: [
-          { path: '', component: () => import('@/spaces/chat/pages/index.vue') },
-        ],
-      },
-
       // Architect space
       {
         path: 'architect',
         component: () => import('@/layouts/SpaceLayout.vue'),
         children: [
           { path: '', component: () => import('@/spaces/architect/pages/index.vue') },
-        ],
-      },
-
-      // AI space
-      {
-        path: 'ai',
-        component: () => import('@/layouts/SpaceLayout.vue'),
-        children: [
-          { path: '', component: () => import('@/spaces/ai/pages/index.vue') },
         ],
       },
 

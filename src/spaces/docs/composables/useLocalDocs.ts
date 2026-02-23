@@ -272,7 +272,7 @@ export function useLocalDocs() {
       } else {
         toast.add({
           title: 'Sync Failed',
-          description: result.error || 'Failed to sync document',
+          description: (result as any).error || 'Failed to sync document',
           color: 'error'
         })
         return false

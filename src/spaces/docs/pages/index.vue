@@ -171,7 +171,7 @@ async function createDocument() {
   } else {
     toast.add({
       title: 'Error',
-      description: result.error || 'Failed to create document',
+      description: (result as any).error || 'Failed to create document',
       color: 'error'
     })
   }
@@ -216,7 +216,7 @@ async function createFromTemplate(type: DocumentType, title: string, content: st
   } else {
     toast.add({
       title: 'Error',
-      description: result.error || 'Failed to create document',
+      description: (result as any).error || 'Failed to create document',
       color: 'error'
     })
   }
@@ -285,7 +285,7 @@ async function handleDelete(doc: UnifiedDoc) {
     } else {
       toast.add({
         title: 'Error',
-        description: result.error || 'Failed to delete document',
+        description: (result as any).error || 'Failed to delete document',
         color: 'error'
       })
     }
@@ -329,7 +329,7 @@ async function handleRename(doc: UnifiedDoc, title: string) {
     } else {
       toast.add({
         title: 'Error',
-        description: result.error || 'Failed to rename document',
+        description: (result as any).error || 'Failed to rename document',
         color: 'error'
       })
     }

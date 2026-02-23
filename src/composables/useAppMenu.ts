@@ -25,7 +25,6 @@ export function useAppMenu() {
     if (path.includes('/ui')) return 'ui'
     if (path.includes('/kanban')) return 'kanban'
     if (path.includes('/git')) return 'git'
-    if (path.includes('/ai')) return 'ai'
     if (path.includes('/browser')) return 'browser'
     if (path.includes('/terminal')) return 'terminal'
     return 'default'
