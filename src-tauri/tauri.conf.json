@@ -13,7 +13,7 @@
   },
   "build": {
     "beforeDevCommand": "TAURI=true bun run dev",
-    "devUrl": "http://localhost:3040",
+    "devUrl": "http://localhost:3050",
     "beforeBuildCommand": "TAURI=true bun run build",
     "frontendDist": "../dist"
   },

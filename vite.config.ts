@@ -45,7 +45,7 @@ export default defineConfig({
     dedupe: ['vue'],
   },
   server: {
-    port: 3040,
+    port: 3050,
     strictPort: true,
     proxy: {
       '/api': 'http://localhost:8000',
