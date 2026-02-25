@@ -17,11 +17,9 @@ const marketplace = useSpaceMarketplace()
 
 const categories = [
   { id: 'all', label: 'All' },
-  { id: 'productivity', label: 'Productivity' },
-  { id: 'development', label: 'Development' },
-  { id: 'design', label: 'Design' },
-  { id: 'data', label: 'Data' },
-  { id: 'communication', label: 'Communication' },
+  { id: 'project', label: 'Project' },
+  { id: 'company', label: 'Company' },
+  { id: 'both', label: 'Universal' },
 ]
 
 // Track install-in-progress per space
@@ -120,16 +118,16 @@ function formatDownloads(n: number): string {
         class="text-center py-20"
       >
         <Store class="size-12 text-[var(--app-muted)] mx-auto mb-4 opacity-40" />
-        <h3 class="text-lg font-semibold text-[var(--app-foreground)] mb-2">Marketplace coming soon</h3>
+        <h3 class="text-lg font-semibold text-[var(--app-foreground)] mb-2">No spaces found</h3>
         <p class="text-sm text-[var(--app-muted)] max-w-sm mx-auto">
-          The space marketplace will be available once the backend is ready.
-          For now, all 9 built-in spaces are available from the All Spaces page.
+          No remote spaces match your search. Check back later for new community spaces,
+          or browse your installed spaces.
         </p>
         <button
           class="mt-6 px-4 py-2 rounded-lg border border-[var(--app-border)] text-sm text-[var(--app-foreground)] hover:bg-[color-mix(in_srgb,var(--app-muted)_5%,transparent)] transition-colors"
           @click="router.push('/app/spaces')"
         >
-          View All Spaces
+          View Installed Spaces
         </button>
       </div>
 

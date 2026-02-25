@@ -21,6 +21,8 @@ import AssistantFloat from '@/components/ai/AssistantFloat.vue'
     </div>
 
     <!-- AI Assistant (triggered by double Shift) -->
-    <AssistantFloat />
+    <Suspense>
+      <AssistantFloat />
+    </Suspense>
   </div>
 </template>
