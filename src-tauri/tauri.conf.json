@@ -9,6 +9,11 @@
       "endpoints": [
         "https://github.com/construct-base/construct-releases/releases/latest/download/latest.json"
       ]
+    },
+    "deep-link": {
+      "desktop": {
+        "schemes": ["construct"]
+      }
     }
   },
   "build": {

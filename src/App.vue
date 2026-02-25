@@ -3,9 +3,11 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { isTauriEnv } from '@/utils/tauri'
 import { useAppTheme } from '@/composables/useAppTheme'
+import { useDeepLink } from '@/composables/useDeepLink'
 
 const route = useRoute()
 const { initTheme } = useAppTheme()
+useDeepLink()
 
 // Check if we're in an app route (needs sidebar + toolbar)
 const showSidebar = computed(() => route.path.startsWith('/app'))

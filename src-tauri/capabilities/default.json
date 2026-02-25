@@ -65,6 +65,7 @@
     "process:allow-restart",
     "process:allow-exit",
     "opener:default",
-    "opener:allow-open-url"
+    "opener:allow-open-url",
+    "deep-link:default"
   ]
 }
