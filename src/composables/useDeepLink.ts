@@ -13,6 +13,21 @@ export function useDeepLink() {
     const parsed = new URL(url)
     const segments = parsed.pathname.replace(/^\/+/, '').split('/')
     const action = parsed.host
+
+    // OAuth callback: construct://oauth/callback?code=xxx&state=xxx
+    if (action === 'oauth' && segments[0] === 'callback') {
+      const code = parsed.searchParams.get('code')
+      const state = parsed.searchParams.get('state')
+      const error = parsed.searchParams.get('error')
+
+      if (error) {
+        router.push(`/oauth/callback?error=${encodeURIComponent(error)}`)
+      } else if (code && state) {
+        router.push(`/oauth/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`)
+      }
+      return
+    }
+
     const type = segments[0]
     const id = segments[1]
 

@@ -1,5 +1,13 @@
 import type { RouteRecordRaw } from 'vue-router'
-import { BUILTIN_SPACE_NAMES } from '~/spaces/builtin'
+
+/**
+ * Routes — fully dynamic space loading.
+ *
+ * There are NO hardcoded space routes. All spaces (code, design, architect, etc.)
+ * are loaded at runtime via DynamicSpacePage + SpaceLoader.
+ * This means spaces can be installed/uninstalled from the marketplace
+ * without any code changes to the router.
+ */
 
 export const routes: RouteRecordRaw[] = [
   // Public routes
@@ -20,10 +28,14 @@ export const routes: RouteRecordRaw[] = [
     meta: { guest: true },
   },
   {
-    path: '/forgot-password',
-    name: 'forgot-password',
-    component: () => import('@/pages/ForgotPasswordPage.vue'),
+    path: '/oauth/callback',
+    name: 'oauth-callback',
+    component: () => import('@/pages/OAuthCallbackPage.vue'),
     meta: { guest: true },
+  },
+  {
+    path: '/forgot-password',
+    redirect: '/login',
   },
 
   // Onboarding (first-time space picker)
@@ -59,94 +71,6 @@ export const routes: RouteRecordRaw[] = [
         path: 'marketplace',
         name: 'marketplace',
         component: () => import('@/pages/MarketplacePage.vue'),
-      },
-
-      // ===== Spaces — top-level =====
-
-      // Code space
-      {
-        path: 'code',
-        component: () => import('@/layouts/SpaceLayout.vue'),
-        children: [
-          { path: '', component: () => import('@/spaces/code/pages/index.vue') },
-          { path: 'editor', component: () => import('@/spaces/code/pages/editor.vue') },
-          { path: 'responsive', component: () => import('@/spaces/code/pages/responsive.vue') },
-          { path: 'terminal', component: () => import('@/spaces/terminal/pages/index.vue') },
-          { path: 'git', component: () => import('@/spaces/git/pages/index.vue') },
-        ],
-      },
-
-      // Design space
-      {
-        path: 'design',
-        component: () => import('@/layouts/SpaceLayout.vue'),
-        children: [
-          { path: '', component: () => import('@/spaces/design/pages/index.vue') },
-          { path: 'editor', component: () => import('@/spaces/design/pages/editor.vue') },
-        ],
-      },
-
-      // Kanban space
-      {
-        path: 'kanban',
-        component: () => import('@/layouts/SpaceLayout.vue'),
-        children: [
-          { path: '', component: () => import('@/spaces/kanban/pages/index.vue') },
-        ],
-      },
-
-      // Docs space
-      {
-        path: 'docs',
-        component: () => import('@/layouts/SpaceLayout.vue'),
-        children: [
-          { path: '', component: () => import('@/spaces/docs/pages/index.vue') },
-        ],
-      },
-
-      // Notes space
-      {
-        path: 'notes',
-        component: () => import('@/layouts/SpaceLayout.vue'),
-        children: [
-          { path: '', component: () => import('@/spaces/notes/pages/index.vue') },
-        ],
-      },
-
-      // Architect space
-      {
-        path: 'architect',
-        component: () => import('@/layouts/SpaceLayout.vue'),
-        children: [
-          { path: '', component: () => import('@/spaces/architect/pages/index.vue') },
-        ],
-      },
-
-      // Terminal space
-      {
-        path: 'terminal',
-        component: () => import('@/layouts/SpaceLayout.vue'),
-        children: [
-          { path: '', component: () => import('@/spaces/terminal/pages/index.vue') },
-        ],
-      },
-
-      // Git space
-      {
-        path: 'git',
-        component: () => import('@/layouts/SpaceLayout.vue'),
-        children: [
-          { path: '', component: () => import('@/spaces/git/pages/index.vue') },
-        ],
-      },
-
-      // Calendar space
-      {
-        path: 'calendar',
-        component: () => import('@/layouts/SpaceLayout.vue'),
-        children: [
-          { path: '', component: () => import('@/spaces/calendar/pages/index.vue') },
-        ],
       },
 
       // Settings
@@ -205,18 +129,32 @@ export const routes: RouteRecordRaw[] = [
         ],
       },
 
-      // Dynamic catch-all for marketplace-installed spaces
+      // ===== Dynamic space routes =====
+      // ALL spaces (including code, design, architect) go through DynamicSpacePage.
+      // SpaceLoader handles dev (Vite import) vs prod (IIFE bundle) loading.
+
+      // Space index page: /app/:spaceName
       {
         path: ':spaceName',
-        component: () => import('@/spaces/_dynamic/DynamicSpacePage.vue'),
-        props: true,
-        beforeEnter: (to) => {
-          // Reject if spaceName matches a built-in space (those have their own routes above)
-          const name = to.params.spaceName as string
-          if (BUILTIN_SPACE_NAMES.includes(name)) {
-            return false
-          }
-        },
+        component: () => import('@/layouts/SpaceLayout.vue'),
+        children: [
+          {
+            path: '',
+            component: () => import('@/spaces/DynamicSpacePage.vue'),
+            props: (route) => ({
+              spaceName: route.params.spaceName,
+            }),
+          },
+          // Space sub-page: /app/:spaceName/:subPage
+          {
+            path: ':subPage',
+            component: () => import('@/spaces/DynamicSpacePage.vue'),
+            props: (route) => ({
+              spaceName: route.params.spaceName,
+              subPage: route.params.subPage,
+            }),
+          },
+        ],
       },
     ],
   },

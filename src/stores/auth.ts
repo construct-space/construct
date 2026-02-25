@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { appConfig } from '@/utils/config'
-import type { AuthUserData, AuthResponse, LoginRequest, RegisterRequest } from '@/types'
+import type { AuthUserData } from '@/types'
 
 interface AuthState {
   user: AuthUserData | null
@@ -71,31 +71,35 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
-    async login(credentials: LoginRequest) {
+    async loginWithOAuth(code: string) {
       this.isLoading = true
       this.error = null
 
       try {
+        const { useConstructAuth } = await import('@/composables/useConstructAuth')
+        const constructAuth = useConstructAuth()
+
+        // Exchange code for access token
+        const tokenData = await constructAuth.exchangeCode(code)
+        const accessToken = tokenData.access_token
+
+        this.token = accessToken
+
         const { useApi } = await import('@/composables/useApi')
         const api = useApi()
-        const authData = await api.authPost<AuthResponse>('/auth/login', {
-          email: credentials.email,
-          password: credentials.password,
-        })
+        api.setToken(accessToken)
 
-        this.token = authData.accessToken
-        api.setToken(authData.accessToken)
+        // Fetch user profile from accounts service
+        const profile = await constructAuth.fetchProfile(accessToken)
 
         const userData: AuthUserData = {
-          id: authData.id,
-          email: authData.email,
-          username: authData.username,
-          first_name: authData.first_name,
-          last_name: authData.last_name,
-          name: `${authData.first_name} ${authData.last_name}`.trim(),
-          phone: authData.phone,
-          avatar: authData.avatar_url,
-          last_login: authData.last_login,
+          id: typeof profile.id === 'string' ? parseInt(profile.id, 10) || 0 : profile.id as number,
+          email: profile.email,
+          username: profile.username,
+          first_name: profile.first_name,
+          last_name: profile.last_name,
+          name: `${profile.first_name} ${profile.last_name}`.trim(),
+          avatar: profile.avatar_url,
           created_at: '',
           updated_at: '',
         }
@@ -104,59 +108,11 @@ export const useAuthStore = defineStore('auth', {
         this.isAuthenticated = true
 
         await this.persistAuthState()
-        await this.syncTokenToContextService(authData.accessToken, userData)
+        await this.syncTokenToContextService(accessToken, userData)
 
         return { success: true as const, data: userData }
       } catch (error: unknown) {
         this.error = error instanceof Error ? error.message : 'Login failed'
-        this.clearAuthState()
-        return { success: false as const, error: this.error }
-      } finally {
-        this.isLoading = false
-      }
-    },
-
-    async register(userData: RegisterRequest) {
-      this.isLoading = true
-      this.error = null
-
-      try {
-        const { useApi } = await import('@/composables/useApi')
-        const api = useApi()
-        const authData = await api.authPost<AuthResponse>('/auth/register', {
-          email: userData.email,
-          password: userData.password,
-          first_name: userData.first_name,
-          last_name: userData.last_name,
-          phone: userData.phone,
-          username: userData.username,
-        })
-
-        this.token = authData.accessToken
-        api.setToken(authData.accessToken)
-
-        const userDataObj: AuthUserData = {
-          id: authData.id,
-          email: authData.email,
-          username: authData.username,
-          first_name: authData.first_name,
-          last_name: authData.last_name,
-          name: `${authData.first_name} ${authData.last_name}`.trim(),
-          phone: authData.phone,
-          avatar: authData.avatar_url,
-          last_login: authData.last_login,
-          created_at: '',
-          updated_at: '',
-        }
-
-        this.user = userDataObj
-        this.isAuthenticated = true
-
-        await this.persistAuthState()
-
-        return { success: true as const, data: userDataObj }
-      } catch (error: unknown) {
-        this.error = error instanceof Error ? error.message : 'Registration failed'
         this.clearAuthState()
         return { success: false as const, error: this.error }
       } finally {
@@ -196,40 +152,6 @@ export const useAuthStore = defineStore('auth', {
       this.isLoading = false
     },
 
-    async forgotPassword(email: string) {
-      this.isLoading = true
-      this.error = null
-
-      try {
-        const { useApi } = await import('@/composables/useApi')
-        const api = useApi()
-        await api.authPost('/auth/forgot-password', { email })
-        return { success: true as const }
-      } catch (error: unknown) {
-        this.error = error instanceof Error ? error.message : 'Failed to send reset email'
-        return { success: false as const, error: this.error }
-      } finally {
-        this.isLoading = false
-      }
-    },
-
-    async resetPassword(resetToken: string, password: string) {
-      this.isLoading = true
-      this.error = null
-
-      try {
-        const { useApi } = await import('@/composables/useApi')
-        const api = useApi()
-        await api.authPost('/auth/reset-password', { token: resetToken, password })
-        return { success: true as const }
-      } catch (error: unknown) {
-        this.error = error instanceof Error ? error.message : 'Password reset failed'
-        return { success: false as const, error: this.error }
-      } finally {
-        this.isLoading = false
-      }
-    },
-
     async checkAuth() {
       if (!this.token) {
         this.hydrateAuthState()
@@ -245,20 +167,22 @@ export const useAuthStore = defineStore('auth', {
         return false
       }
 
-      // In local-first / Tauri mode, trust the persisted auth state.
-      // Only verify against the remote API when it's reachable.
+      // Validate token against accounts service
       const { useApi } = await import('@/composables/useApi')
       const api = useApi()
       api.setToken(this.token)
 
       try {
-        await api.get('/profile')
+        const { useConstructAuth } = await import('@/composables/useConstructAuth')
+        const constructAuth = useConstructAuth()
+        await constructAuth.fetchProfile(this.token)
         this.isAuthenticated = true
       } catch (error: unknown) {
         // If the server explicitly rejected the token (401), clear auth.
         // For network errors (server unreachable), keep the local session alive.
         const is401 = error instanceof Error && error.message.includes('401')
         const isSessionExpired = error instanceof Error && error.message.toLowerCase().includes('session expired')
+        const isFetchFailed = error instanceof Error && error.message.includes('Failed to fetch')
 
         if (is401 || isSessionExpired) {
           console.warn('Auth token rejected by server, clearing session')

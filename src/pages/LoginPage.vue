@@ -1,27 +1,16 @@
 <script setup lang="ts">
-import { reactive, ref, watchEffect } from 'vue'
+import { watchEffect } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { ArrowLeft, KeyRound, UserPlus } from 'lucide-vue-next'
+import { useConstructAuth } from '@/composables/useConstructAuth'
+import { ExternalLink, UserPlus } from 'lucide-vue-next'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const constructAuth = useConstructAuth()
 
-const form = reactive({
-  email: '',
-  password: '',
-})
-
-const error = ref('')
-
-const handleLogin = async () => {
-  error.value = ''
-  const result = await authStore.login(form)
-  if (!result.success) {
-    error.value = result.error || 'Login failed'
-  } else {
-    router.push('/app')
-  }
+const handleLogin = () => {
+  constructAuth.startLogin()
 }
 
 // Redirect if already authenticated
@@ -53,71 +42,31 @@ watchEffect(() => {
             </p>
           </div>
 
-          <!-- RIGHT COLUMN - Form -->
+          <!-- RIGHT COLUMN -->
           <div class="space-y-6">
-            <form class="space-y-5" @submit.prevent="handleLogin">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-2">
-                  Email
-                </label>
-                <input
-                  v-model="form.email"
-                  type="email"
-                  placeholder="you@example.com"
-                  required
-                  class="w-full px-4 py-3 rounded-md bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:border-[var(--app-accent)] focus:outline-none transition-colors"
-                />
-              </div>
+            <button
+              @click="handleLogin"
+              :disabled="authStore.isLoading"
+              class="w-full py-3 rounded-md bg-app-accent text-app-accent-foreground font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              <ExternalLink class="size-4" />
+              {{ authStore.isLoading ? 'CONNECTING...' : 'SIGN IN WITH CONSTRUCT' }}
+            </button>
 
-              <div>
-                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-2">
-                  Password
-                </label>
-                <input
-                  v-model="form.password"
-                  type="password"
-                  placeholder="Enter your password"
-                  required
-                  class="w-full px-4 py-3 rounded-md bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:border-[var(--app-accent)] focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div v-if="error" class="text-red-600 dark:text-red-400 text-sm">
-                {{ error }}
-              </div>
-
-              <button
-                type="submit"
-                :disabled="authStore.isLoading"
-                class="w-full py-3 rounded-md bg-app-accent text-app-accent-foreground font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
-              >
-                {{ authStore.isLoading ? 'SIGNING IN...' : 'SIGN IN' }}
-              </button>
-            </form>
+            <p class="text-sm text-gray-500 text-center">
+              You'll be redirected to accounts.construct.ninja to sign in.
+            </p>
 
             <!-- Footer Links -->
             <div class="pt-6 border-t border-gray-200 dark:border-gray-800 space-y-3">
-              <RouterLink
-                to="/forgot-password"
-                class="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-app-accent transition-colors"
-              >
-                <KeyRound class="size-4" />
-                <span class="text-sm uppercase tracking-wider">Forgot Password</span>
-              </RouterLink>
-              <RouterLink
-                to="/register"
+              <a
+                :href="constructAuth.getRegisterUrl()"
+                target="_blank"
                 class="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-app-accent transition-colors"
               >
                 <UserPlus class="size-4" />
                 <span class="text-sm uppercase tracking-wider">Create Account</span>
-              </RouterLink>
-              <RouterLink
-                to="/"
-                class="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-app-accent transition-colors"
-              >
-                <ArrowLeft class="size-4" />
-                <span class="text-sm uppercase tracking-wider">Back to Home</span>
-              </RouterLink>
+              </a>
             </div>
           </div>
         </div>

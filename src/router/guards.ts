@@ -9,7 +9,7 @@ export async function authGuard(
   const authStore = useAuthStore()
 
   const guestOnlyRoutes = ['/login', '/register']
-  const publicRoutes = ['/', '/login', '/register', '/forgot-password', '/reset-password']
+  const publicRoutes = ['/', '/login', '/register', '/oauth/callback', '/forgot-password', '/reset-password']
 
   const isPublicRoute = publicRoutes.includes(to.path)
   const isGuestOnlyRoute = guestOnlyRoutes.includes(to.path)
