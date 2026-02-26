@@ -10,7 +10,7 @@
 
 import type { SpaceConfig, SpaceToolbarItem } from '~/composables/useSpaces'
 import { usePreferencesStore } from '~/stores/preferences'
-import { globalToolbarItems, defaultToolbarLayout } from '~/spaces/space.global'
+import { globalToolbarItems, defaultToolbarLayout } from '~/config/toolbar'
 
 export interface ToolbarItem {
   id: string

@@ -1,0 +1,81 @@
+{
+  "id": "code",
+  "name": "Code",
+  "version": "0.2.0",
+  "description": "Code editor with terminal and git",
+  "author": {
+    "name": "Construct Team"
+  },
+  "icon": "i-lucide-code",
+  "scope": "both",
+  "minConstructVersion": "0.2.0",
+  "recommended": true,
+  "navigation": {
+    "label": "Code",
+    "icon": "i-lucide-code",
+    "to": "code",
+    "order": 10
+  },
+  "pages": [
+    {
+      "path": "",
+      "label": "Overview",
+      "icon": "i-lucide-layout-dashboard",
+      "default": true,
+      "toolbar": [
+        { "id": "code-new-file", "icon": "i-lucide-file-plus", "label": "New File", "action": "new-file" },
+        { "id": "code-run", "icon": "i-lucide-play", "label": "Run", "action": "run" },
+        { "id": "code-find", "icon": "i-lucide-search", "label": "Find in Files", "action": "find" }
+      ]
+    },
+    {
+      "path": "editor",
+      "label": "Editor",
+      "icon": "i-lucide-file-code",
+      "toolbar": [
+        { "id": "code-run", "icon": "i-lucide-play", "label": "Run / Hot Reload", "action": "run" },
+        { "id": "code-format", "icon": "i-lucide-wand-2", "label": "Format Document", "action": "format" },
+        { "id": "code-find", "icon": "i-lucide-search", "label": "Find", "action": "find" },
+        { "id": "code-split", "icon": "i-lucide-columns-2", "label": "Split Editor", "action": "split" }
+      ]
+    },
+    {
+      "path": "responsive",
+      "label": "Responsive",
+      "icon": "i-lucide-smartphone",
+      "toolbar": [
+        { "id": "code-mobile", "icon": "i-lucide-smartphone", "label": "Mobile", "action": "breakpoint-mobile" },
+        { "id": "code-tablet", "icon": "i-lucide-tablet", "label": "Tablet", "action": "breakpoint-tablet" },
+        { "id": "code-desktop", "icon": "i-lucide-monitor", "label": "Desktop", "action": "breakpoint-desktop" },
+        { "id": "code-rotate", "icon": "i-lucide-rotate-cw", "label": "Rotate", "action": "rotate" }
+      ]
+    },
+    {
+      "path": "terminal",
+      "label": "Terminal",
+      "icon": "i-lucide-terminal",
+      "toolbar": [
+        { "id": "code-term-new", "icon": "i-lucide-plus", "label": "New Terminal", "action": "new-terminal" },
+        { "id": "code-term-split", "icon": "i-lucide-split", "label": "Split", "action": "split-terminal" },
+        { "id": "code-term-clear", "icon": "i-lucide-trash-2", "label": "Clear", "action": "clear-terminal" }
+      ]
+    },
+    {
+      "path": "git",
+      "label": "Git",
+      "icon": "i-lucide-git-branch",
+      "toolbar": [
+        { "id": "code-git-commit", "icon": "i-lucide-git-commit", "label": "Commit", "action": "git-commit" },
+        { "id": "code-git-push", "icon": "i-lucide-upload", "label": "Push", "action": "git-push" },
+        { "id": "code-git-pull", "icon": "i-lucide-download", "label": "Pull", "action": "git-pull" },
+        { "id": "code-git-branch", "icon": "i-lucide-git-branch", "label": "Branches", "action": "git-branches" }
+      ]
+    }
+  ],
+  "toolbar": [],
+  "theme": {
+    "color": "text-emerald-400",
+    "bg": "bg-emerald-400/10"
+  },
+  "keywords": ["code", "editor", "monaco", "terminal", "git"]
+}

@@ -5,7 +5,21 @@
  */
 import { FileTreeContextKey } from './fileTreeContext'
 import { showContextMenu } from '~/composables/useNativeContextMenu'
-import { useCodeEditor } from '~/spaces/code/composables/useCodeEditor'
+// Dynamic space composable — loaded at runtime
+const _codeEditorMod = import.meta.env.DEV
+  ? await import('~/spaces/code/composables/useCodeEditor').catch(() => null)
+  : null
+const useCodeEditor = _codeEditorMod?.useCodeEditor ?? (() => ({
+  state: { rootPath: '', currentFile: '', fileContent: '', currentLanguage: '', fileTree: [] as any[], expandedFolders: new Set<string>(), selectedFile: null as string | null, isDirty: false, isLoading: false, originalContent: '' },
+  openFolder: () => {}, loadDirectory: (..._args: any[]) => Promise.resolve(), selectFile: (..._args: any[]) => Promise.resolve(),
+  getFileIcon: () => 'i-lucide-file', getFileIconColor: () => '', initTauri: () => {},
+  deleteEntry: (..._args: any[]) => Promise.resolve(false), renameEntry: (..._args: any[]) => Promise.resolve(false),
+  duplicateEntry: (..._args: any[]) => Promise.resolve(false),
+  copyPath: (..._args: any[]) => Promise.resolve(false), copyRelativePath: (..._args: any[]) => Promise.resolve(false),
+  copyName: (..._args: any[]) => Promise.resolve(false),
+  revealInFinder: (..._args: any[]) => Promise.resolve(false), openInTerminal: (..._args: any[]) => Promise.resolve(false),
+  createFile: (..._args: any[]) => Promise.resolve(false), createFolder: (..._args: any[]) => Promise.resolve(false),
+}))
 
 const {
   state,

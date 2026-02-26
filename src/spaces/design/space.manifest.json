@@ -1,0 +1,49 @@
+{
+  "id": "design",
+  "name": "Design",
+  "version": "0.2.0",
+  "description": "Visual design with PixiJS — Figma-like design tool",
+  "author": {
+    "name": "Construct Team"
+  },
+  "icon": "i-lucide-pen-tool",
+  "scope": "both",
+  "minConstructVersion": "0.2.0",
+  "recommended": true,
+  "navigation": {
+    "label": "Design",
+    "icon": "i-lucide-pen-tool",
+    "to": "design",
+    "order": 21
+  },
+  "pages": [
+    {
+      "path": "",
+      "label": "Blueprints",
+      "icon": "i-lucide-layout-grid",
+      "default": true,
+      "toolbar": [
+        { "id": "design-new", "icon": "i-lucide-plus", "label": "New Design", "action": "new-design" },
+        { "id": "design-import", "icon": "i-lucide-upload", "label": "Import", "action": "import" }
+      ]
+    },
+    {
+      "path": "editor",
+      "label": "Editor",
+      "icon": "i-lucide-pen-tool",
+      "requiresContext": true,
+      "toolbar": [
+        { "id": "design-undo", "icon": "i-lucide-undo", "label": "Undo", "action": "undo" },
+        { "id": "design-redo", "icon": "i-lucide-redo", "label": "Redo", "action": "redo" },
+        { "id": "design-layers", "icon": "i-lucide-layers", "label": "Layers", "action": "toggle-layers" },
+        { "id": "design-export", "icon": "i-lucide-download", "label": "Export", "action": "export" }
+      ]
+    }
+  ],
+  "toolbar": [],
+  "theme": {
+    "color": "text-rose-400",
+    "bg": "bg-rose-400/10"
+  },
+  "keywords": ["design", "ui", "pixi", "canvas", "figma"]
+}

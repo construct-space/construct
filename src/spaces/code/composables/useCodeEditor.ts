@@ -23,6 +23,10 @@ interface CodeEditorState {
   selectedFile: string | null
 }
 
+interface LoadDirectoryOptions {
+  preserveExpanded?: boolean
+}
+
 const state = reactive<CodeEditorState>({
   rootPath: '',
   currentFile: '',
@@ -42,6 +46,8 @@ const selection = ref<{ text: string; startLine: number; endLine: number } | nul
 // Module-level Tauri APIs (shared across all useCodeEditor calls)
 let tauriFs: typeof import('@tauri-apps/plugin-fs') | null = null
 let tauriDialog: typeof import('@tauri-apps/plugin-dialog') | null = null
+
+const normalizePath = (path: string): string => path.replace(/\/+/g, '/').replace(/\/$/, '')
 
 // Get language from file extension - uses Monaco's built-in language IDs
 // See: https://microsoft.github.io/monaco-editor/
@@ -366,11 +372,15 @@ export const useCodeEditor = () => {
   }
 
   // Load directory contents
-  const loadDirectory = async (path: string) => {
+  const loadDirectory = async (path: string, options: LoadDirectoryOptions = {}) => {
     if (!tauriFs) {
       await initTauri()
     }
     if (!tauriFs) return
+
+    const samePath = normalizePath(state.rootPath) === normalizePath(path)
+    const preserveExpanded = options.preserveExpanded ?? samePath
+    const previouslyExpanded = preserveExpanded ? new Set(state.expandedFolders) : new Set<string>()
 
     state.isLoading = true
     state.rootPath = path  // Set the root path so FileExplorer knows a folder is open
@@ -401,6 +411,24 @@ export const useCodeEditor = () => {
 
       state.fileTree = tree
       state.expandedFolders.clear()
+
+      if (preserveExpanded && previouslyExpanded.size > 0) {
+        const restoreExpanded = async (entries: FileEntry[]) => {
+          for (const entry of entries) {
+            if (!entry.isDirectory || !previouslyExpanded.has(entry.path)) {
+              continue
+            }
+
+            state.expandedFolders.add(entry.path)
+            entry.children = await loadSubdirectory(entry)
+            if (entry.children.length > 0) {
+              await restoreExpanded(entry.children)
+            }
+          }
+        }
+
+        await restoreExpanded(state.fileTree)
+      }
     } catch (err) {
       const errMsg = String(err)
       console.error('Failed to load directory:', err)
@@ -470,6 +498,40 @@ export const useCodeEditor = () => {
       console.error('Failed to load subdirectory:', err)
       return []
     }
+  }
+
+  const findDirectoryEntryByPath = (entries: FileEntry[], targetPath: string): FileEntry | null => {
+    const normalizedTarget = normalizePath(targetPath)
+
+    for (const entry of entries) {
+      if (entry.isDirectory && normalizePath(entry.path) === normalizedTarget) {
+        return entry
+      }
+      if (entry.children && entry.children.length > 0) {
+        const match = findDirectoryEntryByPath(entry.children, targetPath)
+        if (match) return match
+      }
+    }
+
+    return null
+  }
+
+  const refreshDirectoryInTree = async (directoryPath: string) => {
+    if (!state.rootPath) return
+
+    if (normalizePath(directoryPath) === normalizePath(state.rootPath)) {
+      await loadDirectory(state.rootPath, { preserveExpanded: true })
+      return
+    }
+
+    const directoryEntry = findDirectoryEntryByPath(state.fileTree, directoryPath)
+    if (directoryEntry) {
+      directoryEntry.children = await loadSubdirectory(directoryEntry)
+      return
+    }
+
+    // Fallback if folder isn't currently loaded in the in-memory tree.
+    await loadDirectory(state.rootPath, { preserveExpanded: true })
   }
 
   // Toggle folder expansion
@@ -626,26 +688,7 @@ export const useCodeEditor = () => {
 
       // Refresh parent directory
       const parentPath = path.substring(0, path.lastIndexOf('/'))
-      if (parentPath === state.rootPath) {
-        await loadDirectory(state.rootPath)
-      } else {
-        // Find and refresh parent in tree
-        const refreshParent = (entries: FileEntry[]): boolean => {
-          for (const entry of entries) {
-            if (entry.path === parentPath && entry.children) {
-              loadSubdirectory(entry).then(children => {
-                entry.children = children
-              })
-              return true
-            }
-            if (entry.children && refreshParent(entry.children)) {
-              return true
-            }
-          }
-          return false
-        }
-        refreshParent(state.fileTree)
-      }
+      await refreshDirectoryInTree(parentPath)
 
       return true
     } catch (err) {
@@ -672,9 +715,7 @@ export const useCodeEditor = () => {
       }
 
       // Refresh parent directory
-      if (parentPath === state.rootPath) {
-        await loadDirectory(state.rootPath)
-      }
+      await refreshDirectoryInTree(parentPath)
 
       return true
     } catch (err) {
@@ -733,9 +774,7 @@ export const useCodeEditor = () => {
       await tauriFs.writeTextFile(filePath, '')
 
       // Refresh parent directory
-      if (parentPath === state.rootPath) {
-        await loadDirectory(state.rootPath)
-      }
+      await refreshDirectoryInTree(parentPath)
 
       // Open the new file
       await openFile(filePath)
@@ -756,9 +795,7 @@ export const useCodeEditor = () => {
       await tauriFs.mkdir(folderPath)
 
       // Refresh parent directory
-      if (parentPath === state.rootPath) {
-        await loadDirectory(state.rootPath)
-      }
+      await refreshDirectoryInTree(parentPath)
 
       return true
     } catch (err) {
@@ -1043,9 +1080,7 @@ export const useCodeEditor = () => {
       await tauriFs.writeTextFile(copyPath, content)
 
       // Refresh parent directory
-      if (parentPath === state.rootPath) {
-        await loadDirectory(state.rootPath)
-      }
+      await refreshDirectoryInTree(parentPath)
 
       return true
     } catch (err) {

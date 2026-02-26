@@ -1,0 +1,38 @@
+{
+  "id": "git",
+  "name": "Git",
+  "version": "0.2.0",
+  "description": "Git repository management",
+  "author": {
+    "name": "Construct Team"
+  },
+  "icon": "i-lucide-git-branch",
+  "scope": "both",
+  "minConstructVersion": "0.2.0",
+  "navigation": {
+    "label": "Git",
+    "icon": "i-lucide-git-branch",
+    "to": "git",
+    "order": 15
+  },
+  "pages": [
+    {
+      "path": "",
+      "label": "Overview",
+      "icon": "i-lucide-git-branch",
+      "default": true,
+      "toolbar": [
+        { "id": "git-commit", "icon": "i-lucide-git-commit", "label": "Commit", "action": "git-commit" },
+        { "id": "git-push", "icon": "i-lucide-upload", "label": "Push", "action": "git-push" },
+        { "id": "git-pull", "icon": "i-lucide-download", "label": "Pull", "action": "git-pull" },
+        { "id": "git-branches", "icon": "i-lucide-git-branch", "label": "Branches", "action": "git-branches" }
+      ]
+    }
+  ],
+  "toolbar": [],
+  "theme": {
+    "color": "text-red-400",
+    "bg": "bg-red-400/10"
+  },
+  "keywords": ["git", "version-control", "branches"]
+}

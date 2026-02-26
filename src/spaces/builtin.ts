@@ -16,6 +16,8 @@ import notesSpace from '~/spaces/notes/space.config'
 import gitSpace from '~/spaces/git/space.config'
 import terminalSpace from '~/spaces/terminal/space.config'
 import calendarSpace from '~/spaces/calendar/space.config'
+import aiSpace from '~/spaces/ai/space.config'
+import chatSpace from '~/spaces/chat/space.config'
 
 export const builtinSpaces: SpaceConfig[] = [
   codeSpace,
@@ -27,6 +29,8 @@ export const builtinSpaces: SpaceConfig[] = [
   gitSpace,
   terminalSpace,
   calendarSpace,
+  aiSpace,
+  chatSpace,
 ]
 
 export const BUILTIN_SPACE_NAMES = builtinSpaces.map(s => s.name)

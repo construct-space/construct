@@ -1,0 +1,64 @@
+/**
+ * Space Host Module Provider
+ *
+ * Exposes shared host dependencies as window.__CONSTRUCT__ globals.
+ * Space IIFE bundles reference these via rollup externals:
+ *   import { ref } from 'vue'  →  window.__CONSTRUCT__['vue'].ref
+ *
+ * Called once in main.ts before app mount.
+ */
+
+import * as Vue from 'vue'
+import * as VueRouter from 'vue-router'
+import * as Pinia from 'pinia'
+import * as VueUseCore from '@vueuse/core'
+import * as VueUseIntegrations from '@vueuse/integrations'
+import * as TauriApi from '@tauri-apps/api'
+import * as TauriFs from '@tauri-apps/plugin-fs'
+import * as TauriShell from '@tauri-apps/plugin-shell'
+import * as TauriDialog from '@tauri-apps/plugin-dialog'
+import * as TauriProcess from '@tauri-apps/plugin-process'
+import * as RekaUi from 'reka-ui'
+import * as Lucide from 'lucide-vue-next'
+import * as DateFns from 'date-fns'
+import * as Dexie from 'dexie'
+import * as Zod from 'zod'
+
+declare global {
+  interface Window {
+    __CONSTRUCT__: Record<string, unknown>
+    [key: `__CONSTRUCT_SPACE_${string}`]: {
+      pages: Record<string, unknown>
+      components?: Record<string, unknown>
+    } | undefined
+  }
+}
+
+/**
+ * Initialize the host module provider.
+ * Must be called before any space bundles are loaded.
+ */
+export function initSpaceHost(): void {
+  window.__CONSTRUCT__ = {
+    'vue': Vue,
+    'vue-router': VueRouter,
+    'pinia': Pinia,
+    '@vueuse/core': VueUseCore,
+    '@vueuse/integrations': VueUseIntegrations,
+    '@tauri-apps/api': TauriApi,
+    '@tauri-apps/plugin-fs': TauriFs,
+    '@tauri-apps/plugin-shell': TauriShell,
+    '@tauri-apps/plugin-dialog': TauriDialog,
+    '@tauri-apps/plugin-process': TauriProcess,
+    'reka-ui': RekaUi,
+    'lucide-vue-next': Lucide,
+    'date-fns': DateFns,
+    'dexie': Dexie,
+    'zod': Zod,
+  }
+}
+
+/**
+ * Get the host API version for compatibility checking.
+ */
+export const HOST_API_VERSION = '0.2.0'

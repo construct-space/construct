@@ -75,6 +75,20 @@ export const spaces: Record<string, SpaceConfig> = {
     color: 'text-indigo-400',
     bg: 'bg-indigo-400/10',
   },
+  ai: {
+    icon: 'i-lucide-sparkles',
+    label: 'AI',
+    description: 'AI-powered project assistant',
+    color: 'text-purple-400',
+    bg: 'bg-purple-400/10',
+  },
+  chat: {
+    icon: 'i-lucide-messages-square',
+    label: 'Chat',
+    description: 'Team chat with AI',
+    color: 'text-green-400',
+    bg: 'bg-green-400/10',
+  },
 }
 
 export function getSpace(name: string): SpaceConfig {

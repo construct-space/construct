@@ -1,86 +1,123 @@
 <script setup lang="ts">
 /**
- * OnboardingPage — Space picker for first-time users
+ * OnboardingPage — First-run space installer
  *
- * Shown after first login. User selects which built-in spaces to pin
- * to their sidebar dock, then continues to the app.
+ * On first launch, proposes installing recommended spaces from the marketplace.
+ * In dev mode, all spaces are already available — install is a no-op.
  */
 
-import { builtinSpaces } from '~/spaces/builtin'
+import { useSpaceMarketplace } from '@/composables/useSpaceMarketplace'
+import { useSpaces } from '@/composables/useSpaces'
 import { usePinnedStore, createSpacePin } from '@/stores/pinned'
-import { getSpace as getSpaceConfig } from '@/config/spaces'
-import { ArrowRight } from 'lucide-vue-next'
+import { getSpace as getSpaceTheme } from '@/config/spaces'
+import { ArrowRight, Download, Check, Loader2 } from 'lucide-vue-next'
 
 const router = useRouter()
 const pinnedStore = usePinnedStore()
+const marketplace = useSpaceMarketplace()
+const { loadSpaces } = useSpaces()
 
-// Pre-select common spaces
-const defaultSelections = new Set(['code', 'design', 'kanban', 'docs'])
-const selected = ref<Set<string>>(new Set(defaultSelections))
+// Recommended spaces to offer on first run
+const recommendedSpaces = [
+  { id: 'architect', name: 'Architect', description: 'AI-powered project planning', recommended: true },
+  { id: 'code', name: 'Code', description: 'Code editor with terminal & git', recommended: true },
+  { id: 'design', name: 'Design', description: 'Visual design tool', recommended: true },
+  { id: 'kanban', name: 'Tasks', description: 'Project management with boards' },
+  { id: 'docs', name: 'Docs', description: 'Project documentation' },
+  { id: 'notes', name: 'Notes', description: 'Sticky notes and reminders' },
+  { id: 'terminal', name: 'Terminal', description: 'Terminal emulator' },
+  { id: 'git', name: 'Git', description: 'Version control' },
+  { id: 'calendar', name: 'Calendar', description: 'Events and scheduling' },
+  { id: 'ai', name: 'AI', description: 'AI-powered project assistant' },
+  { id: 'chat', name: 'Chat', description: 'Team chat with AI' },
+]
+
+const selected = ref<Set<string>>(new Set(['architect', 'code', 'design']))
+const installing = ref(false)
+const installedIds = ref<Set<string>>(new Set())
+const currentInstall = ref('')
+const installError = ref<string | null>(null)
 
 const spaceCards = computed(() => {
-  return builtinSpaces
-    .sort((a, b) => (a.navigation.order || 0) - (b.navigation.order || 0))
-    .map(s => {
-      const config = getSpaceConfig(s.name)
-      return {
-        name: s.name,
-        displayName: s.displayName || s.name,
-        description: s.description || config.description,
-        icon: config.icon,
-        color: config.color,
-        bg: config.bg,
-        isSelected: selected.value.has(s.name),
-      }
-    })
+  return recommendedSpaces.map(s => {
+    const theme = getSpaceTheme(s.id)
+    return {
+      ...s,
+      icon: theme.icon,
+      color: theme.color,
+      bg: theme.bg,
+      isSelected: selected.value.has(s.id),
+      isInstalled: installedIds.value.has(s.id),
+    }
+  })
 })
 
-function toggleSpace(spaceName: string) {
+function toggleSpace(id: string) {
+  if (installedIds.value.has(id)) return
   const newSet = new Set(selected.value)
-  if (newSet.has(spaceName)) {
-    newSet.delete(spaceName)
+  if (newSet.has(id)) {
+    newSet.delete(id)
   } else {
-    newSet.add(spaceName)
+    newSet.add(id)
   }
   selected.value = newSet
 }
 
-const isLoading = ref(false)
-
 async function handleContinue() {
-  isLoading.value = true
+  installing.value = true
+  installError.value = null
+
   try {
-    // Initialize pinned store if needed
+    // Initialize pinned store
     if (pinnedStore.items.length === 0) {
       await pinnedStore.init()
     }
 
-    // Pin selected spaces
-    for (const spaceName of selected.value) {
-      const space = builtinSpaces.find(s => s.name === spaceName)
-      if (!space) continue
-      const config = getSpaceConfig(spaceName)
-      const pin = createSpacePin({
-        name: space.displayName || spaceName,
-        spaceId: spaceName,
-        icon: config.icon,
-      })
-      await pinnedStore.addPin(pin)
+    // Install selected spaces sequentially
+    for (const id of selected.value) {
+      if (installedIds.value.has(id)) continue
+      currentInstall.value = id
+      try {
+        await marketplace.install(id)
+        installedIds.value.add(id)
+
+        // Pin the space
+        const space = recommendedSpaces.find(s => s.id === id)
+        const theme = getSpaceTheme(id)
+        if (space) {
+          const pin = createSpacePin({
+            name: space.name,
+            spaceId: id,
+            icon: theme.icon,
+          })
+          await pinnedStore.addPin(pin)
+        }
+      } catch (err) {
+        console.error(`Failed to install ${id}:`, err)
+        // Continue with remaining spaces
+      }
     }
 
-    // Mark onboarding as complete
-    localStorage.setItem('cp_onboarding_complete', 'true')
+    // Reload spaces list
+    await loadSpaces()
 
-    // Navigate to app
+    // Mark onboarding complete
+    localStorage.setItem('cp_onboarding_complete', 'true')
     router.push('/app')
   } catch (error) {
     console.error('Onboarding error:', error)
-    // Still mark complete so user isn't stuck
+    installError.value = 'Some spaces failed to install. You can install them later from the Marketplace.'
     localStorage.setItem('cp_onboarding_complete', 'true')
     router.push('/app')
   } finally {
-    isLoading.value = false
+    installing.value = false
+    currentInstall.value = ''
   }
+}
+
+function skipOnboarding() {
+  localStorage.setItem('cp_onboarding_complete', 'true')
+  router.push('/app')
 }
 </script>
 
@@ -96,62 +133,98 @@ async function handleContinue() {
             <path d="M378.22 451.578C393.077 451.578 405.121 460.85 405.121 472.289C405.121 483.727 393.077 493 378.22 493H160.945C146.089 493 134.044 483.727 134.044 472.289C134.044 460.85 146.089 451.578 160.945 451.578H378.22Z" />
           </svg>
           <h1 class="text-3xl font-bold text-[var(--app-foreground)] mb-2">Welcome to Construct</h1>
-          <p class="text-[var(--app-muted)]">Choose the spaces you'd like in your sidebar. You can always change this later.</p>
+          <p class="text-[var(--app-muted)]">Install spaces to get started. You can add more from the Marketplace anytime.</p>
         </div>
 
         <!-- Space grid -->
         <div class="grid grid-cols-3 gap-3 mb-8">
           <button
             v-for="space in spaceCards"
-            :key="space.name"
+            :key="space.id"
             class="relative text-left p-4 rounded-xl border-2 transition-all"
-            :class="space.isSelected
-              ? 'border-[var(--app-accent)] bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)]'
-              : 'border-[var(--app-border)] hover:border-[color-mix(in_srgb,var(--app-accent)_20%,transparent)]'"
-            @click="toggleSpace(space.name)"
+            :class="[
+              space.isInstalled
+                ? 'border-green-500/30 bg-green-500/5 opacity-70'
+                : space.isSelected
+                  ? 'border-[var(--app-accent)] bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)]'
+                  : 'border-[var(--app-border)] hover:border-[color-mix(in_srgb,var(--app-accent)_20%,transparent)]'
+            ]"
+            :disabled="installing"
+            @click="toggleSpace(space.id)"
           >
-            <!-- Checkbox indicator -->
-            <div
-              class="absolute top-3 right-3 size-5 rounded-md border-2 flex items-center justify-center transition-all"
-              :class="space.isSelected
-                ? 'border-[var(--app-accent)] bg-[var(--app-accent)]'
-                : 'border-[var(--app-border)]'"
-            >
-              <svg v-if="space.isSelected" class="size-3 text-white" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M2 6l3 3 5-5" />
-              </svg>
+            <!-- Status indicator -->
+            <div class="absolute top-3 right-3">
+              <Check v-if="space.isInstalled" class="size-4 text-green-400" />
+              <div
+                v-else
+                class="size-5 rounded-md border-2 flex items-center justify-center transition-all"
+                :class="space.isSelected
+                  ? 'border-[var(--app-accent)] bg-[var(--app-accent)]'
+                  : 'border-[var(--app-border)]'"
+              >
+                <svg v-if="space.isSelected" class="size-3 text-white" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M2 6l3 3 5-5" />
+                </svg>
+              </div>
             </div>
+
+            <!-- Recommended badge -->
+            <span
+              v-if="space.recommended"
+              class="absolute top-3 left-3 text-[9px] font-medium px-1.5 py-0.5 rounded bg-[var(--app-accent)]/10 text-[var(--app-accent)]"
+            >
+              Recommended
+            </span>
 
             <!-- Icon -->
             <div
               class="size-9 rounded-lg flex items-center justify-center mb-2"
               :class="space.bg"
+              :style="space.recommended ? 'margin-top: 1rem' : ''"
             >
               <Icon :name="space.icon" class="size-4.5" :class="space.color" />
             </div>
 
             <!-- Name & description -->
-            <h3 class="text-sm font-semibold text-[var(--app-foreground)] mb-0.5">{{ space.displayName }}</h3>
+            <h3 class="text-sm font-semibold text-[var(--app-foreground)] mb-0.5">{{ space.name }}</h3>
             <p class="text-[11px] text-[var(--app-muted)] line-clamp-2 leading-relaxed">{{ space.description }}</p>
           </button>
         </div>
 
+        <!-- Install progress -->
+        <div v-if="installing" class="mb-6 p-4 rounded-lg border border-[var(--app-border)] bg-[color-mix(in_srgb,var(--app-accent)_3%,transparent)]">
+          <div class="flex items-center gap-3">
+            <Loader2 class="size-4 text-[var(--app-accent)] animate-spin" />
+            <span class="text-sm text-[var(--app-foreground)]">
+              Installing {{ currentInstall }}...
+            </span>
+          </div>
+        </div>
+
+        <!-- Error -->
+        <div v-if="installError" class="mb-6 p-4 rounded-lg border border-amber-500/20 bg-amber-500/5">
+          <p class="text-sm text-amber-400">{{ installError }}</p>
+        </div>
+
         <!-- Footer -->
         <div class="flex items-center justify-between">
-          <RouterLink
-            to="/app/marketplace"
-            class="text-sm text-[var(--app-muted)] hover:text-[var(--app-accent)] transition-colors"
+          <button
+            class="text-sm text-[var(--app-muted)] hover:text-[var(--app-foreground)] transition-colors"
+            :disabled="installing"
+            @click="skipOnboarding"
           >
-            Get more spaces from the Marketplace
-          </RouterLink>
+            Skip for now
+          </button>
 
           <button
             class="flex items-center gap-2 px-6 py-2.5 rounded-lg bg-[var(--app-accent)] text-white font-medium text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
-            :disabled="isLoading || selected.size === 0"
+            :disabled="installing || selected.size === 0"
             @click="handleContinue"
           >
-            {{ isLoading ? 'Setting up...' : 'Continue' }}
-            <ArrowRight class="size-4" />
+            <Download v-if="!installing" class="size-4" />
+            <Loader2 v-else class="size-4 animate-spin" />
+            {{ installing ? 'Installing...' : `Install ${selected.size} space${selected.size !== 1 ? 's' : ''} & Continue` }}
+            <ArrowRight v-if="!installing" class="size-4" />
           </button>
         </div>
 

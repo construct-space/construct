@@ -8,8 +8,12 @@
  */
 
 import { ref, watch, type Ref } from 'vue'
-// Import types - UIDesign now from useLocalDesigns (SQLite storage)
-import type { UIDesign } from '~/spaces/design/composables/useLocalDesigns'
+// UIDesign type — inline to avoid hard import from space module
+interface UIDesign {
+  id: string
+  name: string
+  [key: string]: unknown
+}
 import type { ProjectLocalSettings } from '~/utils/db'
 import type { PinnedItem } from '~/stores/pinned'
 
@@ -358,7 +362,7 @@ export function useStorage(): UseStorageReturn {
     },
 
     async save(design: UIDesign): Promise<{ id: number; localId: string }> {
-      const localId = design.localId || generateLocalId()
+      const localId = (design.localId as string) || generateLocalId()
       const now = new Date()
 
       const designToSave: UIDesign = {
@@ -372,9 +376,9 @@ export function useStorage(): UseStorageReturn {
         // Fallback to localStorage
         await set(`design_${localId}`, serializeDesign(designToSave), {
           category: 'designs',
-          projectId: design.projectId ?? undefined
+          projectId: (design.projectId as number) ?? undefined
         })
-        return { id: design.id ?? 0, localId }
+        return { id: Number(design.id) || 0, localId }
       }
 
       try {
@@ -384,7 +388,7 @@ export function useStorage(): UseStorageReturn {
         return result ?? { id: 0, localId }
       } catch (error) {
         console.error('[useStorage] designs.save error:', error)
-        return { id: design.id ?? 0, localId }
+        return { id: Number(design.id) || 0, localId }
       }
     },
 
@@ -563,7 +567,7 @@ function serializeDesign(design: UIDesign): Record<string, unknown> {
 
 function deserializeDesign(data: Record<string, unknown>): UIDesign {
   return {
-    ...data,
+    ...(data as any),
     createdAt: data.createdAt ? new Date(data.createdAt as string) : new Date(),
     updatedAt: data.updatedAt ? new Date(data.updatedAt as string) : new Date()
   } as UIDesign

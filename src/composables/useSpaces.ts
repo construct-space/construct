@@ -1,11 +1,11 @@
 /**
- * Composable for loading and managing spaces
+ * Composable for loading and managing spaces.
  *
- * Hybrid loading: built-in spaces + marketplace-installed spaces (from Go backend).
- * Graceful fallback: if Go backend not ready, just uses built-ins.
+ * Dev mode:  loads space configs from src/spaces/{name}/space.config.ts via Vite glob
+ * Prod mode: scans ~/.construct/spaces/ for installed manifests via Tauri FS
+ *
+ * The Go backend (contextService) is NOT used for spaces.
  */
-
-import { builtinSpaces } from '~/spaces/builtin'
 
 export interface SpaceToolbarItem {
   id: string
@@ -20,8 +20,8 @@ export interface SpacePage {
   label: string
   icon?: string
   default?: boolean   // Is this the default page for the space?
-  requiresContext?: boolean // Only show when an item is selected (e.g., design, file)
-  toolbar?: SpaceToolbarItem[] // Page-specific toolbar items (merged on top of space toolbar)
+  requiresContext?: boolean // Only show when an item is selected
+  toolbar?: SpaceToolbarItem[] // Page-specific toolbar items
 }
 
 export interface SpaceConfig {
@@ -30,10 +30,10 @@ export interface SpaceConfig {
   description: string
   icon: string
 
-  // Pages this space provides (loaded from spaces/[name]/pages/)
+  // Pages this space provides
   pages: SpacePage[]
 
-  // Toolbar items for this space (shown when space is active)
+  // Toolbar items for this space
   toolbar?: SpaceToolbarItem[]
 
   // Navigation menu item
@@ -47,85 +47,112 @@ export interface SpaceConfig {
   scope?: 'company' | 'project' | 'both'
   permission?: string
 
-  // Marketplace metadata (only set for installed spaces)
+  // Marketplace metadata
   isInstalled?: boolean
   version?: string
   author?: string
-}
+  recommended?: boolean
 
-/** Convert a marketplace manifest to SpaceConfig */
-function manifestToSpaceConfig(manifest: Record<string, unknown>): SpaceConfig {
-  return {
-    name: manifest.name as string,
-    displayName: (manifest.display_name as string) || (manifest.name as string),
-    description: (manifest.description as string) || '',
-    icon: (manifest.icon as string) || 'i-lucide-box',
-    pages: [{ path: '', label: 'Overview', default: true }],
-    navigation: {
-      label: (manifest.display_name as string) || (manifest.name as string),
-      icon: (manifest.icon as string) || 'i-lucide-box',
-      to: manifest.name as string,
-      order: (manifest.order as number) || 100,
-    },
-    isInstalled: true,
-    version: manifest.version as string,
-    author: manifest.author as string,
+  // Theme identity
+  theme?: {
+    color: string
+    bg: string
   }
 }
 
 /**
- * Dynamically load all space configurations
+ * Dynamically load all space configurations.
+ *
+ * Dev mode: loads from src/spaces/{name}/space.config.ts via Vite glob.
+ * Production: scans ~/.construct/spaces/ for manifest.json files.
  */
 export function useSpaces() {
   const spaces = ref<SpaceConfig[]>([])
   const loading = ref(false)
 
-  /**
-   * Load all available spaces — built-in + installed from marketplace
-   */
   const loadSpaces = async () => {
     loading.value = true
     try {
-      // Start with built-in spaces
-      const allSpaces: SpaceConfig[] = [...builtinSpaces]
-
-      // Try to load marketplace-installed spaces from Go backend
-      try {
-        const { useContextService } = await import('@/composables/useContextService')
-        const contextService = useContextService()
-        if (contextService.connected.value) {
-          const result = await contextService.sendRequest<{ spaces: Record<string, unknown>[] }>('spaces.list_installed')
-          if (result?.spaces?.length) {
-            const installedSpaces = result.spaces
-              .map(manifestToSpaceConfig)
-              .filter(s => !allSpaces.some(b => b.name === s.name)) // Skip duplicates
-            allSpaces.push(...installedSpaces)
-          }
-        }
-      } catch {
-        // Go backend not ready — use built-ins only
+      if (import.meta.env.DEV) {
+        await loadFromDevConfigs()
+      } else {
+        await loadFromDisk()
       }
-
-      // Sort by order
-      spaces.value = allSpaces.sort((a, b) => (a.navigation.order || 0) - (b.navigation.order || 0))
-    } catch (error) {
-      console.error('Failed to load spaces:', error)
-      spaces.value = [...builtinSpaces].sort((a, b) => (a.navigation.order || 0) - (b.navigation.order || 0))
+    } catch (err) {
+      console.error('[useSpaces] Failed to load spaces:', err)
+      spaces.value = []
     } finally {
       loading.value = false
     }
   }
 
   /**
-   * Check if a specific space is available
+   * Dev mode: load space configs from src/spaces/{name}/space.config.ts
    */
+  const loadFromDevConfigs = async () => {
+    const configModules = import.meta.glob<{ default: SpaceConfig }>(
+      '../spaces/*/space.config.ts',
+      { eager: true }
+    )
+
+    const devSpaces: SpaceConfig[] = []
+    for (const [, mod] of Object.entries(configModules)) {
+      const config = mod.default
+      if (config?.name) {
+        devSpaces.push({
+          ...config,
+          isInstalled: true,
+          version: '0.0.0-dev',
+        })
+      }
+    }
+
+    spaces.value = devSpaces.sort((a, b) => (a.navigation.order || 0) - (b.navigation.order || 0))
+  }
+
+  /**
+   * Production mode: scan ~/.construct/spaces/ for installed manifests.
+   */
+  const loadFromDisk = async () => {
+    try {
+      const { readTextFile, readDir, exists } = await import('@tauri-apps/plugin-fs')
+      const { homeDir } = await import('@tauri-apps/api/path')
+
+      const home = await homeDir()
+      const spacesDir = `${home}.construct/spaces`
+
+      if (!(await exists(spacesDir))) {
+        spaces.value = []
+        return
+      }
+
+      const entries = await readDir(spacesDir)
+      const prodSpaces: SpaceConfig[] = []
+
+      for (const entry of entries) {
+        if (!entry.isDirectory) continue
+        const manifestPath = `${spacesDir}/${entry.name}/manifest.json`
+        if (!(await exists(manifestPath))) continue
+
+        try {
+          const manifestJson = await readTextFile(manifestPath)
+          const manifest = JSON.parse(manifestJson)
+          prodSpaces.push(manifestToSpaceConfig(manifest))
+        } catch {
+          // Skip spaces with broken manifests
+        }
+      }
+
+      spaces.value = prodSpaces.sort((a, b) => (a.navigation.order || 0) - (b.navigation.order || 0))
+    } catch {
+      spaces.value = []
+    }
+  }
+
   const hasSpace = (spaceName: string) => {
     return spaces.value.some(space => space.name === spaceName)
   }
 
-  /**
-   * Get space config by name
-   */
   const getSpace = (spaceName: string) => {
     return spaces.value.find(space => space.name === spaceName)
   }
@@ -135,6 +162,35 @@ export function useSpaces() {
     loading,
     loadSpaces,
     hasSpace,
-    getSpace
+    getSpace,
+  }
+}
+
+/** Convert a manifest from disk to SpaceConfig */
+function manifestToSpaceConfig(manifest: Record<string, unknown>): SpaceConfig {
+  const id = (manifest.id as string) || (manifest.name as string)
+  const nav = manifest.navigation as Record<string, unknown> | undefined
+
+  return {
+    name: id,
+    displayName: (manifest.name as string) || id,
+    description: (manifest.description as string) || '',
+    icon: (manifest.icon as string) || 'i-lucide-box',
+    pages: ((manifest.pages as SpacePage[]) || [{ path: '', label: 'Overview', default: true }]),
+    toolbar: manifest.toolbar as SpaceToolbarItem[] | undefined,
+    navigation: {
+      label: (nav?.label as string) || (manifest.name as string) || id,
+      icon: (nav?.icon as string) || (manifest.icon as string) || 'i-lucide-box',
+      to: (nav?.to as string) || id,
+      order: (nav?.order as number) || 100,
+    },
+    scope: (manifest.scope as SpaceConfig['scope']) || 'both',
+    isInstalled: true,
+    version: manifest.version as string,
+    author: typeof manifest.author === 'object'
+      ? (manifest.author as Record<string, string>)?.name
+      : manifest.author as string,
+    recommended: manifest.recommended as boolean,
+    theme: manifest.theme as SpaceConfig['theme'],
   }
 }

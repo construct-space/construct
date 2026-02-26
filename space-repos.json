@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "spaces": [
+    {
+      "name": "architect",
+      "repoPath": "../construct-spaces/architect",
+      "target": "src/spaces/architect"
+    },
+    {
+      "name": "calendar",
+      "repoPath": "../construct-spaces/calendar",
+      "target": "src/spaces/calendar"
+    },
+    {
+      "name": "code",
+      "repoPath": "../construct-spaces/code",
+      "target": "src/spaces/code"
+    },
+    {
+      "name": "design",
+      "repoPath": "../construct-spaces/design",
+      "target": "src/spaces/design"
+    },
+    {
+      "name": "docs",
+      "repoPath": "../construct-spaces/docs",
+      "target": "src/spaces/docs"
+    },
+    {
+      "name": "git",
+      "repoPath": "../construct-spaces/git",
+      "target": "src/spaces/git"
+    },
+    {
+      "name": "kanban",
+      "repoPath": "../construct-spaces/kanban",
+      "target": "src/spaces/kanban"
+    },
+    {
+      "name": "notes",
+      "repoPath": "../construct-spaces/notes",
+      "target": "src/spaces/notes"
+    },
+    {
+      "name": "terminal",
+      "repoPath": "../construct-spaces/terminal",
+      "target": "src/spaces/terminal"
+    },
+    {
+      "name": "ai",
+      "repoPath": "../construct-spaces/ai",
+      "target": "src/spaces/ai"
+    },
+    {
+      "name": "chat",
+      "repoPath": "../construct-spaces/chat",
+      "target": "src/spaces/chat"
+    }
+  ]
+}

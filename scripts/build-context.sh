@@ -5,7 +5,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-CONTEXT_DIR="$(cd "$PROJECT_ROOT/context" && pwd)"
+CONTEXT_DIR="$(cd "$PROJECT_ROOT/../context" && pwd)"
 BIN_DIR="$PROJECT_ROOT/src-tauri/bin"
 
 # Detect OS and architecture
@@ -62,8 +62,14 @@ echo "  Output: $BIN_DIR/$BINARY_NAME"
 # Ensure bin directory exists
 mkdir -p "$BIN_DIR"
 
+# Version injection via ldflags
+VERSION="${CONSTRUCT_VERSION:-dev}"
+COMMIT="$(cd "$CONTEXT_DIR" && git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+LDFLAGS="-X main.Version=$VERSION -X main.Commit=$COMMIT -X main.BuildDate=$BUILD_DATE"
+
 # Build the Go binary
 cd "$CONTEXT_DIR"
-GOOS=$GOOS GOARCH=$GOARCH go build -o "$BIN_DIR/$BINARY_NAME" .
+GOOS=$GOOS GOARCH=$GOARCH go build -ldflags "$LDFLAGS" -o "$BIN_DIR/$BINARY_NAME" .
 
 echo "Context service built successfully: $BINARY_NAME"

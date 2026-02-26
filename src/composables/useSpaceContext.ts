@@ -24,9 +24,28 @@ import type {
   SpaceContextGit,
   SpaceContextDocs,
 } from '~/types/context'
-import { useGitRepo } from '~/spaces/git/composables/useGitRepo'
-import { useCodeEditor } from '~/spaces/code/composables/useCodeEditor'
-import { useUIState } from '~/spaces/design/composables/useUIState'
+// Space composables are loaded dynamically in dev mode (Vite compiles them).
+// In production, spaces are IIFE bundles and these composables don't exist.
+// We try-import them; if they fail, we use empty defaults.
+let useGitRepo: () => any = () => ({ state: {}, hasChanges: ref(false) })
+let useCodeEditor: () => any = () => ({ state: {} })
+let useUIState: () => any = () => ({ nodes: ref([]), selectedIds: ref([]) })
+
+// In dev mode, try to load actual space composables
+if (import.meta.env.DEV) {
+  try {
+    const gitMod = await import('~/spaces/git/composables/useGitRepo')
+    useGitRepo = gitMod.useGitRepo
+  } catch { /* space not synced */ }
+  try {
+    const codeMod = await import('~/spaces/code/composables/useCodeEditor')
+    useCodeEditor = codeMod.useCodeEditor
+  } catch { /* space not synced */ }
+  try {
+    const uiMod = await import('~/spaces/design/composables/useUIState')
+    useUIState = uiMod.useUIState
+  } catch { /* space not synced */ }
+}
 
 /**
  * Maximum number of recent items to include in context summaries.
@@ -93,7 +112,7 @@ export function useSpaceContext() {
     const selected = selectedIds.value || []
     return {
       selectedNodes: selected.map((id: string) => {
-        const node = allNodes.find(n => n.id === id)
+        const node = allNodes.find((n: any) => n.id === id)
         return node?.name || id
       }),
       canvasNodeCount: allNodes.length,
@@ -150,7 +169,7 @@ export function useSpaceContext() {
       hasUncommittedChanges: gitHasChanges.value,
       recentCommits: commits
         .slice(0, MAX_RECENT_COMMITS)
-        .map(c => c.subject || c.message || ''),
+        .map((c: any) => c.subject || c.message || ''),
     }
   })
 

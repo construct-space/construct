@@ -151,7 +151,7 @@ const handleContextMenu = async (e: MouseEvent) => {
       ],
       [
         { label: 'Open in Terminal', onSelect: () => openInTerminal(props.entry.path) },
-        { label: 'Refresh', onSelect: () => loadDirectory(props.entry.path) },
+        { label: 'Refresh', onSelect: () => state.rootPath && loadDirectory(state.rootPath) },
         { label: 'Reveal in Finder', onSelect: () => revealInFinder(props.entry.path) },
       ],
     ])

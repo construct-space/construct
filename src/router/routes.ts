@@ -13,7 +13,7 @@ export const routes: RouteRecordRaw[] = [
   // Public routes
   {
     path: '/',
-    redirect: '/login',
+    redirect: '/app',
   },
   {
     path: '/login',
@@ -162,6 +162,6 @@ export const routes: RouteRecordRaw[] = [
   // Catch-all
   {
     path: '/:pathMatch(.*)*',
-    redirect: '/login',
+    redirect: '/app',
   },
 ]

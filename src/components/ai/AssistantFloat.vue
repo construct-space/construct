@@ -16,8 +16,32 @@ import { useDocumentsStore, type DocumentListItem } from '~/stores/documents'
 import { useMarkdown } from '~/composables/useMarkdown'
 import { parseToolResult } from '~/composables/useDesignActions'
 import { listAvailableDesigns, getDesignForCodeGeneration, registerDesign, useCanvasContext } from '~/composables/useCanvasContext'
-import { useCodeEditor } from '~/spaces/code/composables/useCodeEditor'
-import { useGitRepo } from '~/spaces/git/composables/useGitRepo'
+// Dynamic space composables — loaded at runtime, not compile-time.
+// In dev mode Vite resolves them; in prod they come from IIFE bundles.
+const _codeEditorMod = import.meta.env.DEV
+  ? await import('~/spaces/code/composables/useCodeEditor').catch(() => null)
+  : null
+const _gitRepoMod = import.meta.env.DEV
+  ? await import('~/spaces/git/composables/useGitRepo').catch(() => null)
+  : null
+const useCodeEditor = _codeEditorMod?.useCodeEditor ?? (() => ({
+  state: { rootPath: '', currentFile: '', fileContent: '', currentLanguage: '', fileTree: [] as any[] },
+  selection: null as any,
+  loadDirectory: (..._args: any[]) => Promise.resolve(),
+  selectFile: () => {},
+  openFolder: () => {},
+  getFileIcon: () => 'i-lucide-file',
+  getFileIconColor: () => '',
+}))
+const useGitRepo = _gitRepoMod?.useGitRepo ?? (() => ({
+  state: {
+    repositories: new Map(), currentRepoPath: '', currentBranch: '', commits: [] as any[],
+    stagedChanges: [] as any[], unstagedChanges: [] as any[],
+    untrackedFiles: [] as any[], conflictedFiles: [] as any[],
+  },
+  currentRepo: ref(null as any),
+  hasChanges: ref(false),
+}))
 import { detectCodeFramework, resolveAssistantAgentId } from './assistant/spaceBehavior'
 import AssistantCodeSpace from './assistant/code.vue'
 import AssistantUISpace from './assistant/ui.vue'
@@ -30,7 +54,12 @@ import AssistantDeploySpace from './assistant/deploy.vue'
 import AssistantProjectSpace from './assistant/project.vue'
 import AssistantDashboardSpace from './assistant/dashboard.vue'
 import AssistantGeneralSpace from './assistant/general.vue'
-import type { UIDesign } from '~/spaces/design/composables/useLocalDesigns'
+// UIDesign type — use inline definition to avoid hard import from space
+interface UIDesign {
+  id: string
+  name: string
+  [key: string]: unknown
+}
 
 // Define emits
 const emit = defineEmits<{
@@ -60,7 +89,32 @@ const designActionsCreated = ref(0)
 const { designsCache, currentNodes, currentDesignName } = useCanvasContext()
 
 // Get code editor state for current folder path and file content
-const { state: codeEditorState, selection: codeEditorSelection } = useCodeEditor()
+const {
+  state: codeEditorState,
+  selection: codeEditorSelection,
+  loadDirectory: reloadCodeDirectory,
+} = useCodeEditor()
+
+const FILE_TREE_MUTATION_TOOLS = new Set(['write_file', 'create_file', 'delete_file', 'move_file'])
+let pendingExplorerRefresh: ReturnType<typeof setTimeout> | null = null
+
+const scheduleExplorerRefresh = () => {
+  const rootPath = codeEditorState.rootPath
+  if (!rootPath) return
+
+  if (pendingExplorerRefresh) {
+    clearTimeout(pendingExplorerRefresh)
+  }
+
+  pendingExplorerRefresh = setTimeout(() => {
+    pendingExplorerRefresh = null
+    const currentRootPath = codeEditorState.rootPath
+    if (!currentRootPath) return
+    reloadCodeDirectory(currentRootPath, { preserveExpanded: true }).catch((err) => {
+      console.debug('[AssistantFloat] Explorer refresh failed:', err)
+    })
+  }, 180)
+}
 
 // Build local_data with project and design context for code tools
 function buildLocalData(): Record<string, unknown> {
@@ -337,12 +391,13 @@ function getDesignDataForAI(refs: DesignReference[], designs: UIDesign[]): strin
     if (design) {
       parts.push(`\n### ${design.name}`)
       parts.push(`Design ID: ${design.id}`)
-      parts.push(`Elements: ${design.nodes?.length || 0}`)
+      const designNodes = (design as any).nodes as any[] | undefined
+      parts.push(`Elements: ${designNodes?.length || 0}`)
 
       // Include actual node data for code generation
-      if (design.nodes && design.nodes.length > 0) {
+      if (designNodes && designNodes.length > 0) {
         // Limit to essential properties for context size
-        const essentialNodes = design.nodes.map(node => ({
+        const essentialNodes = designNodes.map((node: any) => ({
           id: node.id,
           type: node.type,
           name: node.name,
@@ -818,6 +873,10 @@ onMounted(async () => {
 
 onUnmounted(() => {
   window.removeEventListener('keyup', handleKeyUp)
+  if (pendingExplorerRefresh) {
+    clearTimeout(pendingExplorerRefresh)
+    pendingExplorerRefresh = null
+  }
 })
 
 // Conversation key based on route (space + project query)
@@ -990,14 +1049,14 @@ const autocompleteSuggestions = computed(() => {
       for (const d of cloudDesigns) {
         if (!allDesignNames.has(d.name.toLowerCase())) {
           allDesignNames.add(d.name.toLowerCase())
-          allDesigns.push({ name: d.name, nodeCount: d.nodes?.length || 0, source: 'cloud' })
+          allDesigns.push({ name: d.name, nodeCount: ((d as any).nodes as any[])?.length || 0, source: 'cloud' })
         }
       }
       // Local IndexedDB designs
       for (const d of dbDesigns) {
         if (!allDesignNames.has(d.name.toLowerCase())) {
           allDesignNames.add(d.name.toLowerCase())
-          allDesigns.push({ name: d.name, nodeCount: d.nodes?.length || 0, source: 'local' })
+          allDesigns.push({ name: d.name, nodeCount: ((d as any).nodes as any[])?.length || 0, source: 'local' })
         }
       }
       // In-memory canvas designs (not yet saved)
@@ -1514,7 +1573,7 @@ watch(
 
         // Also register them in the canvas context for code generation
         for (const design of designs) {
-          registerDesign(design.name, design.nodes)
+          registerDesign(design.name, (design as any).nodes)
         }
         console.log('[AssistantFloat] Loaded', designs.length, 'designs from SQLite')
       } catch (e) {
@@ -2454,6 +2513,9 @@ async function sendMessage() {
 
         const assistantMessage = messages.value[assistantMessageIndex]
         if (assistantMessage) {
+          let completedToolName: string | null = null
+          let completedToolHadError = false
+
           // Update the most recent "calling" tool to "completed"
           if (assistantMessage.toolCalls?.length) {
             const callingTool = assistantMessage.toolCalls.find(t => t.status === 'calling')
@@ -2461,17 +2523,23 @@ async function sendMessage() {
               callingTool.status = 'completed'
               callingTool.endTime = Date.now()
               callingTool.result = chunk.content
+              completedToolName = callingTool.name
 
               // Check if it's an error result
               try {
                 const data = JSON.parse(chunk.content)
                 if (data.error) {
                   callingTool.status = 'error'
+                  completedToolHadError = true
                 }
               } catch {
                 // Not JSON
               }
             }
+          }
+
+          if (completedToolName && !completedToolHadError && FILE_TREE_MUTATION_TOOLS.has(completedToolName)) {
+            scheduleExplorerRefresh()
           }
 
           try {

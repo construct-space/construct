@@ -1,0 +1,38 @@
+{
+  "id": "calendar",
+  "name": "Calendar",
+  "version": "0.2.0",
+  "description": "Events and scheduling",
+  "author": {
+    "name": "Construct Team"
+  },
+  "icon": "i-lucide-calendar",
+  "scope": "both",
+  "minConstructVersion": "0.2.0",
+  "navigation": {
+    "label": "Calendar",
+    "icon": "i-lucide-calendar",
+    "to": "calendar",
+    "order": 12
+  },
+  "pages": [
+    {
+      "path": "",
+      "label": "Calendar",
+      "icon": "i-lucide-calendar",
+      "default": true,
+      "toolbar": [
+        { "id": "cal-prev", "icon": "i-lucide-chevron-left", "label": "Previous", "action": "previous" },
+        { "id": "cal-today", "icon": "i-lucide-calendar", "label": "Today", "action": "today" },
+        { "id": "cal-next", "icon": "i-lucide-chevron-right", "label": "Next", "action": "next" },
+        { "id": "cal-add", "icon": "i-lucide-plus", "label": "Add Event", "action": "add-event" }
+      ]
+    }
+  ],
+  "toolbar": [],
+  "theme": {
+    "color": "text-indigo-400",
+    "bg": "bg-indigo-400/10"
+  },
+  "keywords": ["calendar", "events", "scheduling"]
+}

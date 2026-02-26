@@ -56,6 +56,8 @@ func dispatch(s *svc.Service, req svc.Request) svc.Response {
 		return handlers.HandleHooksSkills(s, req)
 	case strings.HasPrefix(req.Type, "rag."):
 		return handlers.HandleRAG(s, req)
+	case strings.HasPrefix(req.Type, "spaces."):
+		return handlers.HandleSpaces(s, req)
 	default:
 		return svc.Response{ID: req.ID, Success: false, Error: "unknown request type: " + req.Type}
 	}

@@ -23,14 +23,9 @@ export default defineConfig({
       dirs: [
         'src/components',
         'src/components/media',
-        'src/spaces/code/components',
-        'src/spaces/kanban/components',
-        'src/spaces/notes/components',
-        'src/spaces/architect/components',
-        'src/spaces/docs/components',
-        'src/spaces/terminal/components',
-        'src/spaces/git/components',
-        'src/spaces/design/components',
+        // Space components are no longer auto-registered globally.
+        // In dev, SpaceLoader uses import.meta.glob to load space pages.
+        // In prod, spaces ship as self-contained IIFE bundles.
       ],
       dts: 'src/components.d.ts',
     }),

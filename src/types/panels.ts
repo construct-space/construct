@@ -3,7 +3,7 @@
 import type { Component } from 'vue'
 
 // Space types that can have panels
-export type SpaceType = 'code' | 'ui' | 'git' | 'ai' | 'notes' | 'architect' | 'kanban' | 'terminal'
+export type SpaceType = 'code' | 'ui' | 'git' | 'ai' | 'notes' | 'architect' | 'kanban' | 'terminal' | 'chat' | 'design' | 'docs' | 'calendar'
 
 // Panel definition - registered panel types
 export interface PanelDefinition {
@@ -160,6 +160,35 @@ export const DEFAULT_LAYOUTS: Record<SpaceType, PanelLayout> = {
   terminal: {
     panels: [
       { id: 'terminal-1', panelType: 'terminal', position: { col: 1, row: 1 }, size: { cols: 3, rows: 3 } }
+    ],
+    gridCols: 3,
+    gridRows: 3
+  },
+  chat: {
+    panels: [
+      { id: 'chat-1', panelType: 'chat', position: { col: 1, row: 1 }, size: { cols: 3, rows: 3 } }
+    ],
+    gridCols: 3,
+    gridRows: 3
+  },
+  design: {
+    panels: [
+      { id: 'canvas-1', panelType: 'canvas', position: { col: 1, row: 1 }, size: { cols: 3, rows: 3 } }
+    ],
+    gridCols: 3,
+    gridRows: 3
+  },
+  docs: {
+    panels: [
+      { id: 'docs-1', panelType: 'document-list', position: { col: 1, row: 1 }, size: { cols: 1, rows: 3 } },
+      { id: 'editor-1', panelType: 'document-editor', position: { col: 2, row: 1 }, size: { cols: 2, rows: 3 } }
+    ],
+    gridCols: 3,
+    gridRows: 3
+  },
+  calendar: {
+    panels: [
+      { id: 'calendar-1', panelType: 'calendar', position: { col: 1, row: 1 }, size: { cols: 3, rows: 3 } }
     ],
     gridCols: 3,
     gridRows: 3

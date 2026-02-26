@@ -1,0 +1,37 @@
+{
+  "id": "terminal",
+  "name": "Terminal",
+  "version": "0.2.0",
+  "description": "Terminal emulator",
+  "author": {
+    "name": "Construct Team"
+  },
+  "icon": "i-lucide-terminal",
+  "scope": "both",
+  "minConstructVersion": "0.2.0",
+  "navigation": {
+    "label": "Terminal",
+    "icon": "i-lucide-terminal",
+    "to": "terminal",
+    "order": 16
+  },
+  "pages": [
+    {
+      "path": "",
+      "label": "Terminal",
+      "icon": "i-lucide-terminal",
+      "default": true,
+      "toolbar": [
+        { "id": "term-new", "icon": "i-lucide-plus", "label": "New Terminal", "action": "new-terminal" },
+        { "id": "term-split", "icon": "i-lucide-split", "label": "Split", "action": "split-terminal" },
+        { "id": "term-clear", "icon": "i-lucide-trash-2", "label": "Clear", "action": "clear-terminal" }
+      ]
+    }
+  ],
+  "toolbar": [],
+  "theme": {
+    "color": "text-slate-400",
+    "bg": "bg-slate-400/10"
+  },
+  "keywords": ["terminal", "shell", "cli", "xterm"]
+}

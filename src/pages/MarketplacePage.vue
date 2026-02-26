@@ -61,7 +61,7 @@ function formatDownloads(n: number): string {
 </script>
 
 <template>
-  <div class="h-screen overflow-y-auto">
+  <div class="h-full overflow-y-auto">
     <div class="max-w-5xl mx-auto px-6 py-10">
 
       <!-- Header -->
@@ -131,8 +131,14 @@ function formatDownloads(n: number): string {
         </button>
       </div>
 
+      <!-- Error banner -->
+      <div v-if="marketplace.error.value" class="mb-4 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400 flex items-center justify-between">
+        <span>{{ marketplace.error.value }}</span>
+        <button class="text-red-400/60 hover:text-red-400 text-xs" @click="marketplace.error.value = null">dismiss</button>
+      </div>
+
       <!-- Space cards grid -->
-      <div v-else class="grid grid-cols-2 lg:grid-cols-3 gap-4">
+      <div v-if="!marketplace.isLoading.value && marketplace.filteredRemote.value.length > 0" class="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <div
           v-for="space in marketplace.filteredRemote.value"
           :key="space.id"
