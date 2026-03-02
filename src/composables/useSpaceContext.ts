@@ -24,28 +24,11 @@ import type {
   SpaceContextGit,
   SpaceContextDocs,
 } from '~/types/context'
-// Space composables are loaded dynamically in dev mode (Vite compiles them).
-// In production, spaces are IIFE bundles and these composables don't exist.
-// We try-import them; if they fail, we use empty defaults.
-let useGitRepo: () => any = () => ({ state: {}, hasChanges: ref(false) })
-let useCodeEditor: () => any = () => ({ state: {} })
-let useUIState: () => any = () => ({ nodes: ref([]), selectedIds: ref([]) })
-
-// In dev mode, try to load actual space composables
-if (import.meta.env.DEV) {
-  try {
-    const gitMod = await import('~/spaces/git/composables/useGitRepo')
-    useGitRepo = gitMod.useGitRepo
-  } catch { /* space not synced */ }
-  try {
-    const codeMod = await import('~/spaces/code/composables/useCodeEditor')
-    useCodeEditor = codeMod.useCodeEditor
-  } catch { /* space not synced */ }
-  try {
-    const uiMod = await import('~/spaces/design/composables/useUIState')
-    useUIState = uiMod.useUIState
-  } catch { /* space not synced */ }
-}
+// Space composables are provided at runtime by IIFE bundles.
+// These defaults are used when a space is not installed.
+const useGitRepo: () => any = () => ({ state: {}, hasChanges: ref(false) })
+const useCodeEditor: () => any = () => ({ state: {} })
+const useUIState: () => any = () => ({ nodes: ref([]), selectedIds: ref([]) })
 
 /**
  * Maximum number of recent items to include in context summaries.

@@ -74,7 +74,10 @@ export function useSpaces() {
     loading.value = true
     try {
       if (import.meta.env.DEV) {
+        // In dev, try Vite glob first, then also scan disk for installed spaces
         await loadFromDevConfigs()
+        // Merge in disk-installed spaces not found via Vite
+        await mergeFromDisk()
       } else {
         await loadFromDisk()
       }
@@ -119,7 +122,7 @@ export function useSpaces() {
       const { homeDir } = await import('@tauri-apps/api/path')
 
       const home = await homeDir()
-      const spacesDir = `${home}.construct/spaces`
+      const spacesDir = `${home}/.construct/spaces`
 
       if (!(await exists(spacesDir))) {
         spaces.value = []
@@ -147,6 +150,40 @@ export function useSpaces() {
     } catch {
       spaces.value = []
     }
+  }
+
+  /**
+   * Dev mode: merge in spaces installed to disk that weren't found via Vite glob.
+   */
+  const mergeFromDisk = async () => {
+    try {
+      const { readTextFile, readDir, exists } = await import('@tauri-apps/plugin-fs')
+      const { homeDir } = await import('@tauri-apps/api/path')
+
+      const home = await homeDir()
+      const spacesDir = `${home}/.construct/spaces`
+
+      if (!(await exists(spacesDir))) return
+
+      const entries = await readDir(spacesDir)
+      const existingNames = new Set(spaces.value.map(s => s.name))
+
+      for (const entry of entries) {
+        if (!entry.isDirectory || !entry.name) continue
+        if (existingNames.has(entry.name)) continue
+
+        const manifestPath = `${spacesDir}/${entry.name}/manifest.json`
+        if (!(await exists(manifestPath))) continue
+
+        try {
+          const manifestJson = await readTextFile(manifestPath)
+          const manifest = JSON.parse(manifestJson)
+          spaces.value.push(manifestToSpaceConfig(manifest))
+        } catch { /* skip broken manifests */ }
+      }
+
+      spaces.value = spaces.value.sort((a, b) => (a.navigation.order || 0) - (b.navigation.order || 0))
+    } catch { /* Tauri FS not available in browser dev */ }
   }
 
   const hasSpace = (spaceName: string) => {

@@ -16,15 +16,9 @@ import { useDocumentsStore, type DocumentListItem } from '~/stores/documents'
 import { useMarkdown } from '~/composables/useMarkdown'
 import { parseToolResult } from '~/composables/useDesignActions'
 import { listAvailableDesigns, getDesignForCodeGeneration, registerDesign, useCanvasContext } from '~/composables/useCanvasContext'
-// Dynamic space composables — loaded at runtime, not compile-time.
-// In dev mode Vite resolves them; in prod they come from IIFE bundles.
-const _codeEditorMod = import.meta.env.DEV
-  ? await import('~/spaces/code/composables/useCodeEditor').catch(() => null)
-  : null
-const _gitRepoMod = import.meta.env.DEV
-  ? await import('~/spaces/git/composables/useGitRepo').catch(() => null)
-  : null
-const useCodeEditor = _codeEditorMod?.useCodeEditor ?? (() => ({
+// Space composables are provided at runtime by IIFE bundles.
+// These defaults are used when a space is not installed.
+const useCodeEditor = (() => ({
   state: { rootPath: '', currentFile: '', fileContent: '', currentLanguage: '', fileTree: [] as any[] },
   selection: null as any,
   loadDirectory: (..._args: any[]) => Promise.resolve(),
@@ -33,7 +27,7 @@ const useCodeEditor = _codeEditorMod?.useCodeEditor ?? (() => ({
   getFileIcon: () => 'i-lucide-file',
   getFileIconColor: () => '',
 }))
-const useGitRepo = _gitRepoMod?.useGitRepo ?? (() => ({
+const useGitRepo = (() => ({
   state: {
     repositories: new Map(), currentRepoPath: '', currentBranch: '', commits: [] as any[],
     stagedChanges: [] as any[], unstagedChanges: [] as any[],

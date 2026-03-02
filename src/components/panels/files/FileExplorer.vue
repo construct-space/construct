@@ -5,11 +5,8 @@
  */
 import { FileTreeContextKey } from './fileTreeContext'
 import { showContextMenu } from '~/composables/useNativeContextMenu'
-// Dynamic space composable — loaded at runtime
-const _codeEditorMod = import.meta.env.DEV
-  ? await import('~/spaces/code/composables/useCodeEditor').catch(() => null)
-  : null
-const useCodeEditor = _codeEditorMod?.useCodeEditor ?? (() => ({
+// Space composable provided at runtime by IIFE bundle
+const useCodeEditor = (() => ({
   state: { rootPath: '', currentFile: '', fileContent: '', currentLanguage: '', fileTree: [] as any[], expandedFolders: new Set<string>(), selectedFile: null as string | null, isDirty: false, isLoading: false, originalContent: '' },
   openFolder: () => {}, loadDirectory: (..._args: any[]) => Promise.resolve(), selectFile: (..._args: any[]) => Promise.resolve(),
   getFileIcon: () => 'i-lucide-file', getFileIconColor: () => '', initTauri: () => {},

@@ -62,6 +62,8 @@ export interface SpaceManifest {
     bg: string
   }
   recommended?: boolean
+  agent?: string
+  skills?: string[]
   build?: {
     checksum: string
     size: number
@@ -79,7 +81,7 @@ const isDev = import.meta.env.DEV
 /** Base path for installed spaces */
 function getSpacesDir(): string {
   // Tauri FS resolves ~ to the user home directory
-  return '.construct/spaces'
+  return '/.construct/spaces'
 }
 
 /**
@@ -91,17 +93,17 @@ export async function loadSpace(spaceId: string): Promise<LoadedSpace | null> {
     return loadedSpaces.get(spaceId)!
   }
 
-  // In dev mode, ONLY use Vite dynamic imports — never try disk loading
+  // In dev mode, try Vite dynamic imports first, fall back to disk
   if (isDev) {
     const devSpace = await loadSpaceDev(spaceId)
     if (devSpace) {
       loadedSpaces.set(spaceId, devSpace)
       return devSpace
     }
-    return null
+    console.log(`[SpaceLoader] No dev source for "${spaceId}", trying disk...`)
   }
 
-  // Production: load from ~/.construct/spaces/
+  // Load from ~/.construct/spaces/
   const prodSpace = await loadSpaceFromDisk(spaceId)
   if (prodSpace) {
     loadedSpaces.set(spaceId, prodSpace)
@@ -186,6 +188,7 @@ async function loadSpaceFromDisk(spaceId: string): Promise<LoadedSpace | null> {
 
     const home = await homeDir()
     const spaceDir = `${home}${getSpacesDir()}/${spaceId}`
+    console.log(`[SpaceLoader] Loading "${spaceId}" from disk: ${spaceDir}`)
 
     // Read manifest
     const manifestPath = `${spaceDir}/manifest.json`
@@ -203,8 +206,8 @@ async function loadSpaceFromDisk(spaceId: string): Promise<LoadedSpace | null> {
     const jsContent = await readTextFile(bundlePath)
 
     // Execute IIFE — sets window.__CONSTRUCT_SPACE_{id}
-    const execFn = new Function(jsContent)
-    execFn()
+    // Indirect eval runs in global scope so `var` creates a window property
+    ;(0, eval)(jsContent)
 
     // Extract the space export
     const globalKey = `__CONSTRUCT_SPACE_${spaceId}` as `__CONSTRUCT_SPACE_${string}`
@@ -221,6 +224,22 @@ async function loadSpaceFromDisk(spaceId: string): Promise<LoadedSpace | null> {
       const cssContent = await readTextFile(cssPath)
       injectCSS(spaceId, cssContent)
       cssInjected = true
+    }
+
+    // Verify brain files if referenced in manifest
+    if (manifest.agent) {
+      const agentPath = `${spaceDir}/${manifest.agent}`
+      if (!(await exists(agentPath))) {
+        console.warn(`[SpaceLoader] Space "${spaceId}" references agent "${manifest.agent}" but file not found`)
+      }
+    }
+    if (manifest.skills?.length) {
+      for (const skill of manifest.skills) {
+        const skillPath = `${spaceDir}/${skill}`
+        if (!(await exists(skillPath))) {
+          console.warn(`[SpaceLoader] Space "${spaceId}" references skill "${skill}" but file not found`)
+        }
+      }
     }
 
     return {

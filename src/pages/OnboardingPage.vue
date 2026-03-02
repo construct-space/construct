@@ -38,6 +38,28 @@ const installedIds = ref<Set<string>>(new Set())
 const currentInstall = ref('')
 const installError = ref<string | null>(null)
 
+// On mount, check which spaces are already installed on disk
+onMounted(async () => {
+  try {
+    const { exists } = await import('@tauri-apps/plugin-fs')
+    const { homeDir } = await import('@tauri-apps/api/path')
+    const home = await homeDir()
+
+    const diskInstalled = new Set<string>()
+    for (const s of recommendedSpaces) {
+      const manifestPath = `${home}/.construct/spaces/${s.id}/manifest.json`
+      if (await exists(manifestPath)) {
+        diskInstalled.add(s.id)
+      }
+    }
+
+    if (diskInstalled.size > 0) {
+      installedIds.value = diskInstalled
+      selected.value = diskInstalled
+    }
+  } catch { /* Tauri FS not available */ }
+})
+
 const spaceCards = computed(() => {
   return recommendedSpaces.map(s => {
     const theme = getSpaceTheme(s.id)
@@ -73,28 +95,31 @@ async function handleContinue() {
       await pinnedStore.init()
     }
 
-    // Install selected spaces sequentially
+    // Install or pin selected spaces
     for (const id of selected.value) {
-      if (installedIds.value.has(id)) continue
       currentInstall.value = id
-      try {
-        await marketplace.install(id)
-        installedIds.value.add(id)
 
-        // Pin the space
-        const space = recommendedSpaces.find(s => s.id === id)
-        const theme = getSpaceTheme(id)
-        if (space) {
-          const pin = createSpacePin({
-            name: space.name,
-            spaceId: id,
-            icon: theme.icon,
-          })
-          await pinnedStore.addPin(pin)
+      // If not already on disk, download from marketplace
+      if (!installedIds.value.has(id)) {
+        try {
+          await marketplace.install(id)
+          installedIds.value.add(id)
+        } catch (err) {
+          console.error(`Failed to install ${id}:`, err)
+          continue
         }
-      } catch (err) {
-        console.error(`Failed to install ${id}:`, err)
-        // Continue with remaining spaces
+      }
+
+      // Pin the space
+      const space = recommendedSpaces.find(s => s.id === id)
+      const theme = getSpaceTheme(id)
+      if (space) {
+        const pin = createSpacePin({
+          name: space.name,
+          spaceId: id,
+          icon: theme.icon,
+        })
+        await pinnedStore.addPin(pin)
       }
     }
 

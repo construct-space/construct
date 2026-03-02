@@ -268,7 +268,7 @@ export function useSpaceMarketplace() {
       const { remove, exists } = await import('@tauri-apps/plugin-fs')
       const { homeDir } = await import('@tauri-apps/api/path')
       const home = await homeDir()
-      const spaceDir = `${home}.construct/spaces/${spaceId}`
+      const spaceDir = `${home}/.construct/spaces/${spaceId}`
 
       if (await exists(spaceDir)) {
         await remove(spaceDir, { recursive: true })
@@ -373,7 +373,7 @@ async function downloadAndExtract(spaceId: string, tarballUrl: string): Promise<
   const { Command } = await import('@tauri-apps/plugin-shell')
 
   const home = await homeDir()
-  const spacesDir = `${home}.construct/spaces`
+  const spacesDir = `${home}/.construct/spaces`
   const spaceDir = `${spacesDir}/${spaceId}`
 
   // Ensure directory exists

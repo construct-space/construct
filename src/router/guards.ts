@@ -6,6 +6,7 @@ export async function authGuard(
   _from: RouteLocationNormalized,
   next: NavigationGuardNext
 ) {
+  console.log('[guard] to:', to.path, 'onboarding_complete:', localStorage.getItem('cp_onboarding_complete'))
   const authStore = useAuthStore()
 
   const guestOnlyRoutes = ['/login', '/register']
@@ -21,10 +22,30 @@ export async function authGuard(
     return next('/app')
   }
 
+  // Auto-skip onboarding if spaces are already installed on disk
+  if (!localStorage.getItem('cp_onboarding_complete')) {
+    try {
+      const { exists } = await import('@tauri-apps/plugin-fs')
+      const { homeDir } = await import('@tauri-apps/api/path')
+      const home = await homeDir()
+      const checkPath = `${home}/.construct/spaces/code/manifest.json`
+      console.log('[guard] checking disk:', checkPath)
+      if (await exists(checkPath)) {
+        console.log('[guard] spaces found on disk, skipping onboarding')
+        localStorage.setItem('cp_onboarding_complete', 'true')
+        // If we're heading to onboarding, redirect to app instead
+        if (to.path === '/onboarding') {
+          return next('/app')
+        }
+      }
+    } catch (err) {
+      console.error('[guard] disk check failed:', err)
+    }
+  }
+
   // Onboarding check: if navigating to app + not yet onboarded → redirect
   if (
     to.path.startsWith('/app') &&
-    to.path !== '/onboarding' &&
     !localStorage.getItem('cp_onboarding_complete')
   ) {
     return next('/onboarding')
