@@ -54,7 +54,7 @@
       "icons/icon.ico"
     ],
     "externalBin": [
-      "bin/construct-context"
+      "bin/construct-brain"
     ],
     "macOS": {
       "minimumSystemVersion": "10.15",

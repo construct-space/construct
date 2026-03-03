@@ -1765,14 +1765,14 @@ async fn start_context_service(
         .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
         .is_err()
     {
-        eprintln!("[context-service] start_context_service: another spawn in progress, waiting for address...");
+        eprintln!("[brain] start_context_service: another spawn in progress, waiting for address...");
         for i in 0..150 {
             // Check if the spawning call finished (flag cleared) and stored an address
             if let Ok(ctx) = state.lock() {
                 if let Some(addr) = ctx.address.clone() {
                     // Address stored — verify it's reachable before returning
                     if TcpStream::connect(&addr).is_ok() {
-                        eprintln!("[context-service] start_context_service: reusing address {} after {}ms wait", addr, i * 100);
+                        eprintln!("[brain] start_context_service: reusing address {} after {}ms wait", addr, i * 100);
                         return Ok(addr);
                     }
                 }
@@ -1784,12 +1784,12 @@ async fn start_context_service(
                 if let Ok(ctx) = state.lock() {
                     if let Some(addr) = ctx.address.clone() {
                         if TcpStream::connect(&addr).is_ok() {
-                            eprintln!("[context-service] start_context_service: reusing address {} (flag cleared)", addr);
+                            eprintln!("[brain] start_context_service: reusing address {} (flag cleared)", addr);
                             return Ok(addr);
                         }
                     }
                 }
-                eprintln!("[context-service] start_context_service: previous spawn finished without address, will retry as spawner");
+                eprintln!("[brain] start_context_service: previous spawn finished without address, will retry as spawner");
                 break;
             }
             tokio::time::sleep(Duration::from_millis(100)).await;
@@ -1802,7 +1802,7 @@ async fn start_context_service(
             return Err("Context service start already in progress (timed out waiting)".to_string());
         }
         // Fall through to spawn logic below
-        eprintln!("[context-service] start_context_service: acquired spawner lock after wait");
+        eprintln!("[brain] start_context_service: acquired spawner lock after wait");
     }
 
     // Reuse known address when possible to avoid spawning duplicate sidecars.
@@ -1813,23 +1813,23 @@ async fn start_context_service(
 
     if let Some(addr) = existing_addr {
         if TcpStream::connect(&addr).is_ok() {
-            eprintln!("[context-service] start_context_service: reusing existing address {}", addr);
+            eprintln!("[brain] start_context_service: reusing existing address {}", addr);
             CONTEXT_STARTING.store(false, Ordering::SeqCst);
             return Ok(addr);
         }
         // Stale address (old sidecar died): clear and fall through to spawn a new one.
-        eprintln!("[context-service] start_context_service: existing address {} unreachable, spawning new sidecar", addr);
+        eprintln!("[brain] start_context_service: existing address {} unreachable, spawning new sidecar", addr);
         let mut ctx = state.lock().map_err(|_| "Lock error".to_string())?;
         ctx.socket = None;
         ctx.address = None;
         ctx.child = None;
     }
 
-    eprintln!("[context-service] start_context_service: spawning new sidecar process");
+    eprintln!("[brain] start_context_service: spawning new sidecar process");
 
     let sidecar = app
         .shell()
-        .sidecar("construct-context")
+        .sidecar("construct-brain")
         .map_err(|e| {
             CONTEXT_STARTING.store(false, Ordering::SeqCst);
             format!("Failed to create sidecar: {}", e)
@@ -1860,7 +1860,7 @@ async fn start_context_service(
                 let line_str = String::from_utf8_lossy(&line);
                 if let Some(addr) = line_str.strip_prefix("CONTEXT_ADDR=") {
                     let address = addr.trim().to_string();
-                    eprintln!("[context-service] start_context_service: sidecar ready at {}", address);
+                    eprintln!("[brain] start_context_service: sidecar ready at {}", address);
                     // Store address immediately so subsequent start calls can reuse it.
                     if let Ok(mut ctx) = state.lock() {
                         ctx.address = Some(address.clone());
@@ -1870,10 +1870,10 @@ async fn start_context_service(
                 }
             }
             CommandEvent::Stderr(line) => {
-                eprintln!("[context-service] {}", String::from_utf8_lossy(&line));
+                eprintln!("[brain] {}", String::from_utf8_lossy(&line));
             }
             CommandEvent::Error(err) => {
-                eprintln!("[context-service] start_context_service: sidecar error: {}", err);
+                eprintln!("[brain] start_context_service: sidecar error: {}", err);
                 if let Ok(mut ctx) = state.lock() {
                     ctx.child = None;
                     ctx.address = None;
@@ -1883,7 +1883,7 @@ async fn start_context_service(
                 return Err(format!("Sidecar error: {}", err));
             }
             CommandEvent::Terminated(status) => {
-                eprintln!("[context-service] start_context_service: sidecar terminated: {:?}", status);
+                eprintln!("[brain] start_context_service: sidecar terminated: {:?}", status);
                 if let Ok(mut ctx) = state.lock() {
                     ctx.child = None;
                     ctx.address = None;

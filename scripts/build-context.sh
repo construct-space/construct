@@ -1,11 +1,11 @@
 #!/bin/bash
-# Build the Go context service for the current platform
+# Build the Go brain service for the current platform
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-CONTEXT_DIR="$(cd "$PROJECT_ROOT/../construct-brain" && pwd)"
+BRAIN_DIR="$(cd "$PROJECT_ROOT/../construct-brain" && pwd)"
 BIN_DIR="$PROJECT_ROOT/src-tauri/bin"
 
 # Detect OS and architecture
@@ -52,10 +52,10 @@ case "$OS" in
 esac
 
 # Tauri expects binary named: <name>-<target-triple>
-# e.g., construct-context-aarch64-apple-darwin
-BINARY_NAME="construct-context-${TAURI_ARCH}-${TAURI_OS}${EXT}"
+# e.g., construct-brain-aarch64-apple-darwin
+BINARY_NAME="construct-brain-${TAURI_ARCH}-${TAURI_OS}${EXT}"
 
-echo "Building context service..."
+echo "Building brain service..."
 echo "  OS: $GOOS, Arch: $GOARCH"
 echo "  Output: $BIN_DIR/$BINARY_NAME"
 
@@ -64,12 +64,12 @@ mkdir -p "$BIN_DIR"
 
 # Version injection via ldflags
 VERSION="${CONSTRUCT_VERSION:-dev}"
-COMMIT="$(cd "$CONTEXT_DIR" && git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+COMMIT="$(cd "$BRAIN_DIR" && git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
 BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 LDFLAGS="-X main.Version=$VERSION -X main.Commit=$COMMIT -X main.BuildDate=$BUILD_DATE"
 
 # Build the Go binary
-cd "$CONTEXT_DIR"
+cd "$BRAIN_DIR"
 GOOS=$GOOS GOARCH=$GOARCH go build -ldflags "$LDFLAGS" -o "$BIN_DIR/$BINARY_NAME" .
 
-echo "Context service built successfully: $BINARY_NAME"
+echo "Brain service built successfully: $BINARY_NAME"

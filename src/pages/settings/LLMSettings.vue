@@ -2,8 +2,10 @@
 import { useAnthropicOAuth } from '@/composables/useAnthropicOAuth'
 import { useAIModel } from '@/composables/useAIModel'
 import { useContextService } from '@/composables/useContextService'
+import { useContextDB } from '@/composables/useContextDB'
 import Input from '@/components/ui/Input.vue'
 import Button from '@/components/ui/Button.vue'
+import { Eye, EyeOff, Check } from 'lucide-vue-next'
 
 const toast = useToast()
 const route = useRoute()
@@ -32,6 +34,87 @@ const openAIAuthLoading = ref(false)
 const openAIAuthCode = ref('')
 const showOpenAIAuthCodeInput = ref(false)
 
+// Provider API Keys
+const db = useContextDB()
+
+interface ProviderKeyConfig {
+  id: string
+  name: string
+  description: string
+  placeholder: string
+  kvKey: string
+  isUrl?: boolean
+}
+
+const providers: ProviderKeyConfig[] = [
+  { id: 'deepseek', name: 'DeepSeek', description: 'DeepSeek V3/R1 models', placeholder: 'sk-...', kvKey: 'provider_key:deepseek' },
+  { id: 'xai', name: 'xAI (Grok)', description: 'Grok models', placeholder: 'xai-...', kvKey: 'provider_key:xai' },
+  { id: 'gemini', name: 'Google Gemini', description: 'Gemini models', placeholder: 'AIza...', kvKey: 'provider_key:gemini' },
+  { id: 'zai', name: 'Z.AI', description: 'GLM / CogView models', placeholder: 'API key', kvKey: 'provider_key:zai' },
+  { id: 'mimo', name: 'Xiaomi MiMo', description: 'MiMo reasoning model', placeholder: 'API key', kvKey: 'provider_key:mimo' },
+  { id: 'kimi', name: 'Kimi (Moonshot)', description: 'Moonshot AI models', placeholder: 'API key', kvKey: 'provider_key:kimi' },
+  { id: 'lmstudio', name: 'LM Studio', description: 'Local models via OpenAI-compatible server', placeholder: 'http://localhost:1234/v1', kvKey: 'provider_key:lmstudio', isUrl: true },
+]
+
+const apiKeys = ref<Record<string, string>>({})
+const visibleKeys = ref<Record<string, boolean>>({})
+const savedKeys = ref<Record<string, boolean>>({})
+const savingKeys = ref<Record<string, boolean>>({})
+
+function toggleVisibility(id: string) {
+  visibleKeys.value[id] = !visibleKeys.value[id]
+}
+
+async function saveKey(provider: ProviderKeyConfig) {
+  const value = apiKeys.value[provider.id]?.trim()
+  if (!value) return
+
+  savingKeys.value[provider.id] = true
+  try {
+    // Store in brain's KV store
+    await db.kvSet(provider.kvKey, value, 'provider_keys')
+
+    // Also notify the brain to reload the key
+    try {
+      await contextService.sendRequest('settings.set', {
+        key: provider.kvKey,
+        value,
+      })
+    } catch { /* brain may not support this yet */ }
+
+    savedKeys.value[provider.id] = true
+    setTimeout(() => { savedKeys.value[provider.id] = false }, 2000)
+    toast.add({ title: `${provider.name} API key saved`, color: 'success' })
+  } catch {
+    toast.add({ title: `Failed to save ${provider.name} key`, color: 'error' })
+  } finally {
+    savingKeys.value[provider.id] = false
+  }
+}
+
+async function clearKey(provider: ProviderKeyConfig) {
+  try {
+    await db.kvSet(provider.kvKey, '', 'provider_keys')
+    apiKeys.value[provider.id] = ''
+    try {
+      await contextService.sendRequest('settings.set', { key: provider.kvKey, value: '' })
+    } catch { /* ignore */ }
+    toast.add({ title: `${provider.name} key cleared`, color: 'info' })
+  } catch {
+    toast.add({ title: `Failed to clear ${provider.name} key`, color: 'error' })
+  }
+}
+
+async function loadKeys() {
+  for (const p of providers) {
+    try {
+      const val = await db.kvGet(p.kvKey)
+      if (val) apiKeys.value[p.id] = val
+    } catch { /* ignore */ }
+  }
+}
+
+// OAuth functions
 async function startAnthropicAuth() {
   try {
     const url = await anthropicOAuth.startAuth('max')
@@ -151,6 +234,7 @@ onMounted(async () => {
   try {
     await anthropicOAuth.checkStatus()
     await checkOpenAIStatus()
+    await loadKeys()
     if (route.query.connect === 'oauth' && !anthropicOAuth.isAuthenticated.value) {
       await startAnthropicAuth()
     }
@@ -165,7 +249,7 @@ onMounted(async () => {
 
 <template>
   <div>
-<!-- Model Selection -->
+    <!-- Model Selection -->
     <div class="mb-8">
       <h3 class="text-sm font-semibold text-[var(--app-foreground)] mb-3">Model Selection</h3>
 
@@ -227,6 +311,76 @@ onMounted(async () => {
               <li><strong>Complex reasoning</strong> &rarr; Premium models (Claude, xAI)</li>
               <li><strong>Images</strong> &rarr; Vision-capable models</li>
             </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Provider API Keys -->
+    <div class="pt-6 border-t border-[var(--app-border)] mb-8">
+      <h3 class="text-sm font-semibold text-[var(--app-foreground)] mb-1">Provider API Keys</h3>
+      <p class="text-xs text-[var(--app-muted)] mb-4">Add API keys to enable additional providers. Keys are stored locally in the brain service.</p>
+
+      <div class="space-y-3">
+        <div
+          v-for="provider in providers"
+          :key="provider.id"
+          class="p-4 rounded-lg border border-[var(--app-border)]"
+        >
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <p class="text-sm font-medium text-[var(--app-foreground)]">{{ provider.name }}</p>
+              <p class="text-xs text-[var(--app-muted)]">{{ provider.description }}</p>
+            </div>
+            <span
+              v-if="apiKeys[provider.id]"
+              class="px-2 py-0.5 text-[10px] rounded-full bg-green-500/10 text-green-500"
+            >
+              Configured
+            </span>
+          </div>
+
+          <div class="flex gap-2">
+            <div class="flex-1 relative">
+              <Input
+                v-model="apiKeys[provider.id]"
+                :type="visibleKeys[provider.id] ? 'text' : 'password'"
+                :placeholder="provider.placeholder"
+                size="sm"
+              />
+              <button
+                v-if="apiKeys[provider.id]"
+                class="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--app-muted)] hover:text-[var(--app-foreground)] transition-colors"
+                @click="toggleVisibility(provider.id)"
+              >
+                <component :is="visibleKeys[provider.id] ? EyeOff : Eye" class="size-3.5" />
+              </button>
+            </div>
+
+            <Button
+              v-if="savedKeys[provider.id]"
+              size="sm"
+              variant="ghost"
+              disabled
+            >
+              <Check class="size-3.5 text-green-500" />
+            </Button>
+            <Button
+              v-else
+              size="sm"
+              :loading="savingKeys[provider.id]"
+              :disabled="!apiKeys[provider.id]?.trim()"
+              label="Save"
+              @click="saveKey(provider)"
+            />
+            <Button
+              v-if="apiKeys[provider.id]"
+              size="sm"
+              variant="ghost"
+              color="error"
+              label="Clear"
+              @click="clearKey(provider)"
+            />
           </div>
         </div>
       </div>
