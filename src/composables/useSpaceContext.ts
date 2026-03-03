@@ -30,11 +30,23 @@ import {
   subscribeSpaceContext,
 } from '~/lib/spaceContextBus'
 
+// Stub types for space composables provided at runtime by IIFE bundles
+interface GitCommitStub { subject?: string; message?: string }
+
 // Space composables are provided at runtime by IIFE bundles.
 // These defaults are used when a space is not installed.
-const useGitRepo: () => any = () => ({ state: {}, hasChanges: ref(false) })
-const useCodeEditor: () => any = () => ({ state: {}, selection: ref(null) })
-const useUIState: () => any = () => ({ nodes: ref([]), selectedIds: ref([]) })
+const useGitRepo = () => ({
+  state: { currentBranch: '', currentRepoPath: '', commits: [] as GitCommitStub[] },
+  hasChanges: ref(false),
+})
+const useCodeEditor = () => ({
+  state: { currentFile: '', fileContent: '', currentLanguage: '' },
+  selection: ref<string | null>(null),
+})
+const useUIState = () => ({
+  nodes: ref<{ id: string; name?: string }[]>([]),
+  selectedIds: ref<string[]>([]),
+})
 
 /**
  * Maximum number of recent items to include in context summaries.
@@ -59,13 +71,13 @@ export function useSpaceContext() {
   // ---------------------------------------------------------------------------
   // Reactive caches from the Space Context Bus
   // ---------------------------------------------------------------------------
-  const busTasksSummary = ref<any>(getLatestSpaceContext('tasks')?.summary || null)
-  const busNotesSummary = ref<any>(getLatestSpaceContext('notes')?.summary || null)
-  const busDocsSummary = ref<any>(getLatestSpaceContext('documents')?.summary || null)
+  const busTasksSummary = ref<Partial<SpaceContextTasks> | null>(getLatestSpaceContext('tasks')?.summary as Partial<SpaceContextTasks> || null)
+  const busNotesSummary = ref<Partial<SpaceContextNotes> | null>(getLatestSpaceContext('notes')?.summary as Partial<SpaceContextNotes> || null)
+  const busDocsSummary = ref<Partial<SpaceContextDocs> | null>(getLatestSpaceContext('documents')?.summary as Partial<SpaceContextDocs> || null)
 
-  subscribeSpaceContext('tasks', (p) => { busTasksSummary.value = p.summary })
-  subscribeSpaceContext('notes', (p) => { busNotesSummary.value = p.summary })
-  subscribeSpaceContext('documents', (p) => { busDocsSummary.value = p.summary })
+  subscribeSpaceContext('tasks', (p) => { busTasksSummary.value = p.summary as Partial<SpaceContextTasks> })
+  subscribeSpaceContext('notes', (p) => { busNotesSummary.value = p.summary as Partial<SpaceContextNotes> })
+  subscribeSpaceContext('documents', (p) => { busDocsSummary.value = p.summary as Partial<SpaceContextDocs> })
 
   // ---------------------------------------------------------------------------
   // Context for each space (computed for reactivity)
@@ -102,7 +114,7 @@ export function useSpaceContext() {
     const selected = selectedIds.value || []
     return {
       selectedNodes: selected.map((id: string) => {
-        const node = allNodes.find((n: any) => n.id === id)
+        const node = allNodes.find((n) => n.id === id)
         return node?.name || id
       }),
       canvasNodeCount: allNodes.length,
@@ -143,7 +155,7 @@ export function useSpaceContext() {
       hasUncommittedChanges: gitHasChanges.value,
       recentCommits: commits
         .slice(0, MAX_RECENT_COMMITS)
-        .map((c: any) => c.subject || c.message || ''),
+        .map((c: GitCommitStub) => c.subject || c.message || ''),
     }
   })
 

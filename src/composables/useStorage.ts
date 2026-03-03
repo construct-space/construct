@@ -567,7 +567,7 @@ function serializeDesign(design: UIDesign): Record<string, unknown> {
 
 function deserializeDesign(data: Record<string, unknown>): UIDesign {
   return {
-    ...(data as any),
+    ...(data as unknown as UIDesign),
     createdAt: data.createdAt ? new Date(data.createdAt as string) : new Date(),
     updatedAt: data.updatedAt ? new Date(data.updatedAt as string) : new Date()
   } as UIDesign

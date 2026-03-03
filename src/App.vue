@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { isTauriEnv } from '@/utils/tauri'
 import { useAppTheme } from '@/composables/useAppTheme'
 import { useDeepLink } from '@/composables/useDeepLink'
+import { useTelemetry } from '@/composables/useTelemetry'
 
 const route = useRoute()
 const { initTheme } = useAppTheme()
 useDeepLink()
+const telemetry = useTelemetry()
 
 // Check if we're in an app route (needs sidebar + toolbar)
 const showSidebar = computed(() => route.path.startsWith('/app'))
@@ -62,7 +64,15 @@ const hideNativeTrafficLights = async () => {
   }
 }
 
-onMounted(() => {
+// Telemetry: session end on page hide/unload
+const handleBeforeUnload = () => { telemetry.trackSessionEnd() }
+const handleVisibilityChange = () => {
+  if (document.visibilityState === 'hidden') telemetry.trackSessionEnd()
+}
+
+let unlisten: (() => void) | null = null
+
+onMounted(async () => {
   isTauri.value = isTauriEnv()
 
   if (isTauri.value) {
@@ -72,6 +82,29 @@ onMounted(() => {
   // Apply dark mode by default, then initialize theme from preferences
   document.documentElement.classList.add('dark')
   initTheme()
+
+  // Telemetry: track session start + background sync
+  telemetry.trackSessionStart()
+  window.addEventListener('beforeunload', handleBeforeUnload)
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+
+  // Tauri: bridge window focus/blur to custom events for DynamicSpacePage
+  if (isTauri.value) {
+    try {
+      const { getCurrentWindow } = await import('@tauri-apps/api/window')
+      unlisten = await getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+        window.dispatchEvent(new Event(focused ? 'construct:window-focus' : 'construct:window-blur'))
+      })
+    } catch (e) {
+      console.error('[Telemetry] Failed to setup focus listener:', e)
+    }
+  }
+})
+
+onUnmounted(() => {
+  window.removeEventListener('beforeunload', handleBeforeUnload)
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
+  unlisten?.()
 })
 </script>
 

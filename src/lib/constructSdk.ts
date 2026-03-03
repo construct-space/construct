@@ -166,6 +166,14 @@ export type {
   ContextHandler,
 } from '@/lib/spaceContextBus'
 
+// === Telemetry ===
+export {
+  useTelemetry,
+  trackFeature,
+  isTelemetryEnabled,
+  TELEMETRY_FEATURE_KEYS,
+} from '@/composables/useTelemetry'
+
 // === Utilities ===
 export { appConfig } from '@/utils/config'
 export { db, deleteDatabase } from '@/utils/db'

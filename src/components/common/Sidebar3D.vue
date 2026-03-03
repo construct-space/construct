@@ -11,12 +11,12 @@
  */
 
 import { useSpaces } from '@/composables/useSpaces'
-import { usePinnedStore, createSpacePin } from '@/stores/pinned'
+import { usePinnedStore } from '@/stores/pinned'
 import { getSpace as getSpaceConfig } from '@/config/spaces'
 
 const router = useRouter()
 const route = useRoute()
-const { state, setPanel, exitSpace } = useSidebar()
+const { state, exitSpace } = useSidebar()
 const authStore = useAuthStore()
 const pinnedStore = usePinnedStore()
 const { spaces, loadSpaces } = useSpaces()

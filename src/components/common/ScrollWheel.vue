@@ -19,12 +19,14 @@
  *   enter - When Enter key is pressed on selected item
  */
 
+import type { Component } from 'vue'
+
 export interface ScrollWheelItem {
   id: string | number
   label: string
   description?: string
-  icon?: any
-  [key: string]: any
+  icon?: Component
+  [key: string]: unknown
 }
 
 const props = withDefaults(defineProps<{
@@ -51,7 +53,7 @@ const emit = defineEmits<{
 const containerRef = ref<HTMLElement | null>(null)
 const currentIndex = ref(0)
 const targetIndex = ref(0)
-const isAnimating = ref(false)
+const _isAnimating = ref(false)
 const isDragging = ref(false)
 const dragStartY = ref(0)
 const dragStartIndex = ref(0)

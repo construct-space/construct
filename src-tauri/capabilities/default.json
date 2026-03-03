@@ -68,6 +68,7 @@
     "opener:default",
     "opener:allow-open-url",
     "deep-link:default",
+    "sql:default",
     "core:webview:allow-create-webview-window"
   ]
 }

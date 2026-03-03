@@ -1,6 +1,6 @@
 import type { InjectionKey } from 'vue'
 
-interface FileEntry {
+export interface FileEntry {
   name: string
   path: string
   isDirectory: boolean

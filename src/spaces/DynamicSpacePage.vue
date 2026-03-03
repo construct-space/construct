@@ -15,8 +15,39 @@
 import { loadSpace, watchSpace, type LoadedSpace } from '@/spaces/SpaceLoader'
 import { getSpace as getSpaceTheme } from '@/config/spaces'
 import { useSpaces } from '@/composables/useSpaces'
-import { Loader2, AlertCircle, ArrowLeft } from 'lucide-vue-next'
+import { useTelemetry } from '@/composables/useTelemetry'
+import { Loader2, AlertCircle } from 'lucide-vue-next'
 import { shallowRef, markRaw } from 'vue'
+
+/**
+ * ActiveTimeTracker — monotonic timer that pauses when window is blurred/hidden.
+ * Uses performance.now() to avoid system clock drift.
+ */
+class ActiveTimeTracker {
+  private _accumulated = 0
+  private _startedAt: number | null = null
+
+  resume() {
+    if (this._startedAt === null) {
+      this._startedAt = performance.now()
+    }
+  }
+
+  pause() {
+    if (this._startedAt !== null) {
+      this._accumulated += performance.now() - this._startedAt
+      this._startedAt = null
+    }
+  }
+
+  /** Returns accumulated ms and resets. */
+  reset(): number {
+    this.pause()
+    const total = this._accumulated
+    this._accumulated = 0
+    return total
+  }
+}
 
 const props = defineProps<{
   spaceName: string
@@ -24,6 +55,8 @@ const props = defineProps<{
 }>()
 
 const router = useRouter()
+const telemetry = useTelemetry()
+const activeTracker = new ActiveTimeTracker()
 
 const space = shallowRef<LoadedSpace | null>(null)
 const loading = ref(true)
@@ -87,19 +120,50 @@ async function setupDevWatcher() {
   })
 }
 
+// Telemetry: pause/resume active time on visibility + focus changes
+const handleVisibility = () => {
+  if (document.visibilityState === 'hidden') activeTracker.pause()
+  else activeTracker.resume()
+}
+const handleFocus = () => activeTracker.resume()
+const handleBlur = () => activeTracker.pause()
+
+function flushSpace(spaceId: string) {
+  const activeMs = activeTracker.reset()
+  telemetry.trackSpaceLeave(spaceId, activeMs)
+}
+
 onMounted(async () => {
   await load()
   await setupDevWatcher()
+
+  // Telemetry: track space entry + start active time
+  telemetry.trackSpaceEnter(props.spaceName)
+  activeTracker.resume()
+  document.addEventListener('visibilitychange', handleVisibility)
+  window.addEventListener('construct:window-focus', handleFocus)
+  window.addEventListener('construct:window-blur', handleBlur)
 })
 
-watch(() => props.spaceName, async () => {
+watch(() => props.spaceName, async (newSpace, oldSpace) => {
+  // Flush old space telemetry before switching
+  if (oldSpace) flushSpace(oldSpace)
+
   unwatchFn?.()
   await load()
   await setupDevWatcher()
+
+  // Track new space entry
+  telemetry.trackSpaceEnter(newSpace)
+  activeTracker.resume()
 })
 
 onUnmounted(() => {
   unwatchFn?.()
+  flushSpace(props.spaceName)
+  document.removeEventListener('visibilitychange', handleVisibility)
+  window.removeEventListener('construct:window-focus', handleFocus)
+  window.removeEventListener('construct:window-blur', handleBlur)
 })
 </script>
 

@@ -126,6 +126,10 @@ export const routes: RouteRecordRaw[] = [
             path: 'spaces',
             component: () => import('@/pages/settings/SpacesSettings.vue'),
           },
+          {
+            path: 'privacy',
+            component: () => import('@/pages/settings/PrivacySettings.vue'),
+          },
         ],
       },
 

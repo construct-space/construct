@@ -43,7 +43,7 @@ async function startAnthropicAuth() {
       window.open(url, '_blank')
     }
     toast.add({ title: 'Authentication started', description: 'Complete the login in your browser, then paste the code here.', color: 'info' })
-  } catch (error) {
+  } catch {
     toast.add({ title: 'Failed to start authentication', color: 'error' })
   }
 }
@@ -104,7 +104,7 @@ async function startOpenAIAuth() {
       window.open(authUrl, '_blank')
     }
     toast.add({ title: 'Complete OpenAI login in your browser', color: 'info' })
-  } catch (error) {
+  } catch {
     toast.add({ title: 'Failed to start OpenAI authentication', color: 'error' })
   } finally {
     openAIAuthLoading.value = false

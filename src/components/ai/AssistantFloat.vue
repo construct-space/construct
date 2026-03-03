@@ -29,12 +29,27 @@ interface DocumentListItem {
 import { useMarkdown } from '~/composables/useMarkdown'
 import { parseToolResult } from '~/composables/useDesignActions'
 import { listAvailableDesigns, getDesignForCodeGeneration, registerDesign, useCanvasContext } from '~/composables/useCanvasContext'
+import type { DesignNode } from '~/types/design'
+
+// Stub types for space composables provided at runtime by IIFE bundles
+interface FileTreeEntry {
+  name: string
+  path: string
+  isDirectory: boolean
+  children?: FileTreeEntry[]
+}
+interface GitChange { path: string; status?: string }
+interface GitCommit { shortHash?: string; subject?: string; author?: string; message?: string }
+interface GitRepoInfo { name?: string; status?: string; remoteUrl?: string; hasUpstream?: boolean; ahead?: number; behind?: number }
+interface TaskCacheItem { id: number | string; title: string; status: string; priority?: number | string }
+interface DocCacheItem { content: string; title: string; type: string; id: number | string }
+
 // Space composables are provided at runtime by IIFE bundles.
 // These defaults are used when a space is not installed.
 const useCodeEditor = (() => ({
-  state: { rootPath: '', currentFile: '', fileContent: '', currentLanguage: '', fileTree: [] as any[] },
-  selection: ref(null) as any,
-  loadDirectory: (..._args: any[]) => Promise.resolve(),
+  state: { rootPath: '', currentFile: '', fileContent: '', currentLanguage: '', fileTree: [] as FileTreeEntry[] },
+  selection: ref<string | null>(null),
+  loadDirectory: (..._args: unknown[]) => Promise.resolve(),
   selectFile: () => {},
   openFolder: () => {},
   getFileIcon: () => 'i-lucide-file',
@@ -42,11 +57,11 @@ const useCodeEditor = (() => ({
 }))
 const useGitRepo = (() => ({
   state: {
-    repositories: new Map(), currentRepoPath: '', currentBranch: '', commits: [] as any[],
-    stagedChanges: [] as any[], unstagedChanges: [] as any[],
-    untrackedFiles: [] as any[], conflictedFiles: [] as any[],
+    repositories: new Map<string, unknown>(), currentRepoPath: '', currentBranch: '', commits: [] as GitCommit[],
+    stagedChanges: [] as GitChange[], unstagedChanges: [] as GitChange[],
+    untrackedFiles: [] as GitChange[], conflictedFiles: [] as GitChange[],
   },
-  currentRepo: ref(null as any),
+  currentRepo: ref<GitRepoInfo | null>(null),
   hasChanges: ref(false),
 }))
 import { detectCodeFramework, resolveAssistantAgentId } from './assistant/spaceBehavior'
@@ -336,7 +351,7 @@ async function getReferencedDocsContext(refs: DocReference[]): Promise<string> {
     )
     if (dbDoc) {
       try {
-        const fullDoc = await requestSpaceData('docs', { type: 'documents.fetch', params: { id: dbDoc.id } }) as any
+        const fullDoc = await requestSpaceData('docs', { type: 'documents.fetch', params: { id: dbDoc.id } }) as { content?: string } | undefined
         if (fullDoc?.content) {
           // Limit content to ~4000 chars to avoid bloating the prompt
           const content = fullDoc.content.length > 4000
@@ -398,13 +413,13 @@ function getDesignDataForAI(refs: DesignReference[], designs: UIDesign[]): strin
     if (design) {
       parts.push(`\n### ${design.name}`)
       parts.push(`Design ID: ${design.id}`)
-      const designNodes = (design as any).nodes as any[] | undefined
+      const designNodes = design.nodes as DesignNode[] | undefined
       parts.push(`Elements: ${designNodes?.length || 0}`)
 
       // Include actual node data for code generation
       if (designNodes && designNodes.length > 0) {
         // Limit to essential properties for context size
-        const essentialNodes = designNodes.map((node: any) => ({
+        const essentialNodes = designNodes.map((node: DesignNode) => ({
           id: node.id,
           type: node.type,
           name: node.name,
@@ -486,27 +501,27 @@ const projectStore = useProjectStore()
 // Space Context Bus — reactive caches for domain data
 // Replaces direct imports of useTasksStore, useDocumentsStore, useUsersStore
 // ---------------------------------------------------------------------------
-const busTasksCache = ref<any[]>([])
+const busTasksCache = ref<TaskCacheItem[]>([])
 const busDocsCache = ref<DocumentListItem[]>([])
-const busCurrentDoc = ref<any>(null)
+const busCurrentDoc = ref<DocCacheItem | null>(null)
 
 // Subscribe to space context updates
 subscribeSpaceContext('tasks', (payload) => {
-  const summary = payload.summary as any
+  const summary = payload.summary as { recentTasks?: TaskCacheItem[] } | undefined
   if (summary?.recentTasks) busTasksCache.value = summary.recentTasks
 })
 subscribeSpaceContext('documents', (payload) => {
-  const summary = payload.summary as any
+  const summary = payload.summary as { documents?: DocumentListItem[]; activeDocument?: DocCacheItem | null } | undefined
   if (summary?.documents) busDocsCache.value = summary.documents
-  if (summary?.activeDocument !== undefined) busCurrentDoc.value = summary.activeDocument
+  if (summary?.activeDocument !== undefined) busCurrentDoc.value = summary.activeDocument ?? null
 })
 
 // Seed caches from last-published context (if spaces already running)
 const initialTasks = getLatestSpaceContext('tasks')
-if (initialTasks?.summary?.recentTasks) busTasksCache.value = initialTasks.summary.recentTasks as any[]
+if (initialTasks?.summary?.recentTasks) busTasksCache.value = initialTasks.summary.recentTasks as TaskCacheItem[]
 const initialDocs = getLatestSpaceContext('documents')
 if (initialDocs?.summary?.documents) busDocsCache.value = initialDocs.summary.documents as DocumentListItem[]
-if (initialDocs?.summary?.activeDocument) busCurrentDoc.value = initialDocs.summary.activeDocument
+if (initialDocs?.summary?.activeDocument) busCurrentDoc.value = initialDocs.summary.activeDocument as DocCacheItem
 
 // Credits for AI usage tracking
 const credits = useCredits()
@@ -1074,14 +1089,14 @@ const autocompleteSuggestions = computed(() => {
       for (const d of cloudDesigns) {
         if (!allDesignNames.has(d.name.toLowerCase())) {
           allDesignNames.add(d.name.toLowerCase())
-          allDesigns.push({ name: d.name, nodeCount: ((d as any).nodes as any[])?.length || 0, source: 'cloud' })
+          allDesigns.push({ name: d.name, nodeCount: (d.nodes as DesignNode[] | undefined)?.length || 0, source: 'cloud' })
         }
       }
       // Local IndexedDB designs
       for (const d of dbDesigns) {
         if (!allDesignNames.has(d.name.toLowerCase())) {
           allDesignNames.add(d.name.toLowerCase())
-          allDesigns.push({ name: d.name, nodeCount: ((d as any).nodes as any[])?.length || 0, source: 'local' })
+          allDesigns.push({ name: d.name, nodeCount: (d.nodes as DesignNode[] | undefined)?.length || 0, source: 'local' })
         }
       }
       // In-memory canvas designs (not yet saved)
@@ -1546,7 +1561,7 @@ async function syncProjectDocs(projectId: string | number, projectPath: string |
   for (const dbDoc of projectDocs.value) {
     if (!localTitles.has(dbDoc.title.toLowerCase())) {
       try {
-        const fullDoc = await requestSpaceData('docs', { type: 'documents.fetch', params: { id: dbDoc.id } }) as any
+        const fullDoc = await requestSpaceData('docs', { type: 'documents.fetch', params: { id: dbDoc.id } }) as { content?: string } | undefined
         if (fullDoc?.content) {
           const filename = docTitleToFilename(dbDoc.title)
           const filePath = `${docsPath}/${filename}`
@@ -1602,7 +1617,7 @@ watch(
 
         // Also register them in the canvas context for code generation
         for (const design of designs) {
-          registerDesign(design.name, (design as any).nodes)
+          registerDesign(design.name, design.nodes as DesignNode[])
         }
         console.log('[AssistantFloat] Loaded', designs.length, 'designs from SQLite')
       } catch (e) {
@@ -1692,7 +1707,7 @@ async function loadProjectFiles(rootPath: string, maxDepth = 4): Promise<Project
     const parsed = JSON.parse(result?.content || '{}') as { tree?: unknown; success?: boolean }
     if (parsed?.tree && Array.isArray(parsed.tree)) {
       // Flatten the tree into a file list
-      flattenFileTree(parsed.tree as FileTreeEntry[], files)
+      flattenFileTree(parsed.tree as ContextFileTreeEntry[], files)
       console.log('[AssistantFloat] Loaded', files.length, 'files for ! autocomplete from', rootPath)
     }
   } catch (e) {
@@ -1703,14 +1718,14 @@ async function loadProjectFiles(rootPath: string, maxDepth = 4): Promise<Project
 }
 
 // Flatten nested file tree into flat array
-interface FileTreeEntry {
+interface ContextFileTreeEntry {
   name: string
   type: string
   path?: string
-  children?: FileTreeEntry[]
+  children?: ContextFileTreeEntry[]
 }
 
-function flattenFileTree(tree: FileTreeEntry[], files: ProjectFile[], parentPath = '') {
+function flattenFileTree(tree: ContextFileTreeEntry[], files: ProjectFile[], parentPath = '') {
   for (const entry of tree) {
     const fullPath = parentPath ? `${parentPath}/${entry.name}` : entry.name
 
@@ -1762,7 +1777,7 @@ watch(
 )
 
 // Flatten code editor's FileEntry tree into ProjectFile[]
-function flattenCodeEditorTree(entries: Array<{ name: string; path: string; isDirectory: boolean; children?: unknown[] }>, files: ProjectFile[], maxDepth = 5, depth = 0) {
+function flattenCodeEditorTree(entries: FileTreeEntry[], files: ProjectFile[], maxDepth = 5, depth = 0) {
   if (depth > maxDepth) return
   for (const entry of entries) {
     if (!entry.isDirectory) {
@@ -2900,8 +2915,8 @@ function buildSystemPrompt(references?: ParsedReferences, docContents?: string):
         gitContext += `\n**Remote:** ${currentRepo.remoteUrl}`
       }
       if (currentRepo?.hasUpstream) {
-        if (currentRepo.ahead > 0 || currentRepo.behind > 0) {
-          gitContext += `\n**Sync:** ${currentRepo.ahead} ahead, ${currentRepo.behind} behind`
+        if ((currentRepo.ahead ?? 0) > 0 || (currentRepo.behind ?? 0) > 0) {
+          gitContext += `\n**Sync:** ${currentRepo.ahead ?? 0} ahead, ${currentRepo.behind ?? 0} behind`
         }
       } else {
         gitContext += `\n**Upstream:** not set (use set_upstream when pushing)`

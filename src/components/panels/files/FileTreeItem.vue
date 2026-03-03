@@ -3,20 +3,13 @@
  * FileTreeItem - Recursive file tree item component
  * Uses injected context from FileExplorer to avoid re-calling useCodeEditor
  */
-import { FileTreeContextKey } from './fileTreeContext'
+import { FileTreeContextKey, type FileEntry } from './fileTreeContext'
 import { showContextMenu } from '~/composables/useNativeContextMenu'
 
 // Required for recursive component self-reference
 defineOptions({
   name: 'FileTreeItem'
 })
-
-interface FileEntry {
-  name: string
-  path: string
-  isDirectory: boolean
-  children?: FileEntry[]
-}
 
 const props = defineProps<{
   entry: FileEntry

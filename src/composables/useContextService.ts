@@ -378,7 +378,7 @@ export function useContextService(): UseContextServiceReturn {
         // immediately get the cached resolved promise instead of re-invoking
         // start_context_service via Tauri IPC.
         return true
-      } catch (err) {
+      } catch {
         // Clear both the reactive flag and the cached promise so a retry can happen.
         markDisconnected()
         //   console.warn('[contextService] initializeTauri FAILED after:', (performance.now() - _tInit).toFixed(1), 'ms', err)

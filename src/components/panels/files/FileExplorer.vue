@@ -3,19 +3,19 @@
  * File Explorer Panel - Browse and select files from filesystem
  * Ported from construct-mono (Nuxt) to Vue/Vite
  */
-import { FileTreeContextKey } from './fileTreeContext'
+import { FileTreeContextKey, type FileEntry } from './fileTreeContext'
 import { showContextMenu } from '~/composables/useNativeContextMenu'
 // Space composable provided at runtime by IIFE bundle
 const useCodeEditor = (() => ({
-  state: { rootPath: '', currentFile: '', fileContent: '', currentLanguage: '', fileTree: [] as any[], expandedFolders: new Set<string>(), selectedFile: null as string | null, isDirty: false, isLoading: false, originalContent: '' },
-  openFolder: () => {}, loadDirectory: (..._args: any[]) => Promise.resolve(), selectFile: (..._args: any[]) => Promise.resolve(),
-  getFileIcon: () => 'i-lucide-file', getFileIconColor: () => '', initTauri: () => {},
-  deleteEntry: (..._args: any[]) => Promise.resolve(false), renameEntry: (..._args: any[]) => Promise.resolve(false),
-  duplicateEntry: (..._args: any[]) => Promise.resolve(false),
-  copyPath: (..._args: any[]) => Promise.resolve(false), copyRelativePath: (..._args: any[]) => Promise.resolve(false),
-  copyName: (..._args: any[]) => Promise.resolve(false),
-  revealInFinder: (..._args: any[]) => Promise.resolve(false), openInTerminal: (..._args: any[]) => Promise.resolve(false),
-  createFile: (..._args: any[]) => Promise.resolve(false), createFolder: (..._args: any[]) => Promise.resolve(false),
+  state: { rootPath: '', currentFile: '', fileContent: '', currentLanguage: '', fileTree: [] as FileEntry[], expandedFolders: new Set<string>(), selectedFile: null as string | null, isDirty: false, isLoading: false, originalContent: '' },
+  openFolder: () => {}, loadDirectory: (_path: string) => Promise.resolve(), selectFile: (_entry: FileEntry) => Promise.resolve(),
+  getFileIcon: (_entry: FileEntry) => 'i-lucide-file', getFileIconColor: (_entry: FileEntry) => '', initTauri: () => {},
+  deleteEntry: (_path: string, _isDir: boolean) => Promise.resolve(false), renameEntry: (_old: string, _new: string) => Promise.resolve(false),
+  duplicateEntry: (_path: string) => Promise.resolve(false),
+  copyPath: (_path: string) => Promise.resolve(false), copyRelativePath: (_path: string) => Promise.resolve(false),
+  copyName: (_path: string) => Promise.resolve(false),
+  revealInFinder: (_path: string) => Promise.resolve(false), openInTerminal: (_path: string) => Promise.resolve(false),
+  createFile: (_parent: string, _name: string) => Promise.resolve(false), createFolder: (_parent: string, _name: string) => Promise.resolve(false),
 }))
 
 const {

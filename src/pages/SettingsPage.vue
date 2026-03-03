@@ -2,7 +2,7 @@
 import {
   Palette, Bot, Cpu, Server, Puzzle,
   Download, Brush, Keyboard, CircleUser,
-  Settings, FolderOpen, LayoutGrid,
+  Settings, FolderOpen, LayoutGrid, Shield,
 } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -38,6 +38,7 @@ const navGroups = [
   {
     label: 'System',
     items: [
+      { label: 'Privacy',        path: '/app/settings/privacy', icon: Shield },
       { label: 'Updates',        path: '/app/settings/updates', icon: Download },
     ],
   },

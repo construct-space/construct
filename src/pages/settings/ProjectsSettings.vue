@@ -4,7 +4,7 @@
  */
 import { ref, onMounted } from 'vue'
 import { useProjectStore } from '@/stores/project'
-import { FolderOpen, RefreshCw, Plus, Trash2 } from 'lucide-vue-next'
+import { FolderOpen, RefreshCw, Plus } from 'lucide-vue-next'
 
 const projectStore = useProjectStore()
 const scanning = ref(false)

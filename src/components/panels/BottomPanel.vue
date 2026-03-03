@@ -39,12 +39,12 @@ const currentTab = computed({
   set: (val) => emit('update:activeTab', val)
 })
 
-const tabs = [
+const tabs = computed(() => [
   { id: 'output' as const, label: 'Output', icon: 'i-lucide-terminal-square' },
   { id: 'debug' as const, label: 'Debug Console', icon: 'i-lucide-bug' },
   { id: 'problems' as const, label: 'Problems', icon: 'i-lucide-alert-circle', badge: props.problems.length || undefined },
   { id: 'terminal' as const, label: 'Terminal', icon: 'i-lucide-terminal' }
-]
+])
 
 // Auto-scroll output
 const outputRef = ref<HTMLElement | null>(null)
