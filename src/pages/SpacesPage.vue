@@ -85,16 +85,19 @@ function openMarketplace() {
           @click="navigateToSpace(space.name)"
         >
           <!-- Pin toggle -->
-          <button
-            class="absolute top-3 right-3 p-1.5 rounded-md transition-all z-10"
+          <div
+            role="button"
+            tabindex="0"
+            class="absolute top-3 right-3 p-1.5 rounded-md transition-all z-10 cursor-pointer"
             :class="space.isPinned
               ? 'text-[var(--app-accent)] bg-[color-mix(in_srgb,var(--app-accent)_12%,transparent)]'
               : 'text-[var(--app-muted)] opacity-0 group-hover:opacity-100 hover:bg-[color-mix(in_srgb,var(--app-muted)_10%,transparent)]'"
             :title="space.isPinned ? 'Unpin from sidebar' : 'Pin to sidebar'"
             @click.stop="togglePin(space)"
+            @keydown.enter.stop="togglePin(space)"
           >
             <component :is="space.isPinned ? PinOff : Pin" class="size-3.5" />
-          </button>
+          </div>
 
           <!-- Installed badge -->
           <span

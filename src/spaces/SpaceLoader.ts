@@ -292,12 +292,16 @@ export async function reloadSpace(spaceId: string): Promise<LoadedSpace | null> 
 /**
  * Watch a space's bundle for changes (dev mode only).
  * Polls the manifest's build.builtAt timestamp to detect rebuilds.
+ * Only active when VITE_SPACE_DEV_DIR is set (i.e. `construct space dev` is running).
  * Returns an unwatch function.
  */
 export async function watchSpace(
   spaceId: string,
   onReload: (space: LoadedSpace | null) => void
 ): Promise<(() => void) | null> {
+  // Only poll when actively developing a space (construct space dev sets this)
+  if (!devOverrideDir) return null
+
   try {
     const { readTextFile } = await import('@tauri-apps/plugin-fs')
     const { homeDir } = await import('@tauri-apps/api/path')
@@ -324,11 +328,11 @@ export async function watchSpace(
           onReload(reloaded)
         }
       } catch { /* file may be mid-write */ }
-      if (!stopped) setTimeout(poll, 1000)
+      if (!stopped) setTimeout(poll, 3000)
     }
 
     // Start polling
-    setTimeout(poll, 1000)
+    setTimeout(poll, 3000)
     console.log(`[SpaceLoader] Watching "${spaceId}" for changes (polling)`)
     return () => { stopped = true }
   } catch (err) {
