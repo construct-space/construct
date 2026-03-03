@@ -9,18 +9,30 @@ import AssistantFloat from '@/components/ai/AssistantFloat.vue'
     <!-- 3D Sidebar -->
     <Sidebar3D />
 
+    <!-- Assistant dock: left -->
+    <div id="assistant-dock-left" class="shrink-0" />
+
     <!-- Main content area -->
-    <div class="flex-1 flex flex-col overflow-hidden">
+    <div class="flex-1 flex flex-col overflow-hidden min-w-0">
       <!-- Toolbar -->
       <Toolbar3D />
 
-      <!-- Page content -->
-      <main class="flex-1 overflow-auto">
-        <RouterView />
-      </main>
+      <!-- Content + right dock wrapper -->
+      <div class="flex-1 flex overflow-hidden min-h-0">
+        <!-- Page content -->
+        <main class="flex-1 overflow-auto min-w-0">
+          <RouterView />
+        </main>
+
+        <!-- Assistant dock: right -->
+        <div id="assistant-dock-right" class="shrink-0" />
+      </div>
+
+      <!-- Assistant dock: bottom -->
+      <div id="assistant-dock-bottom" class="shrink-0" />
     </div>
 
-    <!-- AI Assistant (triggered by double Shift) -->
+    <!-- AI Assistant (triggered by double Shift, uses Teleport for docked modes) -->
     <Suspense>
       <AssistantFloat />
     </Suspense>

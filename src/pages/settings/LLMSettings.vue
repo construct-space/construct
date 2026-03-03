@@ -10,6 +10,8 @@ import { Eye, EyeOff, Check } from 'lucide-vue-next'
 const toast = useToast()
 const route = useRoute()
 
+const activeTab = ref<'models' | 'providers' | 'auth'>('models')
+
 // AI Model selection
 const { modelsByProvider, defaultModelId, setDefaultModel, allModels, resolveModelId, isAutoModelId } = useAIModel()
 
@@ -249,8 +251,34 @@ onMounted(async () => {
 
 <template>
   <div>
-    <!-- Model Selection -->
-    <div class="mb-8">
+    <!-- Tabs -->
+    <div class="flex gap-1 p-1 bg-[color-mix(in_srgb,var(--app-muted)_8%,transparent)] rounded-lg w-fit mb-6">
+      <button
+        class="px-4 py-1.5 text-sm rounded-md transition-colors cursor-pointer"
+        :class="activeTab === 'models' ? 'bg-app-accent text-white' : 'text-[var(--app-muted)] hover:text-[var(--app-foreground)]'"
+        @click="activeTab = 'models'"
+      >
+        Models
+      </button>
+      <button
+        class="px-4 py-1.5 text-sm rounded-md transition-colors cursor-pointer"
+        :class="activeTab === 'providers' ? 'bg-app-accent text-white' : 'text-[var(--app-muted)] hover:text-[var(--app-foreground)]'"
+        @click="activeTab = 'providers'"
+      >
+        Providers
+      </button>
+      <button
+        class="px-4 py-1.5 text-sm rounded-md transition-colors cursor-pointer"
+        :class="activeTab === 'auth' ? 'bg-app-accent text-white' : 'text-[var(--app-muted)] hover:text-[var(--app-foreground)]'"
+        @click="activeTab = 'auth'"
+      >
+        Auth
+      </button>
+    </div>
+
+    <!-- Models Tab -->
+    <template v-if="activeTab === 'models'">
+    <div>
       <h3 class="text-sm font-semibold text-[var(--app-foreground)] mb-3">Model Selection</h3>
 
       <div class="p-4 rounded-lg border border-[var(--app-border)]">
@@ -315,10 +343,13 @@ onMounted(async () => {
         </div>
       </div>
     </div>
+    </template>
 
-    <!-- Provider API Keys -->
-    <div class="pt-6 border-t border-[var(--app-border)] mb-8">
+    <!-- Providers Tab -->
+    <template v-else-if="activeTab === 'providers'">
+    <div>
       <h3 class="text-sm font-semibold text-[var(--app-foreground)] mb-1">Provider API Keys</h3>
+      <p class="text-xs text-[var(--app-muted)] mb-2">{{ providers.filter(p => apiKeys[p.id]?.trim()).length }} of {{ providers.length }} providers configured</p>
       <p class="text-xs text-[var(--app-muted)] mb-4">Add API keys to enable additional providers. Keys are stored locally in the brain service.</p>
 
       <div class="space-y-3">
@@ -385,9 +416,14 @@ onMounted(async () => {
         </div>
       </div>
     </div>
+    </template>
+
+    <!-- Auth Tab -->
+    <template v-else-if="activeTab === 'auth'">
+    <div class="space-y-6">
 
     <!-- Claude Max OAuth -->
-    <div class="pt-6 border-t border-[var(--app-border)] mb-8">
+    <div>
       <div class="flex items-center justify-between mb-4">
         <div>
           <h3 class="text-sm font-semibold text-[var(--app-foreground)]">Claude Max Authentication</h3>
@@ -439,7 +475,7 @@ onMounted(async () => {
     </div>
 
     <!-- OpenAI OAuth -->
-    <div class="pt-6 border-t border-[var(--app-border)]">
+    <div>
       <div class="flex items-center justify-between mb-4">
         <div>
           <h3 class="text-sm font-semibold text-[var(--app-foreground)]">OpenAI Authentication</h3>
@@ -489,5 +525,8 @@ onMounted(async () => {
         </div>
       </div>
     </div>
+
+    </div>
+    </template>
   </div>
 </template>

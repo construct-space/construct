@@ -166,7 +166,7 @@ async function syncToApi(): Promise<void> {
 
   try {
     const token = getAuthToken()
-    if (!token) return
+    if (!token || token === 'dev_token_local') return
 
     const data = await getStoredData()
     if (!data || (data.sessions.total === 0 && Object.keys(data.screenViews).length === 0)) return

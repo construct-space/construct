@@ -96,6 +96,10 @@ export function useConstructAuth() {
     const codeVerifier = sessionStorage.getItem(OAUTH_VERIFIER_KEY) || ''
     sessionStorage.removeItem(OAUTH_VERIFIER_KEY)
 
+    console.log('[OAuth] exchangeCode — redirect_uri:', redirectUri)
+    console.log('[OAuth] exchangeCode — code_verifier present:', !!codeVerifier, 'length:', codeVerifier.length)
+    console.log('[OAuth] exchangeCode — client_id:', clientId)
+
     const body: Record<string, string> = {
       grant_type: 'authorization_code',
       code,
@@ -111,8 +115,11 @@ export function useConstructAuth() {
     })
 
     if (!response.ok) {
-      const err = await response.json().catch(() => ({}))
-      throw new Error(err.error_description || err.error || 'Token exchange failed')
+      const errText = await response.text()
+      console.error('[OAuth] Token exchange failed:', response.status, errText)
+      let parsed: Record<string, string> = {}
+      try { parsed = JSON.parse(errText) } catch { /* not JSON */ }
+      throw new Error(parsed.error_description || parsed.error || `Token exchange failed (${response.status})`)
     }
 
     return response.json()

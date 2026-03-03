@@ -112,9 +112,10 @@ export const useAuthStore = defineStore('auth', {
 
         return { success: true as const, data: userData }
       } catch (error: unknown) {
-        this.error = error instanceof Error ? error.message : 'Login failed'
+        const errorMessage = error instanceof Error ? error.message : 'Login failed'
         this.clearAuthState()
-        return { success: false as const, error: this.error }
+        this.error = errorMessage
+        return { success: false as const, error: errorMessage }
       } finally {
         this.isLoading = false
       }

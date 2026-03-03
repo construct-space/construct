@@ -523,9 +523,9 @@ const initialDocs = getLatestSpaceContext('documents')
 if (initialDocs?.summary?.documents) busDocsCache.value = initialDocs.summary.documents as DocumentListItem[]
 if (initialDocs?.summary?.activeDocument) busCurrentDoc.value = initialDocs.summary.activeDocument as DocCacheItem
 
-// Credits for AI usage tracking
-const credits = useCredits()
-const { balance, userRemaining, hasUnlimitedAllocation, isLowCredits, formatCredits } = credits
+// Credits for AI usage tracking (can be re-enabled in settings for API-key models)
+// const credits = useCredits()
+// const { balance, userRemaining, hasUnlimitedAllocation, isLowCredits, formatCredits } = credits
 
 // Credits: users provide their own API keys, no server-side credit tracking
 
@@ -909,6 +909,14 @@ onMounted(async () => {
   loadDevMode()
   // Load conversation cache from SQLite/localStorage
   conversationCache = await loadConversationCache()
+  // Re-check dock target availability after mount (layout targets may now exist)
+  if (wantsDocked.value) {
+    nextTick(() => {
+      requestAnimationFrame(() => {
+        dockTargetEl.value = resolveDockTarget()
+      })
+    })
+  }
 })
 
 onUnmounted(() => {
@@ -917,6 +925,11 @@ onUnmounted(() => {
     clearTimeout(pendingExplorerRefresh)
     pendingExplorerRefresh = null
   }
+  // Cleanup drag/resize listeners if still active
+  document.removeEventListener('mousemove', onPanelDrag)
+  document.removeEventListener('mouseup', stopPanelDrag)
+  document.removeEventListener('mousemove', onResize)
+  document.removeEventListener('mouseup', stopResize)
 })
 
 // Conversation key based on route (space + project query)
@@ -939,6 +952,190 @@ const isLoading = ref(false)
 const abortController = ref<AbortController | null>(null)
 const currentRoute = ref<ModelRoute | null>(null) // Track routed model info
 const messageQueue = ref<string[]>([]) // Queue messages while AI is processing
+
+// Panel position & drag-to-move
+type PanelPosition = 'bottom-center' | 'left' | 'right' | 'bottom' | 'floating'
+const panelPosition = ref<PanelPosition>(
+  (typeof window !== 'undefined' && localStorage.getItem('construct_assistant_position') as PanelPosition) || 'bottom-center'
+)
+const floatingPos = reactive({ x: 0, y: 0 })
+const isDraggingPanel = ref(false)
+const showDockMenu = ref(false)
+const panelRef = ref<HTMLElement | null>(null)
+let dragOffset = { x: 0, y: 0 }
+
+// Resize state
+const panelSize = reactive({
+  width: parseInt(localStorage.getItem('construct_assistant_w') || '0') || 0,
+  height: parseInt(localStorage.getItem('construct_assistant_h') || '0') || 0,
+})
+const isResizing = ref(false)
+let resizeEdge = '' // 'right', 'bottom', 'corner'
+let resizeStart = { x: 0, y: 0, w: 0, h: 0 }
+
+const wantsDocked = computed(() => ['left', 'right', 'bottom'].includes(panelPosition.value))
+const dockTargetEl = ref<HTMLElement | null>(null)
+const isDocked = computed(() => wantsDocked.value && dockTargetEl.value !== null)
+
+function resolveDockTarget(): HTMLElement | null {
+  switch (panelPosition.value) {
+    case 'left': return document.getElementById('assistant-dock-left')
+    case 'right': return document.getElementById('assistant-dock-right')
+    case 'bottom': return document.getElementById('assistant-dock-bottom')
+    default: return null
+  }
+}
+
+watch(panelPosition, () => {
+  if (wantsDocked.value) {
+    // Wait for DOM to settle then resolve the target.
+    // Don't null out dockTargetEl first — changing Teleport target
+    // mid-transition causes "parent.insertBefore on null" errors.
+    nextTick(() => {
+      requestAnimationFrame(() => {
+        dockTargetEl.value = resolveDockTarget()
+      })
+    })
+  } else {
+    dockTargetEl.value = null
+  }
+}, { immediate: true })
+
+const panelPositionClasses = computed(() => {
+  switch (panelPosition.value) {
+    case 'left':
+      return 'w-[420px] h-full border-r border-gray-200/50 dark:border-gray-800/50'
+    case 'right':
+      return 'w-[420px] h-full border-l border-gray-200/50 dark:border-gray-800/50'
+    case 'bottom':
+      return 'w-full h-[350px] border-t border-gray-200/50 dark:border-gray-800/50'
+    case 'floating':
+      return 'fixed w-[50vw] min-w-[420px] max-w-[800px]'
+    case 'bottom-center':
+    default:
+      return 'fixed bottom-6 left-[calc(50%+36px)] -translate-x-1/2 w-[50vw] min-w-[420px] max-w-[800px]'
+  }
+})
+
+const panelStyle = computed(() => {
+  const style: Record<string, string> = {}
+  if (panelPosition.value === 'floating') {
+    style.left = `${floatingPos.x}px`
+    style.top = `${floatingPos.y}px`
+  }
+  // Apply custom size only for floating modes
+  if (!isDocked.value) {
+    if (panelSize.width) {
+      style.width = `${panelSize.width}px`
+      style.minWidth = '380px'
+      style.maxWidth = `${window.innerWidth - 32}px`
+    }
+    if (panelSize.height) {
+      style.height = `${panelSize.height}px`
+    }
+  }
+  return style
+})
+
+function savePanelPosition() {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('construct_assistant_position', panelPosition.value)
+  }
+}
+
+function setPanelPosition(pos: PanelPosition) {
+  panelPosition.value = pos
+  savePanelPosition()
+}
+
+function startPanelDrag(e: MouseEvent) {
+  if (e.button !== 0) return
+  e.preventDefault()
+  const panel = panelRef.value
+  if (!panel) return
+  const rect = panel.getBoundingClientRect()
+  if (panelPosition.value !== 'floating') {
+    floatingPos.x = rect.left
+    floatingPos.y = rect.top
+    panelPosition.value = 'floating'
+  }
+  dragOffset = { x: e.clientX - floatingPos.x, y: e.clientY - floatingPos.y }
+  isDraggingPanel.value = true
+  document.addEventListener('mousemove', onPanelDrag)
+  document.addEventListener('mouseup', stopPanelDrag)
+}
+
+function onPanelDrag(e: MouseEvent) {
+  if (!isDraggingPanel.value) return
+  const panel = panelRef.value
+  const pw = panel?.offsetWidth || 420
+  const ph = panel?.offsetHeight || 400
+  floatingPos.x = Math.max(0, Math.min(e.clientX - dragOffset.x, window.innerWidth - pw))
+  floatingPos.y = Math.max(0, Math.min(e.clientY - dragOffset.y, window.innerHeight - ph))
+}
+
+function stopPanelDrag() {
+  isDraggingPanel.value = false
+  document.removeEventListener('mousemove', onPanelDrag)
+  document.removeEventListener('mouseup', stopPanelDrag)
+  // Snap to edges if close enough — dock into layout
+  const threshold = 50
+  const pw = panelRef.value?.offsetWidth || 420
+  if (floatingPos.x < threshold) {
+    setPanelPosition('left')
+  } else if (floatingPos.x + pw > window.innerWidth - threshold) {
+    setPanelPosition('right')
+  } else if (floatingPos.y + 200 > window.innerHeight - threshold) {
+    setPanelPosition('bottom')
+  } else {
+    savePanelPosition()
+  }
+}
+
+// Resize handlers
+function startResize(e: MouseEvent, edge: string) {
+  if (e.button !== 0) return
+  e.preventDefault()
+  e.stopPropagation()
+  const panel = panelRef.value
+  if (!panel) return
+  resizeEdge = edge
+  resizeStart = {
+    x: e.clientX,
+    y: e.clientY,
+    w: panel.offsetWidth,
+    h: panel.offsetHeight,
+  }
+  isResizing.value = true
+  document.addEventListener('mousemove', onResize)
+  document.addEventListener('mouseup', stopResize)
+}
+
+function onResize(e: MouseEvent) {
+  if (!isResizing.value) return
+  const dx = e.clientX - resizeStart.x
+  const dy = e.clientY - resizeStart.y
+  const minW = 380
+  const maxW = window.innerWidth - 32
+  const minH = 300
+  const maxH = window.innerHeight - 32
+
+  if (resizeEdge === 'right' || resizeEdge === 'corner') {
+    panelSize.width = Math.max(minW, Math.min(resizeStart.w + dx, maxW))
+  }
+  if (resizeEdge === 'bottom' || resizeEdge === 'corner') {
+    panelSize.height = Math.max(minH, Math.min(resizeStart.h + dy, maxH))
+  }
+}
+
+function stopResize() {
+  isResizing.value = false
+  document.removeEventListener('mousemove', onResize)
+  document.removeEventListener('mouseup', stopResize)
+  // Persist size
+  if (panelSize.width) localStorage.setItem('construct_assistant_w', String(panelSize.width))
+  if (panelSize.height) localStorage.setItem('construct_assistant_h', String(panelSize.height))
+}
 
 // Dev mode - shows internal AI operations (tool calls, routing, debug info)
 const devMode = ref(import.meta.env.DEV) // Default to env check
@@ -1847,18 +2044,21 @@ const contextInfo = computed(() => {
           label: 'Code',
           hint: 'Ask about code, debugging, or implementation',
           icon: 'i-lucide-code-2',
+          color: 'text-blue-500',
         }
       case 'ui':
         return {
           label: 'Design',
           hint: 'Ask about UI/UX, styling, or layout',
           icon: 'i-lucide-palette',
+          color: 'text-fuchsia-500',
         }
       default:
         return {
           label: 'Chat',
           hint: 'How can I help?',
           icon: 'i-lucide-message-square',
+          color: 'text-app-accent',
         }
     }
   }
@@ -1867,34 +2067,34 @@ const contextInfo = computed(() => {
   const path = route.path
 
   if (path.match(/\/app\/projects\/\d+\/code/)) {
-    return { label: 'Code', hint: 'Ask about code, debugging, or implementation', icon: 'i-lucide-code-2' }
+    return { label: 'Code', hint: 'Ask about code, debugging, or implementation', icon: 'i-lucide-code-2', color: 'text-blue-500' }
   }
   if (path.match(/\/app\/projects\/\d+\/design/)) {
-    return { label: 'Design', hint: 'Ask about design, UI/UX, or assets', icon: 'i-lucide-palette' }
+    return { label: 'Design', hint: 'Ask about design, UI/UX, or assets', icon: 'i-lucide-palette', color: 'text-fuchsia-500' }
   }
   if (path.match(/\/app\/projects\/\d+\/git/)) {
-    return { label: 'Git', hint: 'Ask about version control', icon: 'i-lucide-git-branch' }
+    return { label: 'Git', hint: 'Ask about version control', icon: 'i-lucide-git-branch', color: 'text-emerald-500' }
   }
   if (path.match(/\/app\/projects\/\d+\/ai/)) {
-    return { label: 'AI Space', hint: 'Ask about AI features', icon: 'i-lucide-brain' }
+    return { label: 'AI Space', hint: 'Ask about AI features', icon: 'i-lucide-brain', color: 'text-violet-500' }
   }
   if (path.match(/\/app\/projects\/\d+\/notes/)) {
-    return { label: 'Notes', hint: 'Ask about documentation', icon: 'i-lucide-file-text' }
+    return { label: 'Notes', hint: 'Ask about documentation', icon: 'i-lucide-file-text', color: 'text-amber-500' }
   }
   if (path.match(/\/app\/projects\/\d+\/kanban/)) {
-    return { label: 'Kanban', hint: 'Ask about tasks', icon: 'i-lucide-kanban' }
+    return { label: 'Kanban', hint: 'Ask about tasks', icon: 'i-lucide-kanban', color: 'text-orange-500' }
   }
   if (path.match(/\/app\/projects\/\d+\/deploy/)) {
-    return { label: 'Deploy', hint: 'Ask about deployments', icon: 'i-lucide-rocket' }
+    return { label: 'Deploy', hint: 'Ask about deployments', icon: 'i-lucide-rocket', color: 'text-rose-500' }
   }
   if (path.match(/\/app\/projects\/\d+/)) {
-    return { label: 'Project', hint: 'Ask about this project', icon: 'i-lucide-folder' }
+    return { label: 'Project', hint: 'Ask about this project', icon: 'i-lucide-folder', color: 'text-slate-500' }
   }
   if (path === '/app' || path === '/app/') {
-    return { label: 'Dashboard', hint: 'Ask about your projects', icon: 'i-lucide-layout-dashboard' }
+    return { label: 'Dashboard', hint: 'Ask about your projects', icon: 'i-lucide-layout-dashboard', color: 'text-cyan-500' }
   }
 
-  return { label: 'General', hint: 'How can I help?', icon: 'i-lucide-sparkles' }
+  return { label: 'General', hint: 'How can I help?', icon: 'i-lucide-sparkles', color: 'text-app-accent' }
 })
 
 // Component context display
@@ -3606,26 +3806,36 @@ Rules:
 
 <template>
   <!-- Chat Popover - Double Shift to toggle -->
+  <Teleport :to="dockTargetEl || 'body'" :disabled="!isDocked">
   <Transition
     enter-active-class="transition-all duration-300 ease-out"
-    enter-from-class="opacity-0 scale-95 translate-y-4" enter-to-class="opacity-100 scale-100 translate-y-0"
-    leave-active-class="transition-all duration-200 ease-in" leave-from-class="opacity-100 scale-100 translate-y-0"
-    leave-to-class="opacity-0 scale-95 translate-y-4">
+    :enter-from-class="isDocked ? 'opacity-0' : 'opacity-0 scale-95'"
+    :enter-to-class="isDocked ? 'opacity-100' : 'opacity-100 scale-100'"
+    leave-active-class="transition-all duration-200 ease-in"
+    :leave-from-class="isDocked ? 'opacity-100' : 'opacity-100 scale-100'"
+    :leave-to-class="isDocked ? 'opacity-0' : 'opacity-0 scale-95'">
     <div
       v-if="isOpen"
+      ref="panelRef"
       :class="[
-        'fixed bottom-6 left-[calc(50%+36px)] -translate-x-1/2 z-50 w-[50vw] min-w-[420px] max-w-[800px] bg-app rounded-2xl shadow-2xl border transition-colors',
-        isDragging ? 'border-2 border-dashed border-(--app-accent)' : 'border-gray-200/50 dark:border-gray-800/50'
+        panelPositionClasses,
+        isDocked ? 'bg-app flex flex-col' : 'z-50 bg-app rounded-2xl shadow-2xl border flex flex-col',
+        isDraggingPanel || isResizing ? 'select-none' : 'transition-colors',
+        !isDocked && isDragging ? 'border-2 border-dashed border-(--app-accent)' : !isDocked ? 'border-gray-200/50 dark:border-gray-800/50' : ''
       ]"
+      :style="panelStyle"
       @dragenter="handleDragEnter"
       @dragover="handleDragOver"
       @dragleave="handleDragLeave"
       @drop="handleDrop">
-      <!-- Header -->
-      <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200/50 dark:border-gray-800/50">
+      <!-- Header (drag handle) -->
+      <div
+        class="flex items-center justify-between px-4 py-3 border-b border-gray-200/50 dark:border-gray-800/50 shrink-0 cursor-grab active:cursor-grabbing"
+        @mousedown="startPanelDrag"
+      >
         <div class="flex items-center gap-2">
-          <Icon :name="contextInfo.icon" class="size-5 text-app-accent" />
-          <span class="font-semibold text-app">BASEAI</span>
+          <svg :class="['size-5 transition-colors', contextInfo.color]" viewBox="0 0 533 750" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M424.999 672C446.538 672 463.999 689.461 463.999 711C463.999 732.539 446.538 750 424.999 750H110C88.4609 750 70.999 732.539 70.999 711C70.999 689.461 88.4609 672 110 672H424.999ZM39 0C60.5389 0.000263886 78 17.4611 78 39V184.97C126.23 136.682 192.894 106.811 266.534 106.811C413.699 106.811 533 226.112 533 373.276C533 520.441 413.699 639.742 266.534 639.742C119.369 639.742 0.0674128 520.441 0.0673828 373.276C0.0673828 368.709 0.182077 364.168 0.40918 359.657C0.140766 357.81 0 355.921 0 354V39C5.50921e-06 17.4609 17.4609 0 39 0ZM266.533 184.8C162.441 184.8 78.0576 269.184 78.0576 373.276C78.0577 477.369 162.441 561.752 266.533 561.752C370.625 561.752 455.01 477.369 455.01 373.276C455.01 269.184 370.625 184.8 266.533 184.8Z"/></svg>
+          <span class="font-semibold text-app">BRAIN</span>
           <!-- Connection status -->
           <span
 :class="[
@@ -3637,7 +3847,7 @@ Rules:
             {{ projectStore.currentProject.name }}<template v-if="currentSpace"> | {{ currentSpace }}</template>
           </span>
         </div>
-        <div class="flex items-center gap-1">
+        <div class="flex items-center gap-1" @mousedown.stop>
           <!-- Current model indicator with provider & auth type -->
           <div v-if="currentModel" class="flex items-center gap-1.5 mr-1">
             <span class="text-xs px-2 py-1 rounded-md bg-white/30 dark:bg-white/10 text-app font-medium">
@@ -3657,33 +3867,61 @@ Rules:
             </span>
             <span class="text-xs text-app-muted">{{ currentModel.label }}</span>
           </div>
-          <!-- Credits display -->
-          <div
-            v-if="balance !== null"
-            class="flex items-center gap-1.5 mr-2 px-2 py-1 rounded-md"
-            :class="isLowCredits ? 'bg-amber-500/10' : 'bg-white/20 dark:bg-white/5'"
-            :title="`Company pool: ${formatCredits(balance)} credits`"
-          >
-            <Icon
-              name="i-lucide-coins"
-              class="size-3.5"
-              :class="isLowCredits ? 'text-amber-500' : 'text-app-muted'"
-            />
-            <span
-              class="text-xs font-medium"
-              :class="isLowCredits ? 'text-amber-500' : 'text-app'"
-            >
-              {{ hasUnlimitedAllocation ? formatCredits(balance) : formatCredits(userRemaining) }}
-            </span>
-            <span v-if="!hasUnlimitedAllocation && balance > 0" class="text-[10px] text-app-muted">
-              / {{ formatCredits(balance) }}
-            </span>
-          </div>
           <button
             class="p-1 hover:bg-white/30 dark:hover:bg-white/10 rounded-lg transition-colors" title="Clear chat"
             @click="clearChat">
             <Icon name="i-lucide-trash-2" class="size-4 text-app-muted" />
           </button>
+          <!-- Dock menu (three dots) -->
+          <div class="relative">
+            <button
+              class="p-1 rounded-md transition-colors"
+              :class="showDockMenu ? 'bg-white/20 dark:bg-white/10 text-app-accent' : 'hover:bg-white/30 dark:hover:bg-white/10 text-app-muted'"
+              title="Dock options"
+              @click="showDockMenu = !showDockMenu"
+            >
+              <Icon name="i-lucide-ellipsis-vertical" class="size-4" />
+            </button>
+            <Transition
+              enter-active-class="transition-all duration-150 ease-out"
+              enter-from-class="opacity-0 scale-95"
+              enter-to-class="opacity-100 scale-100"
+              leave-active-class="transition-all duration-100 ease-in"
+              leave-from-class="opacity-100 scale-100"
+              leave-to-class="opacity-0 scale-95"
+            >
+              <div
+                v-if="showDockMenu"
+                class="absolute right-0 top-full mt-1 w-40 py-1 bg-app border border-gray-200/50 dark:border-gray-700/50 rounded-lg shadow-xl z-50"
+                @mouseleave="showDockMenu = false"
+              >
+                <button
+                  class="flex items-center gap-2 w-full px-3 py-1.5 text-xs transition-colors"
+                  :class="panelPosition === 'left' ? 'text-app-accent bg-white/10' : 'text-app-muted hover:text-app hover:bg-white/10'"
+                  @click="setPanelPosition(panelPosition === 'left' ? 'bottom-center' : 'left'); showDockMenu = false"
+                >
+                  <Icon name="i-lucide-panel-left" class="size-3.5" />
+                  Dock left
+                </button>
+                <button
+                  class="flex items-center gap-2 w-full px-3 py-1.5 text-xs transition-colors"
+                  :class="panelPosition === 'bottom' ? 'text-app-accent bg-white/10' : 'text-app-muted hover:text-app hover:bg-white/10'"
+                  @click="setPanelPosition(panelPosition === 'bottom' ? 'bottom-center' : 'bottom'); showDockMenu = false"
+                >
+                  <Icon name="i-lucide-panel-bottom" class="size-3.5" />
+                  Dock bottom
+                </button>
+                <button
+                  class="flex items-center gap-2 w-full px-3 py-1.5 text-xs transition-colors"
+                  :class="panelPosition === 'right' ? 'text-app-accent bg-white/10' : 'text-app-muted hover:text-app hover:bg-white/10'"
+                  @click="setPanelPosition(panelPosition === 'right' ? 'bottom-center' : 'right'); showDockMenu = false"
+                >
+                  <Icon name="i-lucide-panel-right" class="size-3.5" />
+                  Dock right
+                </button>
+              </div>
+            </Transition>
+          </div>
           <button
             class="p-1 hover:bg-white/30 dark:hover:bg-white/10 rounded-lg transition-colors"
             @click="isOpen = false">
@@ -3786,7 +4024,7 @@ Rules:
       </div>
 
       <!-- Messages -->
-      <div class="h-80 overflow-y-auto p-4 space-y-4">
+      <div :class="[isDocked || panelSize.height ? 'flex-1' : 'h-80', 'overflow-y-auto p-4 space-y-4']">
         <div v-if="messages.length === 0" class="flex flex-col items-center justify-center h-full text-center">
           <Icon name="i-lucide-message-square" class="size-12 text-app-muted/30 mb-3" />
           <p class="text-sm text-app-muted">{{ contextInfo.hint }}</p>
@@ -4019,7 +4257,7 @@ v-for="(msg, index) in messages" :key="index" :class="[
       </div>
 
       <!-- Input -->
-      <div class="p-3 border-t border-gray-200/50 dark:border-gray-800/50 relative">
+      <div class="p-3 border-t border-gray-200/50 dark:border-gray-800/50 relative shrink-0">
         <!-- Autocomplete dropdown -->
         <Transition
           enter-active-class="transition-all duration-150 ease-out"
@@ -4100,6 +4338,26 @@ v-for="(msg, index) in messages" :key="index" :class="[
           {{ messageQueue.length }} message{{ messageQueue.length > 1 ? 's' : '' }} queued
         </div>
       </div>
+
+      <!-- Resize handles -->
+      <div
+        v-if="!isDocked"
+        class="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize z-10"
+        @mousedown="startResize($event, 'corner')"
+      >
+        <svg class="w-3 h-3 text-app-muted/40 absolute bottom-1 right-1" viewBox="0 0 6 6"><circle cx="5" cy="1" r="0.8" fill="currentColor" /><circle cx="1" cy="5" r="0.8" fill="currentColor" /><circle cx="5" cy="5" r="0.8" fill="currentColor" /><circle cx="3" cy="5" r="0.8" fill="currentColor" /><circle cx="5" cy="3" r="0.8" fill="currentColor" /></svg>
+      </div>
+      <div
+        v-if="!isDocked"
+        class="absolute bottom-0 left-4 right-4 h-1.5 cursor-s-resize"
+        @mousedown="startResize($event, 'bottom')"
+      />
+      <div
+        v-if="!isDocked"
+        class="absolute top-4 bottom-4 right-0 w-1.5 cursor-e-resize"
+        @mousedown="startResize($event, 'right')"
+      />
     </div>
   </Transition>
+  </Teleport>
 </template>
