@@ -33,6 +33,13 @@ export const useNotificationsStore = defineStore('notifications', {
   actions: {
     // Fetch notifications from API
     async fetchNotifications(reset = false) {
+      // DEV MODE: Skip remote API
+      if (import.meta.env.DEV) {
+        this.notifications = []
+        this.loading = false
+        return
+      }
+
       if (reset) {
         this.page = 1
         this.hasMore = true

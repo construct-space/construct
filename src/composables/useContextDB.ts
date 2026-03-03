@@ -63,7 +63,7 @@ export function useContextDB() {
 
     // If already connected, return immediately
     if (connected.value) {
-      console.log('[perf] contextDB.ensureConnected: already connected:', (performance.now() - _t).toFixed(1), 'ms')
+      //   console.log('[perf] contextDB.ensureConnected: already connected:', (performance.now() - _t).toFixed(1), 'ms')
       return true
     }
 
@@ -88,7 +88,7 @@ export function useContextDB() {
         }
       }
     }
-    console.log('[perf] contextDB.ensureConnected:', connected.value ? 'connected' : 'FAILED', 'after', retries, 'retries,', (performance.now() - _t).toFixed(1), 'ms')
+    //console.log('[perf] contextDB.ensureConnected:', connected.value ? 'connected' : 'FAILED', 'after', retries, 'retries,', (performance.now() - _t).toFixed(1), 'ms')
     return connected.value
   }
 
@@ -351,8 +351,8 @@ export function useContextDB() {
       const list = Array.isArray(parsed)
         ? parsed
         : (parsed && typeof parsed === 'object'
-            ? Object.values(parsed as Record<string, unknown>)
-            : [])
+          ? Object.values(parsed as Record<string, unknown>)
+          : [])
 
       const normalized = list
         .map(item => normalizeConversation(item as Partial<AIConversation>))
@@ -377,7 +377,7 @@ export function useContextDB() {
     }
 
     try {
-      const result = await contextService.sendRequest<{ conversations?: AIConversation[] }>('ai_conversation.list', {
+      const result = await contextService.sendRequest<{ conversations?: AIConversation[] }>('ai.conversations.list', {
         context_key: contextKey
       })
       const normalized = (result?.conversations || [])
@@ -394,7 +394,7 @@ export function useContextDB() {
   async function conversationGet(id: string): Promise<AIConversation | null> {
     if (!await ensureConnected()) return null
     try {
-      const conversation = await contextService.sendRequest<AIConversation>('ai_conversation.get', { id })
+      const conversation = await contextService.sendRequest<AIConversation>('ai.conversations.get', { id })
       return normalizeConversation(conversation)
     } catch (error) {
       console.warn('[ContextDB] conversationGet fallback to KV:', error)
@@ -420,7 +420,7 @@ export function useContextDB() {
     }
 
     try {
-      const result = await contextService.sendRequest<{ id: string }>('ai_conversation.save', conversation as unknown as Record<string, unknown>)
+      const result = await contextService.sendRequest<{ id: string }>('ai.conversations.save', conversation as unknown as Record<string, unknown>)
       if (result?.id) return result.id
     } catch (error) {
       console.warn('[ContextDB] conversationSave fallback to KV:', error)
@@ -456,7 +456,7 @@ export function useContextDB() {
     let remoteDeleted = false
 
     try {
-      await contextService.sendRequest('ai_conversation.delete', { id })
+      await contextService.sendRequest('ai.conversations.delete', { id })
       remoteDeleted = true
     } catch (error) {
       console.warn('[ContextDB] conversationDelete fallback to KV:', error)

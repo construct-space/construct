@@ -10,9 +10,10 @@
  * - Graceful degradation: handles uninitialized/empty stores
  * - Reactive: uses computed() so context updates automatically
  * - Token-conscious: summaries are concise for AI prompt budgets
+ * - Decoupled: uses Space Context Bus instead of importing domain stores
  */
 
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import type {
   SpaceContext,
@@ -24,41 +25,47 @@ import type {
   SpaceContextGit,
   SpaceContextDocs,
 } from '~/types/context'
+import {
+  getLatestSpaceContext,
+  subscribeSpaceContext,
+} from '~/lib/spaceContextBus'
+
 // Space composables are provided at runtime by IIFE bundles.
 // These defaults are used when a space is not installed.
 const useGitRepo: () => any = () => ({ state: {}, hasChanges: ref(false) })
-const useCodeEditor: () => any = () => ({ state: {} })
+const useCodeEditor: () => any = () => ({ state: {}, selection: ref(null) })
 const useUIState: () => any = () => ({ nodes: ref([]), selectedIds: ref([]) })
 
 /**
  * Maximum number of recent items to include in context summaries.
  * Keeps AI token usage reasonable while providing useful context.
  */
-const MAX_RECENT_TASKS = 5
-const MAX_RECENT_NOTES = 3
 const MAX_RECENT_COMMITS = 5
 const MAX_FILE_PREVIEW_CHARS = 500
-const MAX_NOTE_CONTENT_CHARS = 150
-const MAX_DOC_CONTENT_CHARS = 300
 
 export function useSpaceContext() {
   // ---------------------------------------------------------------------------
-  // Store access (safe: Pinia stores return defaults if not yet hydrated)
+  // Store access — only host-owned stores are imported directly.
+  // Domain data (tasks, notes, docs) comes via the Space Context Bus.
   // ---------------------------------------------------------------------------
   const projectStore = useProjectStore()
-  const tasksStore = useTasksStore()
-  const notesStore = useNotesStore()
-  const documentsStore = useDocumentsStore()
-  // storeToRefs preserves reactivity for state properties
   const { currentProject } = storeToRefs(projectStore)
-  const { tasks, currentTask } = storeToRefs(tasksStore)
-  const { notes } = storeToRefs(notesStore)
-  const { documents, currentDocument } = storeToRefs(documentsStore)
 
   // Space composables use module-level reactive state, so calling them is safe
   const { state: codeState } = useCodeEditor()
   const { nodes, selectedIds } = useUIState()
   const { state: gitState, hasChanges: gitHasChanges } = useGitRepo()
+
+  // ---------------------------------------------------------------------------
+  // Reactive caches from the Space Context Bus
+  // ---------------------------------------------------------------------------
+  const busTasksSummary = ref<any>(getLatestSpaceContext('tasks')?.summary || null)
+  const busNotesSummary = ref<any>(getLatestSpaceContext('notes')?.summary || null)
+  const busDocsSummary = ref<any>(getLatestSpaceContext('documents')?.summary || null)
+
+  subscribeSpaceContext('tasks', (p) => { busTasksSummary.value = p.summary })
+  subscribeSpaceContext('notes', (p) => { busNotesSummary.value = p.summary })
+  subscribeSpaceContext('documents', (p) => { busDocsSummary.value = p.summary })
 
   // ---------------------------------------------------------------------------
   // Context for each space (computed for reactivity)
@@ -105,42 +112,26 @@ export function useSpaceContext() {
   })
 
   const tasksContext = computed((): SpaceContextTasks => {
-    const allTasks = tasks.value || []
-    const byStatus: Record<string, number> = {}
-    for (const t of allTasks) {
-      byStatus[t.status] = (byStatus[t.status] || 0) + 1
+    const summary = busTasksSummary.value
+    if (!summary) {
+      return { total: 0, byStatus: {}, activeTask: null, recentTasks: [] }
     }
-
-    const active = currentTask.value
-    const recentTasks = allTasks
-      .slice(0, MAX_RECENT_TASKS)
-      .map(t => ({ id: t.id, title: t.title, status: t.status }))
-
     return {
-      total: allTasks.length,
-      byStatus,
-      activeTask: active
-        ? { id: active.id, title: active.title, description: active.description || '' }
-        : null,
-      recentTasks,
+      total: summary.total || 0,
+      byStatus: summary.byStatus || {},
+      activeTask: summary.activeTask || null,
+      recentTasks: summary.recentTasks || [],
     }
   })
 
   const notesContext = computed((): SpaceContextNotes => {
-    const allNotes = notes.value || []
-    const recentNotes = allNotes
-      .slice(0, MAX_RECENT_NOTES)
-      .map(n => ({
-        id: n.id,
-        content: n.content
-          ? n.content.slice(0, MAX_NOTE_CONTENT_CHARS) + (n.content.length > MAX_NOTE_CONTENT_CHARS ? '...' : '')
-          : '',
-        color: n.color,
-      }))
-
+    const summary = busNotesSummary.value
+    if (!summary) {
+      return { count: 0, recentNotes: [] }
+    }
     return {
-      count: allNotes.length,
-      recentNotes,
+      count: summary.count || 0,
+      recentNotes: summary.recentNotes || [],
     }
   })
 
@@ -157,19 +148,13 @@ export function useSpaceContext() {
   })
 
   const docsContext = computed((): SpaceContextDocs => {
-    const allDocs = documents.value || []
-    const active = currentDocument.value
+    const summary = busDocsSummary.value
+    if (!summary) {
+      return { count: 0, activeDocument: null }
+    }
     return {
-      count: allDocs.length,
-      activeDocument: active
-        ? {
-          id: active.id,
-          title: active.title,
-          content: active.content
-            ? active.content.slice(0, MAX_DOC_CONTENT_CHARS) + (active.content.length > MAX_DOC_CONTENT_CHARS ? '...' : '')
-            : '',
-        }
-        : null,
+      count: summary.count || 0,
+      activeDocument: summary.activeDocument || null,
     }
   })
 
@@ -182,15 +167,25 @@ export function useSpaceContext() {
    * meaningful state. This is a heuristic; the actual active space tab
    * is managed by the router/layout, but we can approximate it.
    */
+  const route = useRoute()
+
   const activeSpace = computed((): string => {
-    // Prioritize spaces with active content
+    // Primary: detect from route
+    const path = route.path
+    const projectMatch = path.match(/\/app\/projects\/\d+\/(\w+)/)
+    if (projectMatch?.[1]) return projectMatch[1]
+    const directMatch = path.match(/\/app\/([a-z][\w-]*)/)
+    if (directMatch?.[1] && !['projects', 'settings', 'marketplace', 'onboarding'].includes(directMatch[1])) {
+      return directMatch[1]
+    }
+    // Fallback: heuristic
     if (codeState.currentFile) return 'code'
     if ((nodes.value || []).length > 0 && (selectedIds.value || []).length > 0) return 'design'
     if (gitState.currentRepoPath) return 'git'
-    if (currentDocument.value) return 'docs'
-    if (currentTask.value) return 'tasks'
-    if ((notes.value || []).length > 0) return 'notes'
-    return 'code' // Default fallback
+    if (docsContext.value.activeDocument) return 'docs'
+    if (tasksContext.value.activeTask) return 'tasks'
+    if (notesContext.value.count > 0) return 'notes'
+    return 'code'
   })
 
   const spaceContext = computed((): SpaceContext => ({

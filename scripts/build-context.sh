@@ -5,7 +5,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-CONTEXT_DIR="$(cd "$PROJECT_ROOT/../context" && pwd)"
+CONTEXT_DIR="$(cd "$PROJECT_ROOT/../construct-brain" && pwd)"
 BIN_DIR="$PROJECT_ROOT/src-tauri/bin"
 
 # Detect OS and architecture

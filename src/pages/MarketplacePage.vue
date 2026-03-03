@@ -63,8 +63,7 @@ function formatDownloads(n: number): string {
 <template>
   <div class="h-full overflow-y-auto">
     <div class="max-w-5xl mx-auto px-6 py-10">
-
-      <!-- Header -->
+<!-- Header -->
       <div class="flex items-center gap-4 mb-8">
         <button
           class="p-2 rounded-lg hover:bg-[color-mix(in_srgb,var(--app-muted)_8%,transparent)] transition-colors"
@@ -212,7 +211,6 @@ function formatDownloads(n: number): string {
           </div>
         </div>
       </div>
-
-    </div>
+</div>
   </div>
 </template>

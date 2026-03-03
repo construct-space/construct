@@ -58,11 +58,9 @@ onMounted(() => {
 
 <template>
   <div class="h-full flex">
-
-    <!-- LEFT COLUMN (1/3) — branding + nav -->
+<!-- LEFT COLUMN (1/3) — branding + nav -->
     <div class="w-1/3 shrink-0 flex flex-col items-start px-6 py-10 overflow-y-auto">
-
-      <!-- Branding — same pattern as ProjectSettingsPage -->
+<!-- Branding — same pattern as ProjectSettingsPage -->
       <p class="text-lg tracking-wide select-none mb-1">
         <span class="text-[var(--app-muted)] font-normal">CONSTRUCT:</span><span class="font-bold text-[var(--app-foreground)]">SETTINGS</span>
       </p>
@@ -102,6 +100,5 @@ onMounted(() => {
     <div class="w-2/3 flex-1 overflow-y-auto py-10 px-10">
       <RouterView />
     </div>
-
-  </div>
+</div>
 </template>

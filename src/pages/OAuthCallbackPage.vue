@@ -13,29 +13,36 @@ const error = ref('')
 const status = ref('Authenticating...')
 
 onMounted(async () => {
+  console.log('[OAuthCallback] Mounted — query:', JSON.stringify(route.query))
   const code = route.query.code as string
   const state = route.query.state as string
   const errorParam = route.query.error as string
 
   if (errorParam) {
+    console.log('[OAuthCallback] Error param:', errorParam)
     error.value = decodeURIComponent(errorParam)
     return
   }
 
   if (!code || !state) {
+    console.log('[OAuthCallback] Missing code or state')
     error.value = 'Missing authorization code'
     return
   }
 
   // Validate state (CSRF protection)
+  console.log('[OAuthCallback] Validating state...')
   if (!constructAuth.validateState(state)) {
+    console.log('[OAuthCallback] State validation FAILED')
     error.value = 'Invalid state parameter. Please try again.'
     return
   }
+  console.log('[OAuthCallback] State valid, exchanging code...')
 
   try {
     status.value = 'Exchanging authorization code...'
     const result = await authStore.loginWithOAuth(code)
+    console.log('[OAuthCallback] loginWithOAuth result:', JSON.stringify(result))
 
     if (result.success) {
       router.replace('/app')
@@ -43,6 +50,7 @@ onMounted(async () => {
       error.value = result.error || 'Authentication failed'
     }
   } catch (e) {
+    console.error('[OAuthCallback] Error:', e)
     error.value = e instanceof Error ? e.message : 'Authentication failed'
   }
 })

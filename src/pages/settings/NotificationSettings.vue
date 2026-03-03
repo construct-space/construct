@@ -75,8 +75,7 @@ async function onChange(fieldName: keyof NotificationPreferences) {
 
 <template>
   <div>
-
-    <!-- Loading -->
+<!-- Loading -->
     <div v-if="loading" class="flex items-center justify-center py-12">
       <svg class="w-6 h-6 animate-spin text-[var(--app-muted)]" viewBox="0 0 24 24" fill="none">
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />

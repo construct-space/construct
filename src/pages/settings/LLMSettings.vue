@@ -165,8 +165,7 @@ onMounted(async () => {
 
 <template>
   <div>
-
-    <!-- Model Selection -->
+<!-- Model Selection -->
     <div class="mb-8">
       <h3 class="text-sm font-semibold text-[var(--app-foreground)] mb-3">Model Selection</h3>
 

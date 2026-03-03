@@ -68,7 +68,9 @@ export function resolveAssistantAgentId(input: AgentRoutingInput): string {
     default:
       // Cross-space intent detection: design intent anywhere routes to design agent
       if (shouldUseDesignAgent) return 'design'
-      // Default: general-purpose chat agent
+      // For any space with a custom agent, use the space name as agent ID
+      if (normalizedSpace) return normalizedSpace
+      // No space context: general-purpose chat agent
       return 'chat'
   }
 }

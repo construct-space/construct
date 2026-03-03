@@ -1,11 +1,11 @@
 /**
  * Composable for loading and managing spaces.
  *
- * Dev mode:  loads space configs from src/spaces/{name}/space.config.ts via Vite glob
- * Prod mode: scans ~/.construct/spaces/ for installed manifests via Tauri FS
- *
+ * All modes scan ~/.construct/spaces/ for installed manifests via Tauri FS.
  * The Go backend (contextService) is NOT used for spaces.
  */
+
+import { registerSpaceTheme } from '@/config/spaces'
 
 export interface SpaceToolbarItem {
   id: string
@@ -63,8 +63,7 @@ export interface SpaceConfig {
 /**
  * Dynamically load all space configurations.
  *
- * Dev mode: loads from src/spaces/{name}/space.config.ts via Vite glob.
- * Production: scans ~/.construct/spaces/ for manifest.json files.
+ * Scans ~/.construct/spaces/ for manifest.json files.
  */
 export function useSpaces() {
   const spaces = ref<SpaceConfig[]>([])
@@ -73,14 +72,7 @@ export function useSpaces() {
   const loadSpaces = async () => {
     loading.value = true
     try {
-      if (import.meta.env.DEV) {
-        // In dev, try Vite glob first, then also scan disk for installed spaces
-        await loadFromDevConfigs()
-        // Merge in disk-installed spaces not found via Vite
-        await mergeFromDisk()
-      } else {
-        await loadFromDisk()
-      }
+      await loadFromDisk()
     } catch (err) {
       console.error('[useSpaces] Failed to load spaces:', err)
       spaces.value = []
@@ -90,31 +82,7 @@ export function useSpaces() {
   }
 
   /**
-   * Dev mode: load space configs from src/spaces/{name}/space.config.ts
-   */
-  const loadFromDevConfigs = async () => {
-    const configModules = import.meta.glob<{ default: SpaceConfig }>(
-      '../spaces/*/space.config.ts',
-      { eager: true }
-    )
-
-    const devSpaces: SpaceConfig[] = []
-    for (const [, mod] of Object.entries(configModules)) {
-      const config = mod.default
-      if (config?.name) {
-        devSpaces.push({
-          ...config,
-          isInstalled: true,
-          version: '0.0.0-dev',
-        })
-      }
-    }
-
-    spaces.value = devSpaces.sort((a, b) => (a.navigation.order || 0) - (b.navigation.order || 0))
-  }
-
-  /**
-   * Production mode: scan ~/.construct/spaces/ for installed manifests.
+   * Scan ~/.construct/spaces/ for installed manifests.
    */
   const loadFromDisk = async () => {
     try {
@@ -130,7 +98,7 @@ export function useSpaces() {
       }
 
       const entries = await readDir(spacesDir)
-      const prodSpaces: SpaceConfig[] = []
+      const diskSpaces: SpaceConfig[] = []
 
       for (const entry of entries) {
         if (!entry.isDirectory) continue
@@ -140,50 +108,16 @@ export function useSpaces() {
         try {
           const manifestJson = await readTextFile(manifestPath)
           const manifest = JSON.parse(manifestJson)
-          prodSpaces.push(manifestToSpaceConfig(manifest))
+          diskSpaces.push(manifestToSpaceConfig(manifest))
         } catch {
           // Skip spaces with broken manifests
         }
       }
 
-      spaces.value = prodSpaces.sort((a, b) => (a.navigation.order || 0) - (b.navigation.order || 0))
+      spaces.value = diskSpaces.sort((a, b) => (a.navigation.order || 0) - (b.navigation.order || 0))
     } catch {
       spaces.value = []
     }
-  }
-
-  /**
-   * Dev mode: merge in spaces installed to disk that weren't found via Vite glob.
-   */
-  const mergeFromDisk = async () => {
-    try {
-      const { readTextFile, readDir, exists } = await import('@tauri-apps/plugin-fs')
-      const { homeDir } = await import('@tauri-apps/api/path')
-
-      const home = await homeDir()
-      const spacesDir = `${home}/.construct/spaces`
-
-      if (!(await exists(spacesDir))) return
-
-      const entries = await readDir(spacesDir)
-      const existingNames = new Set(spaces.value.map(s => s.name))
-
-      for (const entry of entries) {
-        if (!entry.isDirectory || !entry.name) continue
-        if (existingNames.has(entry.name)) continue
-
-        const manifestPath = `${spacesDir}/${entry.name}/manifest.json`
-        if (!(await exists(manifestPath))) continue
-
-        try {
-          const manifestJson = await readTextFile(manifestPath)
-          const manifest = JSON.parse(manifestJson)
-          spaces.value.push(manifestToSpaceConfig(manifest))
-        } catch { /* skip broken manifests */ }
-      }
-
-      spaces.value = spaces.value.sort((a, b) => (a.navigation.order || 0) - (b.navigation.order || 0))
-    } catch { /* Tauri FS not available in browser dev */ }
   }
 
   const hasSpace = (spaceName: string) => {
@@ -203,10 +137,20 @@ export function useSpaces() {
   }
 }
 
-/** Convert a manifest from disk to SpaceConfig */
+/** Convert a manifest from disk to SpaceConfig and register its theme */
 function manifestToSpaceConfig(manifest: Record<string, unknown>): SpaceConfig {
   const id = (manifest.id as string) || (manifest.name as string)
   const nav = manifest.navigation as Record<string, unknown> | undefined
+  const theme = manifest.theme as { color?: string; bg?: string } | undefined
+
+  // Register theme for config/spaces.ts consumers (getSpace(), getRegisteredSpaceIds())
+  registerSpaceTheme(id, {
+    icon: (manifest.icon as string) || 'i-lucide-box',
+    label: (manifest.name as string) || id,
+    description: (manifest.description as string) || '',
+    color: theme?.color || undefined,
+    bg: theme?.bg || undefined,
+  })
 
   return {
     name: id,

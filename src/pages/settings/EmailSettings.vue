@@ -48,8 +48,7 @@ async function save() {
 
 <template>
   <div>
-
-    <div class="flex flex-col gap-5">
+<div class="flex flex-col gap-5">
       <FormField label="From Name" name="email_from_name" description="The display name for outgoing emails.">
         <Input v-model="formData.email_from_name" placeholder="Support Team" />
       </FormField>

@@ -50,8 +50,7 @@ async function save() {
 
 <template>
   <div>
-
-    <div class="flex flex-col gap-5">
+<div class="flex flex-col gap-5">
       <FormField label="Company Name" name="company_name">
         <Input v-model="formData.company_name" placeholder="Your company name" />
       </FormField>

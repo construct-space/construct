@@ -179,10 +179,11 @@ export const useAuthStore = defineStore('auth', {
         this.isAuthenticated = true
       } catch (error: unknown) {
         // If the server explicitly rejected the token (401), clear auth.
-        // For network errors (server unreachable), keep the local session alive.
-        const is401 = error instanceof Error && error.message.includes('401')
-        const isSessionExpired = error instanceof Error && error.message.toLowerCase().includes('session expired')
-        const isFetchFailed = error instanceof Error && error.message.includes('Failed to fetch')
+        // Only keep local session for genuine network failures (server unreachable).
+        const msg = error instanceof Error ? error.message : ''
+        const is401 = msg.includes('401')
+        const isSessionExpired = msg.toLowerCase().includes('session expired')
+        const isNetworkError = msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('ECONNREFUSED')
 
         if (is401 || isSessionExpired) {
           console.warn('Auth token rejected by server, clearing session')
@@ -191,9 +192,17 @@ export const useAuthStore = defineStore('auth', {
           return false
         }
 
-        // Network error / server unreachable — trust local state
-        console.info('Auth server unreachable, keeping local session')
-        this.isAuthenticated = true
+        if (isNetworkError) {
+          // Server genuinely unreachable — trust local state
+          console.info('Auth server unreachable, keeping local session')
+          this.isAuthenticated = true
+        } else {
+          // Unknown error — don't silently trust stale auth
+          console.warn('Auth check failed with unexpected error, clearing session:', msg)
+          this.clearAuthState()
+          this.clearPersistedState()
+          return false
+        }
       }
 
       return this.isAuthenticated
@@ -357,6 +366,34 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async initialize() {
+      // DEV MODE: Hardcode auth to skip OAuth (requires construct:// deep link)
+      if (import.meta.env.DEV) {
+        const devUser: AuthUserData = {
+          id: 2,
+          email: 'flakerimi@basecode.al',
+          username: 'flakerimi',
+          first_name: 'Flakerim',
+          last_name: 'Ismani',
+          name: 'Flakerim Ismani',
+          avatar: undefined,
+          created_at: '',
+          updated_at: '',
+        }
+        const devToken = 'dev_token_local'
+
+        this.user = devUser
+        this.token = devToken
+        this.isAuthenticated = true
+
+        import('@/composables/useApi').then(({ useApi }) => {
+          useApi().setToken(devToken)
+        })
+
+        await this.persistAuthState()
+        console.info('[Auth] Dev mode: auto-authenticated as flakerimi@basecode.al')
+        return
+      }
+
       await this.hydrateAuthState()
 
       if (this.token && this.user) {

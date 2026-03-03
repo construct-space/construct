@@ -78,8 +78,7 @@ async function save() {
 
 <template>
   <div>
-
-    <div class="flex flex-col gap-5">
+<div class="flex flex-col gap-5">
       <FormField label="Timezone" name="timezone">
         <Select v-model="formData.timezone" :options="timezoneOptions" />
       </FormField>

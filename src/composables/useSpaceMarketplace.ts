@@ -1,11 +1,10 @@
 /**
  * Space Marketplace composable
  *
- * Fetches the space catalog from the registry (GitHub index or portal API).
+ * Fetches the space catalog from the registry (portal API primary, GitHub index fallback).
  *
  * Install state is determined by what's on disk:
- *   - Dev mode: all spaces in src/spaces/ are "installed"
- *   - Production: spaces with manifest.json in ~/.construct/spaces/ are "installed"
+ *   - Spaces with manifest.json in ~/.construct/spaces/ are "installed"
  *
  * Does NOT use the Go backend (contextService) — that's for AI/auth/storage only.
  */
@@ -83,6 +82,7 @@ export interface InstalledSpace {
 }
 
 const INSTALLED_STORAGE_KEY = 'construct:installed_spaces'
+const FIRST_LAUNCH_KEY = 'construct:first_launch_done'
 
 /** Read installed state from localStorage */
 function readInstalledFromStorage(): InstalledSpace[] {
@@ -139,17 +139,21 @@ export function useSpaceMarketplace() {
     isLoading.value = true
     error.value = null
     try {
-      // Try GitHub-hosted index first (always available, public)
+      // Try portal API first (primary)
+      const registryRes = await fetch(`${appConfig.spacesRegistryUrl}/api/registry`)
+      if (registryRes.ok) {
+        const data: RegistryResponse = await registryRes.json()
+        remote.value = (data.spaces || []).map(registryToRemote)
+        return
+      }
+      // Fall back to GitHub-hosted index
       const indexRes = await fetch(appConfig.spacesIndexUrl)
       if (indexRes.ok) {
         const data: RegistryResponse = await indexRes.json()
         remote.value = (data.spaces || []).map(registryToRemote)
         return
       }
-      // Fall back to portal API
-      const res = await fetch(`${appConfig.spacesRegistryUrl}/api/registry`)
-      const data: RegistryResponse = await res.json()
-      remote.value = (data.spaces || []).map(registryToRemote)
+      remote.value = []
     } catch {
       remote.value = []
     } finally {
@@ -166,53 +170,17 @@ export function useSpaceMarketplace() {
   }
 
   /**
-   * Load installed spaces.
-   * Dev mode: discovers all spaces in src/spaces/ via Vite glob.
-   * Production: reads from localStorage + validates against disk.
+   * Load installed spaces from localStorage + validate against disk.
    */
   async function fetchInstalled(): Promise<void> {
-    if (import.meta.env.DEV) {
-      // In dev, all local spaces are "installed"
-      const configModules = import.meta.glob<{ default: Record<string, unknown> }>(
-        '../spaces/*/space.config.ts',
-        { eager: true }
-      )
-
-      const devInstalled: InstalledSpace[] = []
-      for (const [, mod] of Object.entries(configModules)) {
-        const config = mod.default
-        if (config?.name) {
-          devInstalled.push({
-            id: config.name as string,
-            name: config.name as string,
-            display_name: (config.displayName as string) || (config.name as string),
-            version: '0.0.0-dev',
-            enabled: true,
-            installed_at: new Date().toISOString(),
-            has_update: false,
-          })
-        }
-      }
-      installed.value = devInstalled
-      return
-    }
-
-    // Production: read from localStorage (fast) then validate
     installed.value = readInstalledFromStorage()
   }
 
   /**
-   * Install a space.
-   * Dev mode: no-op (spaces are already in src/spaces/).
-   * Production: downloads tarball from registry and extracts to ~/.construct/spaces/.
+   * Install a space — downloads tarball from registry and extracts to ~/.construct/spaces/.
    */
   async function install(spaceId: string): Promise<boolean> {
     error.value = null
-
-    if (import.meta.env.DEV) {
-      console.log(`[Marketplace] Dev mode — "${spaceId}" is already available in src/spaces/`)
-      return true
-    }
 
     try {
       console.log(`[Marketplace] Installing space: ${spaceId}`)
@@ -257,11 +225,6 @@ export function useSpaceMarketplace() {
 
   async function uninstall(spaceId: string): Promise<boolean> {
     error.value = null
-
-    if (import.meta.env.DEV) {
-      console.log(`[Marketplace] Dev mode — cannot uninstall bundled space "${spaceId}"`)
-      return false
-    }
 
     try {
       // Remove from disk
@@ -354,8 +317,103 @@ export function useSpaceMarketplace() {
   }
 }
 
+/**
+ * Auto-install recommended spaces on first launch.
+ *
+ * 1. Check if ~/.construct/spaces/ is empty or doesn't exist
+ * 2. If empty, fetch registry
+ * 3. Filter spaces where recommended === true
+ * 4. Install each recommended space
+ * 5. Mark first-launch complete in localStorage
+ */
+export async function autoInstallRecommended(): Promise<void> {
+  // Skip if already done
+  if (localStorage.getItem(FIRST_LAUNCH_KEY)) {
+    return
+  }
+
+  try {
+    // Check if spaces dir is empty
+    const { readDir, exists } = await import('@tauri-apps/plugin-fs')
+    const { homeDir } = await import('@tauri-apps/api/path')
+
+    const home = await homeDir()
+    const spacesDir = `${home}/.construct/spaces`
+
+    let isEmpty = true
+    if (await exists(spacesDir)) {
+      const entries = await readDir(spacesDir)
+      isEmpty = entries.filter(e => e.isDirectory).length === 0
+    }
+
+    if (!isEmpty) {
+      // Spaces already exist — mark as done and skip
+      localStorage.setItem(FIRST_LAUNCH_KEY, 'true')
+      return
+    }
+
+    console.log('[Marketplace] First launch detected — auto-installing recommended spaces...')
+
+    // Fetch registry
+    let registrySpaces: RegistrySpace[] = []
+    try {
+      const res = await fetch(`${appConfig.spacesRegistryUrl}/api/registry`)
+      if (res.ok) {
+        const data: RegistryResponse = await res.json()
+        registrySpaces = data.spaces || []
+      }
+    } catch { /* ignore */ }
+
+    // Fallback to GitHub index
+    if (registrySpaces.length === 0) {
+      try {
+        const res = await fetch(appConfig.spacesIndexUrl)
+        if (res.ok) {
+          const data: RegistryResponse = await res.json()
+          registrySpaces = data.spaces || []
+        }
+      } catch { /* ignore */ }
+    }
+
+    // Filter recommended and install
+    const recommended = registrySpaces.filter(s => s.recommended)
+    if (recommended.length === 0) {
+      console.log('[Marketplace] No recommended spaces found in registry')
+      localStorage.setItem(FIRST_LAUNCH_KEY, 'true')
+      return
+    }
+
+    const marketplace = useSpaceMarketplace()
+    for (const space of recommended) {
+      try {
+        await marketplace.install(space.id)
+        console.log(`[Marketplace] Auto-installed: ${space.id}`)
+      } catch (err) {
+        console.warn(`[Marketplace] Failed to auto-install ${space.id}:`, err)
+      }
+    }
+
+    localStorage.setItem(FIRST_LAUNCH_KEY, 'true')
+    console.log(`[Marketplace] First launch complete — installed ${recommended.length} recommended spaces`)
+  } catch (err) {
+    console.error('[Marketplace] Auto-install failed:', err)
+    // Don't mark as done so it retries next launch
+  }
+}
+
 /** Find a space entry in the registry index */
 async function findRegistrySpace(spaceId: string): Promise<RegistrySpace | null> {
+  // Try portal API first
+  try {
+    const res = await fetch(`${appConfig.spacesRegistryUrl}/api/registry`)
+    if (res.ok) {
+      const data: RegistryResponse = await res.json()
+      const found = data.spaces?.find(s => s.id === spaceId)
+      if (found) return found
+    }
+  } catch { /* ignore */ }
+
+  // Fallback to GitHub index
   try {
     const res = await fetch(appConfig.spacesIndexUrl)
     if (!res.ok) return null

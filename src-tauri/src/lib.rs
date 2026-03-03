@@ -2829,6 +2829,11 @@ pub fn run() {
             if let Ok(menu) = build_app_menu(app.handle(), "default") {
                 let _ = app.set_menu(menu);
             }
+            // Open devtools in debug/devtools builds
+            #[cfg(feature = "devtools")]
+            if let Some(window) = app.get_webview_window("main") {
+                window.open_devtools();
+            }
             Ok(())
         })
         .on_menu_event(|app, event| {

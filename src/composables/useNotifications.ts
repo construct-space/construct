@@ -88,6 +88,11 @@ function createNotificationsComposable() {
 
   // Connect to WebSocket
   async function connect() {
+    // DEV MODE: Skip WebSocket — requires remote server with JWT auth
+    if (import.meta.env.DEV) {
+      return
+    }
+
     if (ws?.readyState === WebSocket.OPEN || ws?.readyState === WebSocket.CONNECTING) {
       return
     }

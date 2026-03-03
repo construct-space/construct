@@ -37,8 +37,7 @@ onMounted(async () => {
 
 <template>
   <div class="h-screen flex flex-col">
-
-    <!-- Header bar -->
+<!-- Header bar -->
     <div class="shrink-0 h-12 flex items-center gap-3 px-4 border-b border-[var(--app-border)]">
       <button
         class="p-1.5 rounded-md hover:bg-[color-mix(in_srgb,var(--app-muted)_8%,transparent)] transition-colors"
@@ -99,6 +98,5 @@ onMounted(async () => {
         </button>
       </div>
     </div>
-
-  </div>
+</div>
 </template>

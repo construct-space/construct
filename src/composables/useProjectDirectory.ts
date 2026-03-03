@@ -350,7 +350,13 @@ EOFCONFIG`], projectPath)
 
       return config
     } catch (e) {
-      console.error('Failed to load project config:', e)
+      // Scope errors for external paths are expected — don't spam console
+      const msg = String(e)
+      if (msg.includes('forbidden path')) {
+        console.debug('[ProjectDir] Path outside scope:', projectPath)
+      } else {
+        console.warn('Failed to load project config:', e)
+      }
       return null
     }
   }

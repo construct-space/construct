@@ -1,6 +1,7 @@
 import { onOpenUrl, getCurrent } from '@tauri-apps/plugin-deep-link'
 import { useRouter } from 'vue-router'
 import { useSpaceMarketplace } from './useSpaceMarketplace'
+import { useConstructAuth } from './useConstructAuth'
 import { isTauriEnv } from '@/utils/tauri'
 
 export function useDeepLink() {
@@ -8,22 +9,32 @@ export function useDeepLink() {
 
   const router = useRouter()
   const marketplace = useSpaceMarketplace()
+  const { closeOAuthWindow } = useConstructAuth()
 
   function handleUrl(url: string) {
+    console.log('[DeepLink] Received URL:', url)
     const parsed = new URL(url)
     const segments = parsed.pathname.replace(/^\/+/, '').split('/')
     const action = parsed.host
+    console.log('[DeepLink] Parsed — action:', action, 'segments:', segments)
 
     // OAuth callback: construct://oauth/callback?code=xxx&state=xxx
     if (action === 'oauth' && segments[0] === 'callback') {
       const code = parsed.searchParams.get('code')
       const state = parsed.searchParams.get('state')
       const error = parsed.searchParams.get('error')
+      console.log('[DeepLink] OAuth callback — code:', code?.slice(0, 8) + '...', 'state:', state?.slice(0, 8) + '...', 'error:', error)
+
+      // Close the OAuth login window
+      closeOAuthWindow()
 
       if (error) {
         router.push(`/oauth/callback?error=${encodeURIComponent(error)}`)
       } else if (code && state) {
+        console.log('[DeepLink] Pushing to /oauth/callback')
         router.push(`/oauth/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`)
+      } else {
+        console.warn('[DeepLink] OAuth callback missing code or state')
       }
       return
     }
@@ -43,11 +54,13 @@ export function useDeepLink() {
 
   // Check if app was launched via deep link
   getCurrent().then(urls => {
+    console.log('[DeepLink] getCurrent:', urls)
     if (urls?.length) handleUrl(urls[0])
-  })
+  }).catch(err => console.error('[DeepLink] getCurrent error:', err))
 
   // Listen for deep links while app is running
   onOpenUrl(urls => {
+    console.log('[DeepLink] onOpenUrl:', urls)
     if (urls.length) handleUrl(urls[0])
   })
 }

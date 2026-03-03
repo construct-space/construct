@@ -41,15 +41,11 @@ export const useProjectStore = defineStore('project', {
 
   actions: {
     async initialize() {
-      // Load persisted state from localStorage
+      // Load persisted state from localStorage only — no FS scanning.
+      // FS scanning happens lazily via loadProjects() when pages need it.
       this.projectsRoot = localStorage.getItem(STORAGE_KEY_ROOT) || ''
       this.externalPaths = JSON.parse(localStorage.getItem(STORAGE_KEY_EXTERNALS) || '[]')
       this.recentProjects = JSON.parse(localStorage.getItem(STORAGE_KEY_RECENTS) || '[]')
-
-      // Scan filesystem for projects if root is set
-      if (this.projectsRoot) {
-        await this.loadProjects()
-      }
     },
 
     async loadProjects() {
@@ -213,52 +209,19 @@ export const useProjectStore = defineStore('project', {
       return newProject
     },
 
-    async updateProject(_projectId: string | number, data: Partial<{ name: string; description: string; spaces: string[]; local_path: string }>) {
-      // Update in-memory only for local projects
+    updateProject(_projectId: string | number, data: Partial<{ name: string; description: string; spaces: string[]; local_path: string }>) {
+      // In-memory update only — FS config persistence handled by space-projects
       if (this.currentProject) {
         if (data.name) this.currentProject.name = data.name
         if (data.description) this.currentProject.description = data.description
         if (data.spaces) this.currentProject.spaces = data.spaces as SpaceType[]
         this.currentProject.updated_at = new Date().toISOString()
-
-        // Persist to project config file if possible
-        try {
-          const { useProjectDirectory } = await import('@/composables/useProjectDirectory')
-          const projectDir = useProjectDirectory()
-          const config = await projectDir.loadProjectConfig(this.currentProject.path)
-          if (config) {
-            if (data.name) config.name = data.name
-            if (data.description) config.description = data.description
-            if (data.spaces) config.spaces = data.spaces
-            config.updated = new Date().toISOString()
-            await projectDir.saveProjectConfig(this.currentProject.path, config)
-          }
-        } catch {
-          // Config file update is best-effort
-        }
       }
       return { success: true, data: this.currentProject }
     },
 
     clearCurrentProject() {
       this.currentProject = null
-    },
-
-    /** Alias for loadProjects — backward compat with old code */
-    async fetchProjects() {
-      return this.loadProjects()
-    },
-
-    /** Alias: load a single project by id (path slug) */
-    async fetchProject(id: string | number) {
-      if (this.projects.length === 0) {
-        await this.loadProjects()
-      }
-      const project = this.projects.find(p => p.id === id || p.id === String(id))
-      if (project) {
-        this.currentProject = project
-        this.trackRecentOpen(project)
-      }
     },
 
     async addExternalProject(path: string) {

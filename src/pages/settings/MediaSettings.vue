@@ -56,8 +56,7 @@ async function save() {
 
 <template>
   <div>
-
-    <div class="flex flex-col gap-5">
+<div class="flex flex-col gap-5">
       <h3 class="text-sm font-semibold text-[var(--app-foreground)]">Conversion</h3>
 
       <FormField label="Convert Images" description="Automatically convert uploaded images to optimized formats.">

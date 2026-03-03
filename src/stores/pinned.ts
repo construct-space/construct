@@ -167,7 +167,7 @@ export const usePinnedStore = defineStore('pinned', {
       }
     },
 
-    // Add a new pinned item
+    // Add a new pinned item (optimistic: updates local state immediately)
     async addPin(item: Omit<PinnedItem, 'pinnedAt'>) {
       // Check if already pinned
       if (this.isPinned(item.id)) {
@@ -180,41 +180,49 @@ export const usePinnedStore = defineStore('pinned', {
         sortOrder: this.items.length
       }
 
+      // Optimistic: update local state immediately
+      this.items.push(pinnedItem)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.items))
+
       const db = useContextDB()
 
       if (db.isTauri.value) {
-        const success = await db.pinnedAdd(pinnedItem)
-        if (success) {
-          this.items.push(pinnedItem)
-          return true
+        try {
+          await db.pinnedAdd(pinnedItem)
+        } catch (error) {
+          if (!isContextNotConnectedError(error)) {
+            console.warn('[PinnedStore] Failed to persist pin to SQLite:', error)
+          }
+          // Pin still persisted in localStorage as fallback
         }
-        return false
-      } else {
-        this.items.push(pinnedItem)
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(this.items))
-        return true
       }
+
+      return true
     },
 
-    // Remove a pinned item by ID
+    // Remove a pinned item by ID (optimistic: updates local state immediately)
     async removePin(id: string) {
       const index = this.items.findIndex(item => item.id === id)
       if (index === -1) return false
 
+      // Optimistic: update local state immediately
+      this.items.splice(index, 1)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.items))
+
       const db = useContextDB()
 
       if (db.isTauri.value) {
-        const success = await db.pinnedRemove(id)
-        if (success) {
-          this.items.splice(index, 1)
-          return true
+        try {
+          await db.pinnedRemove(id)
+        } catch (error) {
+          if (!isContextNotConnectedError(error)) {
+            console.warn('[PinnedStore] Failed to remove pin from SQLite:', error)
+          }
+          // Local state already updated; localStorage has the fallback
         }
-        return false
-      } else {
-        this.items.splice(index, 1)
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(this.items))
-        return true
       }
+
+      return true
     },
 
     // Toggle pin state (add if not pinned, remove if pinned)

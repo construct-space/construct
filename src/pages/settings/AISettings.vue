@@ -59,8 +59,7 @@ async function save() {
 
 <template>
   <div>
-
-    <div class="flex flex-col gap-5">
+<div class="flex flex-col gap-5">
       <FormField label="Enable AI" description="Turn the AI assistant on or off globally.">
         <Switch v-model="formData.ai_enabled" />
       </FormField>

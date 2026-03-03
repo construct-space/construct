@@ -35,10 +35,10 @@ watchEffect(() => {
               </svg>
             </RouterLink>
             <p class="text-2xl text-right">
-              <span class="text-gray-400">BASECODE:</span><span class="font-bold text-gray-900 dark:text-white">SIGN IN</span>
+              <span class="text-gray-400">CONSTRUCT:</span><span class="font-bold text-gray-900 dark:text-white">SIGN IN</span>
             </p>
             <p class="text-sm text-gray-500 text-right max-w-xs">
-              Access your workspace and continue building.
+              Access your spaces and continue building.
             </p>
           </div>
 

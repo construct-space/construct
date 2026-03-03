@@ -55,8 +55,7 @@ async function save() {
 
 <template>
   <div class="space-y-10">
-
-    <!-- Grid -->
+<!-- Grid -->
     <div>
       <p class="text-xs text-[var(--app-muted)] uppercase tracking-widest font-medium mb-6">Grid</p>
 
@@ -102,6 +101,5 @@ async function save() {
     <!-- Save status -->
     <p v-if="settingsStore.isSaving" class="text-xs text-[var(--app-muted)]">Saving…</p>
     <p v-else-if="saved" class="text-xs text-emerald-400">Saved</p>
-
-  </div>
+</div>
 </template>

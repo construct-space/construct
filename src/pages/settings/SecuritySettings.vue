@@ -47,8 +47,7 @@ async function changePassword() {
 
 <template>
   <div>
-
-    <!-- Account info -->
+<!-- Account info -->
     <div class="mb-8 p-4 rounded-lg border border-[var(--app-border)] bg-[color-mix(in_srgb,var(--app-muted)_5%,transparent)]">
       <p class="text-sm font-medium text-[var(--app-foreground)]">{{ authStore.userEmail }}</p>
     </div>

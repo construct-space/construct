@@ -6,45 +6,57 @@ export async function authGuard(
   _from: RouteLocationNormalized,
   next: NavigationGuardNext
 ) {
-  console.log('[guard] to:', to.path, 'onboarding_complete:', localStorage.getItem('cp_onboarding_complete'))
   const authStore = useAuthStore()
 
-  const guestOnlyRoutes = ['/login', '/register']
-  const isGuestOnlyRoute = guestOnlyRoutes.includes(to.path)
+  const requiresAuth = to.matched.some(r => r.meta.requiresAuth)
+
+  // OAuth callback must ALWAYS be accessible (deep link from browser)
+  if (to.path === '/oauth/callback') {
+    return next()
+  }
 
   // Hydrate auth if not yet authenticated
   if (!authStore.isAuthenticated) {
     await authStore.hydrateAuthState()
   }
 
-  // Login is disabled — redirect guest-only routes straight to /app
-  if (isGuestOnlyRoute || to.path === '/') {
+  // Authenticated user hitting guest-only routes → redirect to /app
+  const guestOnlyRoutes = ['/login', '/register']
+  if (authStore.isAuthenticated && guestOnlyRoutes.includes(to.path)) {
     return next('/app')
   }
 
+  // Unauthenticated user hitting protected routes → redirect to /login
+  if (!authStore.isAuthenticated && requiresAuth) {
+    return next('/login')
+  }
+
+  // Root → redirect based on auth state
+  if (to.path === '/') {
+    return next(authStore.isAuthenticated ? '/app' : '/login')
+  }
+
   // Auto-skip onboarding if spaces are already installed on disk
-  if (!localStorage.getItem('cp_onboarding_complete')) {
+  if (authStore.isAuthenticated && !localStorage.getItem('cp_onboarding_complete')) {
     try {
       const { exists } = await import('@tauri-apps/plugin-fs')
       const { homeDir } = await import('@tauri-apps/api/path')
       const home = await homeDir()
       const checkPath = `${home}/.construct/spaces/code/manifest.json`
-      console.log('[guard] checking disk:', checkPath)
       if (await exists(checkPath)) {
-        console.log('[guard] spaces found on disk, skipping onboarding')
         localStorage.setItem('cp_onboarding_complete', 'true')
-        // If we're heading to onboarding, redirect to app instead
         if (to.path === '/onboarding') {
           return next('/app')
         }
       }
-    } catch (err) {
-      console.error('[guard] disk check failed:', err)
+    } catch {
+      // Tauri APIs not available (web mode)
     }
   }
 
-  // Onboarding check: if navigating to app + not yet onboarded → redirect
+  // Onboarding check: authenticated + navigating to app + not yet onboarded → redirect
   if (
+    authStore.isAuthenticated &&
     to.path.startsWith('/app') &&
     !localStorage.getItem('cp_onboarding_complete')
   ) {

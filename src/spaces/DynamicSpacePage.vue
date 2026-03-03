@@ -12,9 +12,11 @@
  * Falls back to agent-powered placeholder for config-only spaces (no Vue bundle).
  */
 
-import { loadSpace, type LoadedSpace } from '@/spaces/SpaceLoader'
+import { loadSpace, watchSpace, type LoadedSpace } from '@/spaces/SpaceLoader'
 import { getSpace as getSpaceTheme } from '@/config/spaces'
+import { useSpaces } from '@/composables/useSpaces'
 import { Loader2, AlertCircle, ArrowLeft } from 'lucide-vue-next'
+import { shallowRef, markRaw } from 'vue'
 
 const props = defineProps<{
   spaceName: string
@@ -23,7 +25,7 @@ const props = defineProps<{
 
 const router = useRouter()
 
-const space = ref<LoadedSpace | null>(null)
+const space = shallowRef<LoadedSpace | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
 
@@ -42,15 +44,26 @@ const theme = computed(() => getSpaceTheme(props.spaceName))
 /** Manifest data */
 const manifest = computed(() => space.value?.manifest)
 
+/** Apply markRaw to loaded space pages */
+function applyLoaded(loaded: LoadedSpace | null) {
+  if (loaded) {
+    Object.keys(loaded.pages).forEach(k => {
+      loaded.pages[k] = markRaw(loaded.pages[k])
+    })
+  }
+  space.value = loaded
+  if (!space.value) {
+    error.value = `Space "${props.spaceName}" is not installed.`
+  }
+}
+
 /** Load the space on mount and when spaceName changes */
 async function load() {
   loading.value = true
   error.value = null
   try {
-    space.value = await loadSpace(props.spaceName)
-    if (!space.value) {
-      error.value = `Space "${props.spaceName}" is not installed.`
-    }
+    const loaded = await loadSpace(props.spaceName)
+    applyLoaded(loaded)
   } catch (err) {
     error.value = `Failed to load space "${props.spaceName}": ${err}`
     console.error('[DynamicSpacePage]', err)
@@ -59,15 +72,40 @@ async function load() {
   }
 }
 
-onMounted(load)
+/** Dev mode HMR: watch the space bundle for changes and hot-reload */
+let unwatchFn: (() => void) | null = null
 
-watch(() => props.spaceName, load)
+async function setupDevWatcher() {
+  if (!import.meta.env.DEV) return
+  // Clean up previous watcher
+  unwatchFn?.()
+  const { loadSpaces } = useSpaces()
+  unwatchFn = await watchSpace(props.spaceName, async (reloaded) => {
+    applyLoaded(reloaded)
+    // Refresh spaces list so sidebar/toolbar pick up manifest changes
+    await loadSpaces()
+  })
+}
+
+onMounted(async () => {
+  await load()
+  await setupDevWatcher()
+})
+
+watch(() => props.spaceName, async () => {
+  unwatchFn?.()
+  await load()
+  await setupDevWatcher()
+})
+
+onUnmounted(() => {
+  unwatchFn?.()
+})
 </script>
 
 <template>
   <div class="h-full flex flex-col">
-
-    <!-- Loading state -->
+<!-- Loading state -->
     <div v-if="loading" class="flex-1 flex items-center justify-center">
       <div class="flex items-center gap-3 text-[var(--app-muted)]">
         <Loader2 class="size-5 animate-spin" />
@@ -142,6 +180,5 @@ watch(() => props.spaceName, load)
         </div>
       </div>
     </template>
-
-  </div>
+</div>
 </template>

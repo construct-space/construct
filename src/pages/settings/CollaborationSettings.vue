@@ -52,8 +52,7 @@ async function save() {
 
 <template>
   <div>
-
-    <div class="flex flex-col gap-5">
+<div class="flex flex-col gap-5">
       <FormField label="Real-Time Sync" description="Enable real-time synchronization between collaborators.">
         <Switch v-model="formData.collab_real_time_sync" />
       </FormField>

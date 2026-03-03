@@ -63,8 +63,7 @@ function openMarketplace() {
 <template>
   <div class="h-screen overflow-y-auto">
     <div class="max-w-4xl mx-auto px-6 py-10">
-
-      <!-- Header -->
+<!-- Header -->
       <div class="mb-8">
         <p class="text-lg tracking-wide select-none mb-1">
           <span class="text-[var(--app-muted)] font-normal">CONSTRUCT:</span><span class="font-bold text-[var(--app-foreground)]">SPACES</span>
@@ -131,7 +130,6 @@ function openMarketplace() {
           <ArrowRight class="size-4 text-[var(--app-muted)] ml-auto" />
         </button>
       </div>
-
-    </div>
+</div>
   </div>
 </template>

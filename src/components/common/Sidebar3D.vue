@@ -52,28 +52,17 @@ function navigateTo(path: string) {
   router.push(path)
 }
 
-// Icon lookup for space names
-const spaceIconMap: Record<string, string> = {
-  code: 'i-lucide-code',
-  design: 'i-lucide-pen-tool',
-  kanban: 'i-lucide-kanban',
-  docs: 'i-lucide-book-open',
-  notes: 'i-lucide-file-text',
-  architect: 'i-lucide-compass',
-  terminal: 'i-lucide-terminal',
-  git: 'i-lucide-git-branch',
-  calendar: 'i-lucide-calendar',
-}
-
 // Pinned spaces — from the pinned store, type='space'
+// Icons come from the live space theme registry (populated from manifests)
 const pinnedSpaceNavItems = computed(() => {
   const pinned = pinnedStore.pinnedByType('space')
   return pinned.map(pin => {
     const spaceId = pin.metadata?.spaceId || pin.path.replace('/app/', '').split('?')[0]
+    const theme = getSpaceConfig(spaceId)
     return {
       id: spaceId,
       label: pin.name,
-      icon: spaceIconMap[spaceId] || pin.icon || 'i-lucide-circle',
+      icon: theme.icon || pin.icon || 'i-lucide-circle',
       to: `/app/${spaceId}`,
     }
   })
@@ -105,7 +94,7 @@ const goBackToMain = () => {
 }
 
 const getSpaceIcon = (spaceName: string) => {
-  return spaceIconMap[spaceName] || 'i-lucide-circle'
+  return getSpaceConfig(spaceName).icon || 'i-lucide-circle'
 }
 </script>
 
@@ -298,8 +287,7 @@ const getSpaceIcon = (spaceName: string) => {
         </div>
       </Teleport>
     </div>
-
-  </aside>
+</aside>
 </template>
 
 <style scoped>

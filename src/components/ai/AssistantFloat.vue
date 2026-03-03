@@ -10,9 +10,22 @@ import { useContextService, type Agent as AgentInfo, type ModelRoute } from '~/c
 import { useAIModel } from '~/composables/useAIModel'
 import { useAuthStore } from '~/stores/auth'
 import { useProjectStore } from '~/stores/project'
-import { useTasksStore } from '~/stores/tasks'
-import { useUsersStore } from '~/stores/users'
-import { useDocumentsStore, type DocumentListItem } from '~/stores/documents'
+import {
+  getLatestSpaceContext,
+  requestSpaceData,
+  subscribeSpaceContext,
+} from '~/lib/spaceContextBus'
+
+// DocumentListItem type — inline to avoid importing the domain store
+interface DocumentListItem {
+  id: number
+  created_at: string
+  updated_at: string
+  title: string
+  type: string
+  project_id?: number
+  company_id?: number
+}
 import { useMarkdown } from '~/composables/useMarkdown'
 import { parseToolResult } from '~/composables/useDesignActions'
 import { listAvailableDesigns, getDesignForCodeGeneration, registerDesign, useCanvasContext } from '~/composables/useCanvasContext'
@@ -20,7 +33,7 @@ import { listAvailableDesigns, getDesignForCodeGeneration, registerDesign, useCa
 // These defaults are used when a space is not installed.
 const useCodeEditor = (() => ({
   state: { rootPath: '', currentFile: '', fileContent: '', currentLanguage: '', fileTree: [] as any[] },
-  selection: null as any,
+  selection: ref(null) as any,
   loadDirectory: (..._args: any[]) => Promise.resolve(),
   selectFile: () => {},
   openFolder: () => {},
@@ -323,7 +336,7 @@ async function getReferencedDocsContext(refs: DocReference[]): Promise<string> {
     )
     if (dbDoc) {
       try {
-        const fullDoc = await documentsStore.fetchDocument(dbDoc.id)
+        const fullDoc = await requestSpaceData('docs', { type: 'documents.fetch', params: { id: dbDoc.id } }) as any
         if (fullDoc?.content) {
           // Limit content to ~4000 chars to avoid bloating the prompt
           const content = fullDoc.content.length > 4000
@@ -468,20 +481,38 @@ function formatToolResult(result: string): string {
 const route = useRoute()
 const authStore = useAuthStore()
 const projectStore = useProjectStore()
-const tasksStore = useTasksStore()
+
+// ---------------------------------------------------------------------------
+// Space Context Bus — reactive caches for domain data
+// Replaces direct imports of useTasksStore, useDocumentsStore, useUsersStore
+// ---------------------------------------------------------------------------
+const busTasksCache = ref<any[]>([])
+const busDocsCache = ref<DocumentListItem[]>([])
+const busCurrentDoc = ref<any>(null)
+
+// Subscribe to space context updates
+subscribeSpaceContext('tasks', (payload) => {
+  const summary = payload.summary as any
+  if (summary?.recentTasks) busTasksCache.value = summary.recentTasks
+})
+subscribeSpaceContext('documents', (payload) => {
+  const summary = payload.summary as any
+  if (summary?.documents) busDocsCache.value = summary.documents
+  if (summary?.activeDocument !== undefined) busCurrentDoc.value = summary.activeDocument
+})
+
+// Seed caches from last-published context (if spaces already running)
+const initialTasks = getLatestSpaceContext('tasks')
+if (initialTasks?.summary?.recentTasks) busTasksCache.value = initialTasks.summary.recentTasks as any[]
+const initialDocs = getLatestSpaceContext('documents')
+if (initialDocs?.summary?.documents) busDocsCache.value = initialDocs.summary.documents as DocumentListItem[]
+if (initialDocs?.summary?.activeDocument) busCurrentDoc.value = initialDocs.summary.activeDocument
 
 // Credits for AI usage tracking
 const credits = useCredits()
 const { balance, userRemaining, hasUnlimitedAllocation, isLowCredits, formatCredits } = credits
 
-// Fetch credits on mount
-onMounted(async () => {
-  try {
-    await credits.fetchCredits()
-  } catch {
-    // Silently fail - credits may not be set up yet
-  }
-})
+// Credits: users provide their own API keys, no server-side credit tracking
 
 // Context service integration
 const {
@@ -1077,7 +1108,7 @@ const autocompleteSuggestions = computed(() => {
         }))
     }
     case 'task': {
-      const tasks = tasksStore.tasks
+      const tasks = busTasksCache.value
       if (tasks.length === 0) {
         return [{ label: 'No tasks loaded', icon: 'i-lucide-check-square', type: 'task' as const, disabled: true }]
       }
@@ -1385,10 +1416,7 @@ const syncApiDesigns = ref<UIDesign[]>([])
 // Project documents for ^ autocomplete (merged: DB + local .md files)
 const projectDocs = ref<DocumentListItem[]>([])
 const localDocs = ref<{ title: string; path: string; type: string }[]>([])
-const documentsStore = useDocumentsStore()
-
 // Project members for AI context (so AI knows who's on the team)
-const usersStore = useUsersStore()
 interface ProjectMemberInfo {
   id: number
   name: string
@@ -1437,12 +1465,12 @@ const initDocsTauri = async () => {
 // 3. Local -> DB: create DB entries for local .md files not in DB
 // 4. DB -> Local: write .md files for DB docs not on disk
 async function syncProjectDocs(projectId: string | number, projectPath: string | undefined) {
-  // Step 1: Load DB docs
+  // Step 1: Load DB docs via context bus (space-docs handler)
   try {
-    await documentsStore.fetchProjectDocuments(projectId)
-    projectDocs.value = documentsStore.documents
+    const docs = await requestSpaceData('docs', { type: 'documents.fetchProject', params: { projectId } })
+    if (Array.isArray(docs)) projectDocs.value = docs as DocumentListItem[]
   } catch (e) {
-    console.warn('[AssistantFloat] Failed to load docs from DB:', e)
+    console.warn('[AssistantFloat] Failed to load docs from context bus:', e)
   }
 
   if (!projectPath) return
@@ -1494,11 +1522,17 @@ async function syncProjectDocs(projectId: string | number, projectPath: string |
     if (!dbTitles.has(local.title.toLowerCase())) {
       try {
         const content = await docsTauriFs.readTextFile(local.path)
-        await documentsStore.createProjectDocument(Number(projectId), {
-          title: local.title,
-          content,
-          type: guessDocType(local.filename) as 'prd' | 'readme' | 'architecture' | 'roadmap' | 'setup' | 'custom',
-          project_id: Number(projectId)
+        await requestSpaceData('docs', {
+          type: 'documents.create',
+          params: {
+            projectId: Number(projectId),
+            data: {
+              title: local.title,
+              content,
+              type: guessDocType(local.filename),
+              project_id: Number(projectId),
+            },
+          },
         })
         console.log('[AssistantFloat] Synced local doc to DB:', local.title)
       } catch (e) {
@@ -1512,7 +1546,7 @@ async function syncProjectDocs(projectId: string | number, projectPath: string |
   for (const dbDoc of projectDocs.value) {
     if (!localTitles.has(dbDoc.title.toLowerCase())) {
       try {
-        const fullDoc = await documentsStore.fetchDocument(dbDoc.id)
+        const fullDoc = await requestSpaceData('docs', { type: 'documents.fetch', params: { id: dbDoc.id } }) as any
         if (fullDoc?.content) {
           const filename = docTitleToFilename(dbDoc.title)
           const filePath = `${docsPath}/${filename}`
@@ -1528,8 +1562,8 @@ async function syncProjectDocs(projectId: string | number, projectPath: string |
 
   // Refresh DB docs list after sync
   try {
-    await documentsStore.fetchProjectDocuments(projectId)
-    projectDocs.value = documentsStore.documents
+    const refreshed = await requestSpaceData('docs', { type: 'documents.fetchProject', params: { projectId } })
+    if (Array.isArray(refreshed)) projectDocs.value = refreshed as DocumentListItem[]
   } catch {
     // Already loaded above, ignore refresh failure
   }
@@ -1550,10 +1584,11 @@ watch(
   () => projectStore.currentProject?.id,
   async (projectId) => {
     if (projectId) {
-      // Load tasks
-      if (tasksStore.tasks.length === 0) {
+      // Load tasks via context bus (space-kanban handler)
+      if (busTasksCache.value.length === 0) {
         try {
-          await tasksStore.fetchProjectTasks(projectId)
+          const tasks = await requestSpaceData('kanban', { type: 'tasks.fetchProject', params: { projectId } })
+          if (Array.isArray(tasks)) busTasksCache.value = tasks
         } catch (e) {
           console.warn('[AssistantFloat] Failed to load tasks for autocomplete:', e)
         }
@@ -1855,13 +1890,18 @@ const componentLabel = computed(() => {
   return null
 })
 
-// Extract current space from route (only actual project spaces, not modes)
+// Extract current space from route (project-scoped and direct space routes)
 const currentSpace = computed(() => {
   const path = route.path
-  const match = path.match(/\/app\/projects\/\d+\/(\w+)/)
-  if (match && match[1]) {
-    // Capitalize first letter
-    return match[1].charAt(0).toUpperCase() + match[1].slice(1)
+  // Project-scoped: /app/projects/:id/:spaceName
+  const projectMatch = path.match(/\/app\/projects\/\d+\/(\w+)/)
+  if (projectMatch?.[1]) {
+    return projectMatch[1].charAt(0).toUpperCase() + projectMatch[1].slice(1)
+  }
+  // Direct space: /app/:spaceName (exclude non-space routes)
+  const directMatch = path.match(/\/app\/([a-z][\w-]*)/)
+  if (directMatch?.[1] && !['projects', 'settings', 'marketplace', 'onboarding'].includes(directMatch[1])) {
+    return directMatch[1].charAt(0).toUpperCase() + directMatch[1].slice(1)
   }
   return null
 })
@@ -2753,8 +2793,8 @@ function buildMessageWithToolContext(msg: ChatMessage): string {
         // Refresh docs list so sidebar updates
         const syncProjectId = (args.project_id as number) || projectStore.currentProject?.id
         if (syncProjectId) {
-          documentsStore.fetchProjectDocuments(syncProjectId).then(() => {
-            projectDocs.value = documentsStore.documents
+          requestSpaceData('docs', { type: 'documents.fetchProject', params: { projectId: syncProjectId } }).then((docs) => {
+            if (Array.isArray(docs)) projectDocs.value = docs as DocumentListItem[]
           }).catch(() => { /* ignore refresh failure */ })
         }
       } else if (tc.name === 'list_project_documents' || tc.name === 'list_project_designs' || tc.name === 'list_project_tasks') {
@@ -2930,7 +2970,7 @@ Once a repo is selected, you will have access to its status, branches, and chang
 
   // Add Docs/Notes space context — inject currently open document (live data, not in DB context)
   if (space === 'notes' || space === 'docs') {
-    const openDoc = documentsStore.currentDocument
+    const openDoc = busCurrentDoc.value
     if (openDoc) {
       const contentPreview = openDoc.content && openDoc.content.length > 4000
         ? openDoc.content.substring(0, 4000) + '\n\n... (truncated)'

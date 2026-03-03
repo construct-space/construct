@@ -340,19 +340,24 @@ export function useToolbar() {
   // Pages don't need to know if they're in a space
   const toolbarItems = computed(() => {
     const items: ToolbarItem[] = []
+    const seenIds = new Set<string>()
 
-    // Add space toolbar items (from space.config)
-    if (state.frontPanel.spaceToolbarItems.length > 0) {
-      items.push(...state.frontPanel.spaceToolbarItems.map(item => ({
-        ...item,
-        type: 'action' as const,
-        category: 'space' as const
-      })))
+    // Add page-specific items first (they take priority / have onClick handlers)
+    if (state.pageItems.length > 0) {
+      for (const item of state.pageItems) {
+        seenIds.add(item.id)
+        items.push(item)
+      }
     }
 
-    // Add page-specific items
-    if (state.pageItems.length > 0) {
-      items.push(...state.pageItems)
+    // Add space toolbar items (from space.config), skip duplicates
+    if (state.frontPanel.spaceToolbarItems.length > 0) {
+      for (const item of state.frontPanel.spaceToolbarItems) {
+        if (!seenIds.has(item.id)) {
+          seenIds.add(item.id)
+          items.push({ ...item, type: 'action' as const, category: 'space' as const })
+        }
+      }
     }
 
     return items

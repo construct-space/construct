@@ -3,24 +3,35 @@ import { createPinia } from 'pinia'
 import { router } from './router'
 import App from './App.vue'
 import './assets/css/main.css'
-import { initSpaceHost } from './lib/spaceHost'
 
-// Expose shared deps as globals BEFORE anything else.
-// Space IIFE bundles reference these via window.__CONSTRUCT__['vue'] etc.
-initSpaceHost()
+// Space host (shared deps for IIFE bundles) is lazy-initialized
+// in SpaceLoader.ts the first time a space is loaded.
 
 const app = createApp(App)
 app.use(createPinia())
 app.use(router)
 
+// UI components are NOT registered globally to avoid stack overflow with
+// unplugin-vue-components. Instead, space IIFE bundles import them via
+// @construct/sdk (auto-imported from host-api.ts exports).
+// Host .vue files get them via unplugin-vue-components auto-import.
+
 // Initialize auth, then project store, then mount
 import { useAuthStore } from './stores/auth'
 import { useProjectStore } from './stores/project'
+import { autoInstallRecommended } from './composables/useSpaceMarketplace'
 
 const authStore = useAuthStore()
 authStore.initialize().then(() => {
-  const projectStore = useProjectStore()
-  return projectStore.initialize()
-}).finally(() => {
   app.mount('#app')
+
+  // Lazy — non-blocking background init
+  const projectStore = useProjectStore()
+  projectStore.initialize().catch(err => {
+    console.warn('[main] Project store init:', err)
+  })
+
+  autoInstallRecommended().catch(err => {
+    console.warn('[main] Auto-install recommended spaces:', err)
+  })
 })

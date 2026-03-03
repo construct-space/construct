@@ -3,7 +3,7 @@
  * Icon - Nuxt UI compatible icon component
  * Converts i-lucide-* names to @iconify/vue format
  */
-import { Icon } from '@iconify/vue'
+import { Icon as IconifyIcon } from '@iconify/vue'
 
 const props = defineProps<{
   name?: string
@@ -27,5 +27,5 @@ const iconName = computed(() => {
 </script>
 
 <template>
-  <Icon v-if="name" :icon="iconName" />
+  <IconifyIcon v-if="name" :icon="iconName" />
 </template>

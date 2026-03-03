@@ -9,14 +9,8 @@
  * Rollup maps to: window.__CONSTRUCT__["@construct/sdk"].useProjectStore
  */
 
-// === Stores ===
-export { useActivitiesStore } from '@/stores/activities'
+// === Stores (host-owned only — domain stores live in their respective spaces) ===
 export { useAuthStore } from '@/stores/auth'
-export { useAuthorizationStore } from '@/stores/authorization'
-export { useConversationsStore } from '@/stores/conversations'
-export { useDocumentsStore } from '@/stores/documents'
-export { useEventsStore } from '@/stores/events'
-export { useNotesStore, NOTE_COLORS } from '@/stores/notes'
 export { useNotificationsStore } from '@/stores/notifications'
 export { usePanelsStore } from '@/stores/panels'
 export {
@@ -29,12 +23,9 @@ export {
   createTaskPin,
 } from '@/stores/pinned'
 export { usePreferencesStore } from '@/stores/preferences'
-export { usePRDsStore } from '@/stores/prds'
 export { useProjectStore } from '@/stores/project'
 export { useSettingsStore } from '@/stores/settings'
-export { useTasksStore, TASK_PRIORITIES, TASK_STATUSES } from '@/stores/tasks'
 export { useTranslationsStore } from '@/stores/translations'
-export { useUsersStore } from '@/stores/users'
 
 // === Composables ===
 export { useAIModel, isVisionModel } from '@/composables/useAIModel'
@@ -66,8 +57,6 @@ export {
   useComponentContext,
 } from '@/composables/useContextService'
 export { useCredits } from '@/composables/useCredits'
-export { useDashboard } from '@/composables/useDashboard'
-export { useDashboardState } from '@/composables/useDashboardState'
 export { useDateFormat } from '@/composables/useDateFormat'
 export { useDeepLink } from '@/composables/useDeepLink'
 export {
@@ -96,7 +85,6 @@ export { usePanels } from '@/composables/usePanels'
 export { usePermissions } from '@/composables/usePermissions'
 export { useProjectContext } from '@/composables/useProjectContext'
 export { useProjectDirectory } from '@/composables/useProjectDirectory'
-export { useProjectsView } from '@/composables/useProjectsView'
 export { useRoundRobin } from '@/composables/useRoundRobin'
 export {
   useShortcutStore,
@@ -163,6 +151,20 @@ export { default as Tooltip } from '@/components/ui/Tooltip.vue'
 // === Common Components ===
 export { default as ConfirmationModal } from '@/components/common/ConfirmationModal.vue'
 export { default as SplitPane } from '@/components/panels/SplitPane.vue'
+
+// === Space Context Bus ===
+export {
+  publishSpaceContext,
+  subscribeSpaceContext,
+  getLatestSpaceContext,
+  registerContextHandler,
+  requestSpaceData,
+} from '@/lib/spaceContextBus'
+export type {
+  SpaceContextPayload,
+  SpaceContextCallback,
+  ContextHandler,
+} from '@/lib/spaceContextBus'
 
 // === Utilities ===
 export { appConfig } from '@/utils/config'

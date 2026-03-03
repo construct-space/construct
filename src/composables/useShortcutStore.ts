@@ -101,7 +101,7 @@ export function setKey(id: string, key: string) {
 
 /** Resets a shortcut to its default. */
 export function resetKey(id: string) {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   const { [id]: _removed, ...rest } = _overrides.value
   _overrides.value = rest
   _save()

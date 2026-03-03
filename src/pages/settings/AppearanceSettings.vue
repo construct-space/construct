@@ -11,8 +11,7 @@ async function selectTheme(themeId: string) {
 
 <template>
   <div>
-
-    <div class="grid grid-cols-3 gap-3">
+<div class="grid grid-cols-3 gap-3">
       <button
         v-for="theme in themes"
         :key="theme.id"

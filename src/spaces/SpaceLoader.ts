@@ -1,8 +1,9 @@
 /**
  * SpaceLoader — Runtime loader for pre-built space IIFE bundles.
  *
- * Production path: reads from ~/.construct/spaces/{name}/
- * Dev path: falls back to Vite dynamic imports from src/spaces/{name}/
+ * All spaces are loaded from ~/.construct/spaces/{name}/ via Tauri FS.
+ * In dev mode, if VITE_SPACE_DEV_DIR is set, that directory is also
+ * checked (for `construct space dev` linking).
  *
  * Flow:
  *   1. Read manifest.json from space directory via Tauri FS
@@ -75,14 +76,31 @@ export interface SpaceManifest {
 /** In-memory cache of loaded space bundles */
 const loadedSpaces = new Map<string, LoadedSpace>()
 
-/** Check if we're in dev mode (Vite dev server) */
-const isDev = import.meta.env.DEV
+/** Whether the space host globals have been initialized */
+let spaceHostReady = false
+
+/** Ensure space host is initialized (lazy — only when first space loads) */
+async function ensureSpaceHost(): Promise<void> {
+  if (spaceHostReady) return
+  const { initSpaceHost } = await import('@/lib/spaceHost')
+  initSpaceHost()
+  spaceHostReady = true
+}
+
+/** Compute SHA-256 hex digest of a string */
+async function sha256Hex(content: string): Promise<string> {
+  const data = new TextEncoder().encode(content)
+  const hash = await crypto.subtle.digest('SHA-256', data)
+  return Array.from(new Uint8Array(hash), b => b.toString(16).padStart(2, '0')).join('')
+}
 
 /** Base path for installed spaces */
 function getSpacesDir(): string {
-  // Tauri FS resolves ~ to the user home directory
   return '/.construct/spaces'
 }
+
+/** Optional dev override directory from env */
+const devOverrideDir = import.meta.env.VITE_SPACE_DEV_DIR || ''
 
 /**
  * Load a space by ID. Returns cached version if already loaded.
@@ -93,14 +111,13 @@ export async function loadSpace(spaceId: string): Promise<LoadedSpace | null> {
     return loadedSpaces.get(spaceId)!
   }
 
-  // In dev mode, try Vite dynamic imports first, fall back to disk
-  if (isDev) {
-    const devSpace = await loadSpaceDev(spaceId)
+  // If dev override dir is set, try that first
+  if (devOverrideDir) {
+    const devSpace = await loadSpaceFromDir(spaceId, devOverrideDir)
     if (devSpace) {
       loadedSpaces.set(spaceId, devSpace)
       return devSpace
     }
-    console.log(`[SpaceLoader] No dev source for "${spaceId}", trying disk...`)
   }
 
   // Load from ~/.construct/spaces/
@@ -114,81 +131,29 @@ export async function loadSpace(spaceId: string): Promise<LoadedSpace | null> {
 }
 
 /**
- * Dev mode: load space via Vite's dynamic import from src/spaces/.
- * These are compiled as part of the main Vite build in dev.
+ * Load pre-built IIFE bundle from ~/.construct/spaces/{id}/
  */
-async function loadSpaceDev(spaceId: string): Promise<LoadedSpace | null> {
+async function loadSpaceFromDisk(spaceId: string): Promise<LoadedSpace | null> {
   try {
-    // Dynamic import of space pages from src/spaces/{id}/pages/
-    // Vite resolves these at compile time in dev mode
-    const pageModules = import.meta.glob<{ default: Component }>(
-      '../spaces/*/pages/*.vue'
-    )
-
-    const pages: Record<string, Component> = {}
-    const prefix = `../spaces/${spaceId}/pages/`
-
-    for (const [path, loader] of Object.entries(pageModules)) {
-      if (path.startsWith(prefix)) {
-        const fileName = path.slice(prefix.length).replace('.vue', '')
-        const pagePath = fileName === 'index' ? '' : fileName
-        const mod = await loader()
-        pages[pagePath] = mod.default
-      }
-    }
-
-    if (Object.keys(pages).length === 0) {
-      return null
-    }
-
-    // Try to load manifest from space.manifest.json in the space dir
-    let manifest: SpaceManifest
-    try {
-      const manifestModule = await import(`../spaces/${spaceId}/space.manifest.json`)
-      manifest = manifestModule.default
-    } catch {
-      // Fall back to reading space.config.ts
-      try {
-        const configModule = await import(`../spaces/${spaceId}/space.config.ts`)
-        const config = configModule.default || configModule[`${spaceId}Space`]
-        manifest = configToManifest(spaceId, config)
-      } catch {
-        // Minimal fallback manifest
-        manifest = {
-          id: spaceId,
-          name: spaceId.charAt(0).toUpperCase() + spaceId.slice(1),
-          version: '0.0.0-dev',
-          description: '',
-          icon: 'i-lucide-box',
-          scope: 'both',
-          navigation: { label: spaceId, icon: 'i-lucide-box', to: spaceId, order: 100 },
-          pages: [{ path: '', label: 'Home', default: true }],
-        }
-      }
-    }
-
-    return {
-      id: spaceId,
-      manifest,
-      pages,
-      cssInjected: true, // Vite handles CSS in dev
-    }
-  } catch {
+    const { homeDir } = await import('@tauri-apps/api/path')
+    const home = await homeDir()
+    const spaceDir = `${home}${getSpacesDir()}/${spaceId}`
+    return await loadSpaceFromDir(spaceId, spaceDir)
+  } catch (err) {
+    console.error(`[SpaceLoader] Failed to load space "${spaceId}" from disk:`, err)
     return null
   }
 }
 
 /**
- * Production: load pre-built IIFE bundle from ~/.construct/spaces/{id}/
+ * Load a space from an arbitrary directory path.
  */
-async function loadSpaceFromDisk(spaceId: string): Promise<LoadedSpace | null> {
+async function loadSpaceFromDir(spaceId: string, baseDir: string): Promise<LoadedSpace | null> {
   try {
     const { readTextFile, exists } = await import('@tauri-apps/plugin-fs')
-    const { homeDir } = await import('@tauri-apps/api/path')
 
-    const home = await homeDir()
-    const spaceDir = `${home}${getSpacesDir()}/${spaceId}`
-    console.log(`[SpaceLoader] Loading "${spaceId}" from disk: ${spaceDir}`)
+    const spaceDir = baseDir.endsWith(`/${spaceId}`) ? baseDir : `${baseDir}/${spaceId}`
+    console.log(`[SpaceLoader] Loading "${spaceId}" from: ${spaceDir}`)
 
     // Read manifest
     const manifestPath = `${spaceDir}/manifest.json`
@@ -204,6 +169,18 @@ async function loadSpaceFromDisk(spaceId: string): Promise<LoadedSpace | null> {
       return null
     }
     const jsContent = await readTextFile(bundlePath)
+
+    // Verify bundle integrity against manifest checksum
+    if (manifest.build?.checksum) {
+      const actual = await sha256Hex(jsContent)
+      if (actual !== manifest.build.checksum) {
+        console.error(`[SpaceLoader] Checksum mismatch for "${spaceId}": expected ${manifest.build.checksum}, got ${actual}`)
+        return null
+      }
+    }
+
+    // Ensure host globals are ready before executing space code
+    await ensureSpaceHost()
 
     // Execute IIFE — sets window.__CONSTRUCT_SPACE_{id}
     // Indirect eval runs in global scope so `var` creates a window property
@@ -250,7 +227,7 @@ async function loadSpaceFromDisk(spaceId: string): Promise<LoadedSpace | null> {
       cssInjected,
     }
   } catch (err) {
-    console.error(`[SpaceLoader] Failed to load space "${spaceId}" from disk:`, err)
+    console.error(`[SpaceLoader] Failed to load space "${spaceId}" from dir:`, err)
     return null
   }
 }
@@ -304,18 +281,58 @@ export function isSpaceLoaded(spaceId: string): boolean {
 }
 
 /**
- * Convert a space.config.ts config to a SpaceManifest (dev mode compat).
+ * Reload a space — clears cache, re-reads bundle from disk, re-executes.
+ * Used by dev mode HMR when the bundle file changes.
  */
-function configToManifest(id: string, config: Record<string, unknown>): SpaceManifest {
-  return {
-    id,
-    name: (config.displayName as string) || id,
-    version: '0.0.0-dev',
-    description: (config.description as string) || '',
-    icon: (config.icon as string) || 'i-lucide-box',
-    scope: (config.scope as string) || 'both',
-    navigation: config.navigation as SpaceManifest['navigation'],
-    pages: (config.pages as SpaceManifest['pages']) || [{ path: '', label: 'Home', default: true }],
-    toolbar: config.toolbar as SpaceManifest['toolbar'],
+export async function reloadSpace(spaceId: string): Promise<LoadedSpace | null> {
+  unloadSpace(spaceId)
+  return loadSpace(spaceId)
+}
+
+/**
+ * Watch a space's bundle for changes (dev mode only).
+ * Polls the manifest's build.builtAt timestamp to detect rebuilds.
+ * Returns an unwatch function.
+ */
+export async function watchSpace(
+  spaceId: string,
+  onReload: (space: LoadedSpace | null) => void
+): Promise<(() => void) | null> {
+  try {
+    const { readTextFile } = await import('@tauri-apps/plugin-fs')
+    const { homeDir } = await import('@tauri-apps/api/path')
+    const home = await homeDir()
+    const manifestPath = `${home}${getSpacesDir()}/${spaceId}/manifest.json`
+
+    // Read initial builtAt timestamp
+    let lastBuiltAt = ''
+    try {
+      const json = JSON.parse(await readTextFile(manifestPath))
+      lastBuiltAt = json.build?.builtAt || ''
+    } catch { /* ignore */ }
+
+    let stopped = false
+    const poll = async () => {
+      if (stopped) return
+      try {
+        const json = JSON.parse(await readTextFile(manifestPath))
+        const builtAt = json.build?.builtAt || ''
+        if (builtAt && builtAt !== lastBuiltAt) {
+          lastBuiltAt = builtAt
+          console.log(`[SpaceLoader] HMR: Reloading "${spaceId}"...`)
+          const reloaded = await reloadSpace(spaceId)
+          onReload(reloaded)
+        }
+      } catch { /* file may be mid-write */ }
+      if (!stopped) setTimeout(poll, 1000)
+    }
+
+    // Start polling
+    setTimeout(poll, 1000)
+    console.log(`[SpaceLoader] Watching "${spaceId}" for changes (polling)`)
+    return () => { stopped = true }
+  } catch (err) {
+    console.warn('[SpaceLoader] Could not set up file watcher:', err)
+    return null
   }
 }

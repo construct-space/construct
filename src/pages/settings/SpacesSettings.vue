@@ -45,8 +45,7 @@ async function handleCheckUpdates() {
 
 <template>
   <div class="space-y-8">
-
-    <!-- Header -->
+<!-- Header -->
     <div class="flex items-center justify-between">
       <div>
         <h2 class="text-lg font-semibold text-[var(--app-foreground)]">Spaces</h2>
@@ -162,6 +161,5 @@ async function handleCheckUpdates() {
         Browse Marketplace
       </button>
     </div>
-
-  </div>
+</div>
 </template>

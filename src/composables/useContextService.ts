@@ -350,21 +350,21 @@ export function useContextService(): UseContextServiceReturn {
       const _tInit = performance.now()
       try {
         // Start the sidecar binary
-        const _tStart = performance.now()
+        //  const _tStart = performance.now()
         const address = await tauriInvoke<string>('start_context_service')
-        console.log('[perf] contextService: start_context_service invoke:', (performance.now() - _tStart).toFixed(1), 'ms')
+        //console.log('[perf] contextService: start_context_service invoke:', (performance.now() - _tStart).toFixed(1), 'ms')
 
         // Connect to it
         const _tConnect = performance.now()
         await tauriInvoke('connect_context', { address })
-        console.log('[perf] contextService: connect_context invoke:', (performance.now() - _tConnect).toFixed(1), 'ms')
+        // console.log('[perf] contextService: connect_context invoke:', (performance.now() - _tConnect).toFixed(1), 'ms')
         connected.value = true
 
         // Get initial context
         try {
           const _tCtx = performance.now()
           const ctx = await tauriInvoke<{ mode: string; component?: ComponentContext; project?: ProjectContext }>('context_get')
-          console.log('[perf] contextService: context_get invoke:', (performance.now() - _tCtx).toFixed(1), 'ms')
+          //  console.log('[perf] contextService: context_get invoke:', (performance.now() - _tCtx).toFixed(1), 'ms')
           mode.value = (ctx.mode as Mode) || 'code'
           currentComponent.value = ctx.component || null
           project.value = ctx.project || null
@@ -372,7 +372,7 @@ export function useContextService(): UseContextServiceReturn {
           // Context get may fail if service doesn't have context yet
         }
 
-        console.log('[perf] contextService: initializeTauri total:', (performance.now() - _tInit).toFixed(1), 'ms')
+        //  console.log('[perf] contextService: initializeTauri total:', (performance.now() - _tInit).toFixed(1), 'ms')
         // NOTE: on success we intentionally keep connectInFlight assigned so
         // that any later callers (components mounting after this resolves)
         // immediately get the cached resolved promise instead of re-invoking
@@ -381,7 +381,7 @@ export function useContextService(): UseContextServiceReturn {
       } catch (err) {
         // Clear both the reactive flag and the cached promise so a retry can happen.
         markDisconnected()
-        console.warn('[contextService] initializeTauri FAILED after:', (performance.now() - _tInit).toFixed(1), 'ms', err)
+        //   console.warn('[contextService] initializeTauri FAILED after:', (performance.now() - _tInit).toFixed(1), 'ms', err)
         return false
       }
     })()

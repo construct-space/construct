@@ -2,10 +2,11 @@
 import FormField from '@/components/ui/FormField.vue'
 import Input from '@/components/ui/Input.vue'
 import Button from '@/components/ui/Button.vue'
+import { useConstructAuth } from '@/composables/useConstructAuth'
 
 const authStore = useAuthStore()
 const toast = useToast()
-const api = useApi()
+const constructAuth = useConstructAuth()
 
 const form = ref({
   first_name: authStore.user?.first_name ?? '',
@@ -17,16 +18,25 @@ const form = ref({
 const isSaving = ref(false)
 
 async function save() {
+  if (!authStore.token) {
+    toast.add({ title: 'Not authenticated', color: 'error' })
+    return
+  }
   isSaving.value = true
   try {
-    const updated = await api.patch<Record<string, unknown>>('/profile', {
+    const updated = await constructAuth.updateProfile(authStore.token, {
       first_name: form.value.first_name,
       last_name: form.value.last_name,
       username: form.value.username || undefined,
       phone: form.value.phone || undefined,
     })
     if (authStore.user) {
-      authStore.user = { ...authStore.user, ...updated }
+      authStore.user = {
+        ...authStore.user,
+        ...updated,
+        name: `${form.value.first_name} ${form.value.last_name}`.trim(),
+      }
+      await authStore.persistAuthState()
     }
     toast.add({ title: 'Profile updated', color: 'success' })
   } catch {

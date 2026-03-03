@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Default capabilities for Construct",
-  "windows": ["main", "standalone-*", "browser-*"],
+  "windows": ["main", "standalone-*", "browser-*", "oauth-login"],
   "permissions": [
     "core:default",
     "core:event:default",
@@ -24,6 +24,7 @@
     "fs:allow-remove",
     "fs:allow-rename",
     "fs:allow-copy-file",
+    "fs:allow-watch",
     {
       "identifier": "fs:scope",
       "allow": [
@@ -66,6 +67,7 @@
     "process:allow-exit",
     "opener:default",
     "opener:allow-open-url",
-    "deep-link:default"
+    "deep-link:default",
+    "core:webview:allow-create-webview-window"
   ]
 }

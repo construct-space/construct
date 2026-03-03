@@ -23,8 +23,7 @@ onMounted(() => { handleCheck() })
 
 <template>
   <div>
-
-    <!-- Current version -->
+<!-- Current version -->
     <div class="mb-6">
       <div class="border-b border-[var(--app-border)] pb-2 mb-4">
         <h3 class="text-sm font-semibold text-[var(--app-foreground)]">Current Version</h3>

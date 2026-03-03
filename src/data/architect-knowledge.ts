@@ -186,6 +186,15 @@ export const FRONTEND_OPTIONS: Record<string, TechStack[]> = {
       pros: ['Mature ecosystem', 'Full Node.js access', 'Easy for web devs'],
       cons: ['Large bundle size', 'High memory usage', 'Security concerns'],
       bestFor: ['Feature-rich apps', 'VS Code-like tools', 'Quick prototypes']
+    },
+    {
+      value: 'flutter-desktop',
+      label: 'Flutter Desktop',
+      icon: 'i-simple-icons-flutter',
+      description: 'Desktop apps with Flutter (Windows, macOS, Linux)',
+      pros: ['Single codebase', 'Consistent UI', 'Good performance'],
+      cons: ['Desktop support is new', 'Less mature than alternatives'],
+      bestFor: ['Cross-platform apps', 'Custom UI designs', 'New projects']
     }
   ],
   'cross-platform': [
@@ -236,6 +245,12 @@ export const BACKEND_OPTIONS: InterviewOption[] = [
     label: 'Python + Django',
     icon: 'i-simple-icons-django',
     description: 'Batteries-included Python framework'
+  },
+  {
+    value: 'base',
+    label: 'Base Framework',
+    icon: 'i-simple-icons-base',
+    description: 'Modern Go api with auth, database, and file storage built-in, rest apis and realtime, deploy anywhere'
   },
   {
     value: 'go',
@@ -318,6 +333,12 @@ export const DESIGN_STYLE_OPTIONS: InterviewOption[] = [
     label: 'Custom Design System',
     icon: 'i-lucide-palette',
     description: 'Build from scratch with your own style'
+  },
+  {
+    value: 'other',
+    label: 'Other (Specify)',
+    icon: 'i-lucide-edit',
+    description: 'You can specify a custom design style'
   }
 ]
 
@@ -328,6 +349,12 @@ export const STYLING_OPTIONS: InterviewOption[] = [
     label: 'Tailwind CSS',
     icon: 'i-simple-icons-tailwindcss',
     description: 'Utility-first CSS framework with great DX and small bundle'
+  },
+  {
+    value: 'bootstrap',
+    label: 'Bootstrap',
+    icon: 'i-simple-icons-bootstrap',
+    description: 'Classic CSS framework with pre-built components'
   },
   {
     value: 'css-modules',
@@ -362,6 +389,18 @@ export const DATABASE_OPTIONS: InterviewOption[] = [
     label: 'Firebase',
     icon: 'i-simple-icons-firebase',
     description: 'Google\'s BaaS with real-time database, auth, and hosting'
+  },
+  {
+    value: 'mysql',
+    label: 'MySQL',
+    icon: 'i-simple-icons-mysql',
+    description: 'Popular open-source relational database'
+  },
+  {
+    value: 'mariadb',
+    label: 'MariaDB',
+    icon: 'i-simple-icons-mariadb',
+    description: 'Community-developed fork of MySQL'
   },
   {
     value: 'postgresql',
@@ -494,11 +533,30 @@ export const FEATURE_OPTIONS: FeatureOption[] = [
     icon: 'i-lucide-moon',
     description: 'Light and dark theme support',
     spaces: ['design']
+  },
+  {
+    value: 'multilingual',
+    label: 'Multilingual Support',
+    icon: 'i-lucide-globe',
+    description: 'Support multiple languages/locales',
+    spaces: ['code', 'design']
   }
 ]
 
 // Deployment Options
 export const DEPLOYMENT_OPTIONS: InterviewOption[] = [
+  {
+    value: 'none',
+    label: 'No Deployment',
+    icon: 'i-lucide-cloud-off',
+    description: 'Static app or external API only'
+  },
+  {
+    value: 'basepod',
+    label: 'BasePod',
+    icon: 'i-lucide-server',
+    description: 'Self-hosted deployment with BasePod infrastructure, pod.base.al'
+  },
   {
     value: 'vercel',
     label: 'Vercel',
@@ -516,6 +574,12 @@ export const DEPLOYMENT_OPTIONS: InterviewOption[] = [
     label: 'AWS',
     icon: 'i-simple-icons-amazonaws',
     description: 'Full control with EC2, Lambda, S3, etc.'
+  },
+  {
+    value: 'caprover',
+    label: 'CapRover',
+    icon: 'i-lucide-server',
+    description: 'Self-hosted deployment with CapRover'
   },
   {
     value: 'docker',
@@ -592,6 +656,9 @@ export function buildSystemPrompt(answers: Record<string, string | string[]>, ap
 - Skip questions that don't apply (e.g., don't ask about payment processing for a personal blog)
 - Generate CONTEXTUAL options based on what makes sense for THIS app
 - After 4-6 good questions, you likely have enough - generate the PRD
+- If user says "I don't care about X", don't ask about X anymore
+- If user says Other, ask a follow-up question to specify what that means
+- Always adapt to the user's responses and update your understanding of the app as you go
 
 ## Current Context
 App: ${appDescription || 'User hasn\'t described their app yet'}
@@ -651,7 +718,7 @@ When you have enough information (usually after 4-6 contextual questions), gener
 
 ## Available Tools
 You have access to these tools:
-- **save_project_prd** - Create a project and save the PRD to it. Use this when the user confirms they want to create the project.
+- **save_project_prd** - Create a project and save the PRD to it. Use this when the user confirms they want to create the project, if project space is enabled/installed. Ask for Local Directory to save to if possible.
 - **finalize_planning** - Signal that planning is complete. Use this after generating the PRD.
 - **create_project** - Create a project without PRD
 - **list_projects** - See existing projects

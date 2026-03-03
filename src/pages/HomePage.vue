@@ -121,8 +121,7 @@ onMounted(async () => {
 <template>
   <div class="h-screen overflow-hidden flex items-center justify-center px-6">
     <div class="w-full max-w-4xl">
-
-      <!-- Welcome header -->
+<!-- Welcome header -->
       <div class="mb-10">
         <p class="text-sm text-app-muted tracking-wider">WELCOME BACK,</p>
         <h1 class="text-5xl font-bold text-app mt-1">{{ userName }}</h1>
@@ -201,8 +200,7 @@ onMounted(async () => {
           </button>
         </div>
       </div>
-
-    </div>
+</div>
 
     <!-- Space Picker Modal -->
     <Teleport to="body">
