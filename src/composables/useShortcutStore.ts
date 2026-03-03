@@ -33,6 +33,14 @@ export const SHORTCUT_REGISTRY: ShortcutDef[] = [
   { id: 'design.redo',      space: 'design', group: 'History', label: 'Redo',                defaultKey: 'cmd+shift+z' },
   { id: 'design.redo2',     space: 'design', group: 'History', label: 'Redo (alternate)',     defaultKey: 'cmd+y' },
   // Design — View
+  // Design — Arrange
+  { id: 'design.bring-forward',  space: 'design', group: 'Arrange', label: 'Bring Forward',       defaultKey: 'cmd+]' },
+  { id: 'design.send-backward',  space: 'design', group: 'Arrange', label: 'Send Backward',       defaultKey: 'cmd+[' },
+  { id: 'design.bring-to-front', space: 'design', group: 'Arrange', label: 'Bring to Front',      defaultKey: 'cmd+shift+]' },
+  { id: 'design.send-to-back',   space: 'design', group: 'Arrange', label: 'Send to Back',        defaultKey: 'cmd+shift+[' },
+  { id: 'design.lock',           space: 'design', group: 'Arrange', label: 'Toggle lock',         defaultKey: 'cmd+shift+l' },
+  { id: 'design.hide',           space: 'design', group: 'Arrange', label: 'Toggle visibility',   defaultKey: 'cmd+shift+h' },
+  // Design — View
   { id: 'design.grid',      space: 'design', group: 'View',    label: 'Toggle grid',         defaultKey: "cmd+'" },
   { id: 'design.rulers',    space: 'design', group: 'View',    label: 'Toggle rulers',       defaultKey: 'cmd+shift+r' },
   { id: 'design.snap',      space: 'design', group: 'View',    label: 'Toggle snap',         defaultKey: 'cmd+shift+s' },
