@@ -723,10 +723,12 @@ export function useContextService(): UseContextServiceReturn {
   }
 
   async function chatStream(request: ChatRequest, onChunk: (chunk: ContextStreamChunk) => void, options?: { signal?: AbortSignal }): Promise<void> {
+    console.log('[chatStream] called, isTauri:', isTauri.value, 'connected:', connected.value, 'model:', request.model, 'space:', request.space)
     if (isTauri.value) {
       let unlisten: (() => void) | null = null
       try {
         const { listen } = await import('@tauri-apps/api/event')
+        console.log('[chatStream] event listener imported OK')
 
         // Set up the listener BEFORE invoking the Tauri command to prevent
         // a race where the stream completes before unlistenFn is assigned.
@@ -736,6 +738,7 @@ export function useContextService(): UseContextServiceReturn {
           const finish = (error?: string) => {
             if (isDone) return
             isDone = true
+            console.log('[chatStream] finish called, error:', error || 'none')
             if (unlisten) { unlisten(); unlisten = null }
             if (error) {
               reject(new Error(error))
@@ -748,46 +751,55 @@ export function useContextService(): UseContextServiceReturn {
           // can exit, preventing zombie listeners when the user clicks Stop or navigates away.
           if (options?.signal) {
             if (options.signal.aborted) {
+              console.log('[chatStream] signal already aborted, finishing')
               finish()
               return
             }
-            options.signal.addEventListener('abort', () => finish(), { once: true })
+            options.signal.addEventListener('abort', () => { console.log('[chatStream] abort signal received'); finish() }, { once: true })
           }
 
           listen<ContextStreamChunk>('chat-stream-chunk', (event) => {
             if (isDone) return
             // Skip delivering chunks if the caller has been aborted (e.g. component unmounted)
             if (options?.signal?.aborted) {
+              console.log('[chatStream] chunk received but signal aborted')
               finish()
               return
             }
+            console.log('[chatStream] chunk received:', event.payload.done ? 'DONE' : (event.payload.content?.slice(0, 50) || '(empty)'), 'error:', event.payload.error || 'none')
             onChunk(event.payload)
             if (event.payload.done || event.payload.error) {
               finish(event.payload.error)
             }
           }).then((fn) => {
             unlisten = fn
+            console.log('[chatStream] event listener registered')
             // If stream already finished before listener was assigned, clean up immediately
             if (isDone) {
               unlisten()
               unlisten = null
             }
-          }).catch((err) => finish(err instanceof Error ? err.message : 'Listener setup failed'))
+          }).catch((err) => { console.error('[chatStream] listener setup failed:', err); finish(err instanceof Error ? err.message : 'Listener setup failed') })
         })
 
         // Start the streaming request AFTER listener is registered
+        console.log('[chatStream] invoking chat_stream command...')
         await tauriInvoke('chat_stream', {
           model: request.model,
           messages: request.messages,
           token: request.token || null,
           agent_id: request.agent_id || null,
+          space: request.space || null,
           local_data: resolveLocalData(request),
           max_iterations: request.max_iterations || null,
         })
+        console.log('[chatStream] chat_stream invoke returned OK')
 
         // Wait for streaming to complete
         await streamComplete
+        console.log('[chatStream] streamComplete resolved')
       } catch (error) {
+        console.error('[chatStream] ERROR:', error)
         // Ensure listener is cleaned up on any error path.
         // Cast needed: TS can't track that .then() callback mutates unlisten.
         const fn = unlisten as (() => void) | null
@@ -1016,6 +1028,7 @@ export function useContextService(): UseContextServiceReturn {
             tool_choice: request.tool_choice || 'auto',
             token: request.token || null,
             agent_id: request.agent_id || null,
+            space: request.space || null,
             local_data: resolveLocalData(request),
             max_iterations: request.max_iterations || null,
           }).catch(reject)

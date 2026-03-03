@@ -179,16 +179,20 @@ export function useSpaceContext() {
    * meaningful state. This is a heuristic; the actual active space tab
    * is managed by the router/layout, but we can approximate it.
    */
-  const route = useRoute()
+  // useRoute() may return undefined when called outside a component setup context
+  // (e.g. when useSpaceContext is lazily initialized from chatStream).
+  const route = useRoute?.()
 
   const activeSpace = computed((): string => {
-    // Primary: detect from route
-    const path = route.path
-    const projectMatch = path.match(/\/app\/projects\/\d+\/(\w+)/)
-    if (projectMatch?.[1]) return projectMatch[1]
-    const directMatch = path.match(/\/app\/([a-z][\w-]*)/)
-    if (directMatch?.[1] && !['projects', 'settings', 'marketplace', 'onboarding'].includes(directMatch[1])) {
-      return directMatch[1]
+    // Primary: detect from route (route may be undefined outside setup context)
+    const path = route?.path
+    if (path) {
+      const projectMatch = path.match(/\/app\/projects\/\d+\/(\w+)/)
+      if (projectMatch?.[1]) return projectMatch[1]
+      const directMatch = path.match(/\/app\/([a-z][\w-]*)/)
+      if (directMatch?.[1] && !['projects', 'settings', 'marketplace', 'onboarding'].includes(directMatch[1])) {
+        return directMatch[1]
+      }
     }
     // Fallback: heuristic
     if (codeState.currentFile) return 'code'

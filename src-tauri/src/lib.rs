@@ -2165,6 +2165,7 @@ async fn chat_stream(
     messages: Vec<serde_json::Value>,
     token: Option<String>,
     agent_id: Option<String>,              // Agent ID from registry (e.g. "design")
+    space: Option<String>,                 // Space name (e.g. "architect", "code", "design")
     local_data: Option<serde_json::Value>, // Frontend-provided local data (designs, canvas state, etc.)
     max_iterations: Option<i32>,           // Override max agentic loop iterations
 ) -> Result<(), String> {
@@ -2222,6 +2223,7 @@ async fn chat_stream(
                 "messages": messages,
                 "token": token.unwrap_or_default(),
                 "agent_id": agent_id.unwrap_or_default(),
+                "space": space.unwrap_or_default(),
                 "local_data": local_data,
                 "max_iterations": max_iterations.unwrap_or(0)
             })),
@@ -2830,11 +2832,6 @@ pub fn run() {
             if let Ok(menu) = build_app_menu(app.handle(), "default") {
                 let _ = app.set_menu(menu);
             }
-            // Open devtools in debug/devtools builds
-            #[cfg(feature = "devtools")]
-            if let Some(window) = app.get_webview_window("main") {
-                window.open_devtools();
-            }
             Ok(())
         })
         .on_menu_event(|app, event| {
@@ -2913,13 +2910,13 @@ pub fn run() {
                     let _ = app.emit("menu:settings", ());
                 }
                 "documentation" => {
-                    let _ = app.opener().open_url("https://construct.app/docs", None::<&str>);
+                    let _ = app.opener().open_url("https://construct.ninja/docs", None::<&str>);
                 }
                 "keyboard_shortcuts" => {
                     let _ = app.emit("menu:keyboard-shortcuts", ());
                 }
                 "report_issue" => {
-                    let _ = app.opener().open_url("https://github.com/construct-base/construct-releases/issues", None::<&str>);
+                    let _ = app.opener().open_url("https://github.com/construct-space/construct-releases/issues", None::<&str>);
                 }
                 _ => {}
             }

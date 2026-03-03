@@ -244,10 +244,12 @@ export const useAuthStore = defineStore('auth', {
       user: AuthUserData | null
       token: string | null
       isAuthenticated: boolean
-    }) {
+    }, { setAuthenticated = true } = {}) {
       this.user = authState.user
       this.token = authState.token
-      this.isAuthenticated = authState.isAuthenticated
+      if (setAuthenticated) {
+        this.isAuthenticated = authState.isAuthenticated
+      }
 
       if (this.token) {
         import('@/composables/useApi').then(({ useApi }) => {
@@ -262,11 +264,15 @@ export const useAuthStore = defineStore('auth', {
 
       try {
         // Phase 1 (SYNC): Read from localStorage — instant
+        // Restore token/user but DON'T set isAuthenticated yet.
+        // checkAuth() will set it after server validation.
+        // This prevents Vue watchers from firing premature API calls
+        // with an expired token.
         const stored = localStorage.getItem('cp_auth')
 
         if (stored) {
           const authState = JSON.parse(stored)
-          this._applyAuthState(authState)
+          this._applyAuthState(authState, { setAuthenticated: false })
         } else {
           // Check for legacy token
           const legacyToken = localStorage.getItem('cp_auth_token')
@@ -336,7 +342,8 @@ export const useAuthStore = defineStore('auth', {
         if (sqliteState) {
           const authState = JSON.parse(sqliteState)
           if (authState.token) {
-            this._applyAuthState(authState)
+            // Only update credentials; isAuthenticated is managed by checkAuth()
+            this._applyAuthState(authState, { setAuthenticated: false })
             localStorage.setItem('cp_auth', sqliteState)
           }
         }

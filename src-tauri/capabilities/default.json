@@ -15,7 +15,8 @@
     {
       "identifier": "shell:allow-execute",
       "allow": [
-        { "name": "tar", "cmd": "tar", "args": true }
+        { "name": "tar", "cmd": "tar", "args": true },
+        { "name": "curl", "cmd": "curl", "args": true }
       ]
     },
     "fs:default",
