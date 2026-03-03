@@ -12,7 +12,6 @@ const route = useRoute()
 const router = useRouter()
 const { breadcrumbs } = useToolbar()
 const projectStore = useProjectStore()
-const usersStore = useUsersStore()
 
 const routeLabels: Record<string, string> = {
   'index': 'HOME',
@@ -78,18 +77,6 @@ const displayBreadcrumbs = computed(() => {
     } else if (prevSegment === 'projects' && projectStore.currentProject) {
       crumbs.push({
         label: projectStore.currentProject.name.toUpperCase(),
-        to: isLast ? undefined : buildPath
-      })
-    } else if (prevSegment === 'users' && !isNaN(Number(segment))) {
-      const userId = Number(segment)
-      const user = usersStore.selectedUser?.id === userId
-        ? usersStore.selectedUser
-        : usersStore.userById(userId)
-      const userName = user
-        ? `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username
-        : segment
-      crumbs.push({
-        label: userName.toUpperCase(),
         to: isLast ? undefined : buildPath
       })
     } else {

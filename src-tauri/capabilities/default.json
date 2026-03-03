@@ -12,6 +12,12 @@
     "shell:allow-spawn",
     "shell:allow-execute",
     "shell:default",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        { "name": "tar", "cmd": "tar", "args": true }
+      ]
+    },
     "fs:default",
     "fs:allow-read-dir",
     "fs:allow-read-file",
@@ -69,6 +75,10 @@
     "opener:allow-open-url",
     "deep-link:default",
     "sql:default",
+    "sql:allow-load",
+    "sql:allow-execute",
+    "sql:allow-select",
+    "sql:allow-close",
     "core:webview:allow-create-webview-window"
   ]
 }

@@ -83,6 +83,7 @@ export function useSpaces() {
 
   /**
    * Scan ~/.construct/spaces/ for installed manifests.
+   * Filters out spaces disabled in marketplace settings.
    */
   const loadFromDisk = async () => {
     try {
@@ -97,6 +98,9 @@ export function useSpaces() {
         return
       }
 
+      // Read disabled spaces from marketplace state
+      const disabledIds = getDisabledSpaceIds()
+
       const entries = await readDir(spacesDir)
       const diskSpaces: SpaceConfig[] = []
 
@@ -108,6 +112,8 @@ export function useSpaces() {
         try {
           const manifestJson = await readTextFile(manifestPath)
           const manifest = JSON.parse(manifestJson)
+          const id = (manifest.id as string) || entry.name
+          if (disabledIds.has(id)) continue
           diskSpaces.push(manifestToSpaceConfig(manifest))
         } catch {
           // Skip spaces with broken manifests
@@ -134,6 +140,18 @@ export function useSpaces() {
     loadSpaces,
     hasSpace,
     getSpace,
+  }
+}
+
+/** Read disabled space IDs from marketplace localStorage state */
+function getDisabledSpaceIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem('construct:installed_spaces')
+    if (!raw) return new Set()
+    const items = JSON.parse(raw) as { id: string; enabled: boolean }[]
+    return new Set(items.filter(s => s.enabled === false).map(s => s.id))
+  } catch {
+    return new Set()
   }
 }
 

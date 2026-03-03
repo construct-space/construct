@@ -43,17 +43,26 @@ type Database = Awaited<ReturnType<typeof import('@tauri-apps/plugin-sql')['defa
 
 let _db: Database | null = null
 let _dbPromise: Promise<Database> | null = null
+let _dbFailed = false
 
 async function getDb(): Promise<Database> {
+  if (_dbFailed) throw new Error('SQL plugin unavailable')
   if (_db) return _db
   if (_dbPromise) return _dbPromise
 
   _dbPromise = (async () => {
-    const Database = (await import('@tauri-apps/plugin-sql')).default
-    const db = await Database.load(DB_NAME)
-    await migrate(db)
-    _db = db
-    return db
+    try {
+      const Database = (await import('@tauri-apps/plugin-sql')).default
+      const db = await Database.load(DB_NAME)
+      await migrate(db)
+      _db = db
+      return db
+    } catch (e) {
+      _dbFailed = true
+      _dbPromise = null
+      console.warn('[Telemetry] SQL plugin unavailable — telemetry disabled for this session')
+      throw e
+    }
   })()
 
   return _dbPromise
@@ -126,16 +135,38 @@ export function setTelemetryConsent(enabled: boolean) {
 
 // ─── Background API sync ─────────────────────────────────────────────────────
 
-async function getAuthToken(): Promise<string | null> {
+function getAuthToken(): string | null {
+  try {
+    const authState = localStorage.getItem('cp_auth')
+    if (authState) {
+      const parsed = JSON.parse(authState)
+      if (parsed.token) return parsed.token
+    }
+  } catch { /* ignore */ }
+  // Fallback to legacy key
   return localStorage.getItem('cp_auth_token')
+}
+
+/** Check if the user appears to be authenticated (auth state exists) */
+function isAuthenticated(): boolean {
+  const authState = localStorage.getItem('cp_auth')
+  if (!authState) return false
+  try {
+    const parsed = JSON.parse(authState)
+    return !!(parsed.token || parsed.accessToken)
+  } catch {
+    return false
+  }
 }
 
 async function syncToApi(): Promise<void> {
   if (!isTelemetryEnabled()) return
+  if (!isAuthenticated()) return
+  if (_dbFailed) return
 
   try {
-    const token = await getAuthToken()
-    if (!token) return // not logged in, skip sync
+    const token = getAuthToken()
+    if (!token) return
 
     const data = await getStoredData()
     if (!data || (data.sessions.total === 0 && Object.keys(data.screenViews).length === 0)) return
@@ -148,15 +179,36 @@ async function syncToApi(): Promise<void> {
         'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify(data),
+      keepalive: true, // survives page unload
     })
 
     if (response.ok) {
-      // Mark sessions as synced
       const db = await getDb()
       await db.execute(`UPDATE sessions SET synced = 1 WHERE synced = 0`)
     }
+    // 401/403 are expected when token is expired — don't log
   } catch {
     // Silent failure — telemetry sync should never disrupt the user
+  }
+}
+
+// ─── Periodic background sync ───────────────────────────────────────────────
+
+const SYNC_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
+let _syncTimer: ReturnType<typeof setInterval> | null = null
+
+function startPeriodicSync(): void {
+  if (_syncTimer) return
+  // Initial sync after 30s (gives auth time to settle)
+  setTimeout(() => syncToApi(), 30_000)
+  // Then every 5 minutes
+  _syncTimer = setInterval(() => syncToApi(), SYNC_INTERVAL_MS)
+}
+
+function stopPeriodicSync(): void {
+  if (_syncTimer) {
+    clearInterval(_syncTimer)
+    _syncTimer = null
   }
 }
 
@@ -252,9 +304,7 @@ async function trackSessionStart(): Promise<void> {
       [new Date().toISOString()]
     )
     _currentSessionId = result.lastInsertId ?? null
-
-    // Background sync — fire and forget
-    syncToApi()
+    startPeriodicSync()
   } catch (e) {
     console.error('[Telemetry] trackSessionStart failed:', e)
   }
@@ -271,7 +321,8 @@ async function trackSessionEnd(): Promise<void> {
       )
     }
 
-    // Background sync — fire and forget
+    stopPeriodicSync()
+    // Final sync — keepalive ensures it survives page unload
     syncToApi()
   } catch (e) {
     console.error('[Telemetry] trackSessionEnd failed:', e)

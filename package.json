@@ -23,6 +23,7 @@
     "tauri:build:universal": "bash scripts/build-context-universal.sh && cargo tauri build --target universal-apple-darwin"
   },
   "dependencies": {
+    "@construct-space/sdk": "file:../construct-sdk",
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/plugin-deep-link": "^2.4.7",
     "@tauri-apps/plugin-dialog": "2.6.0",

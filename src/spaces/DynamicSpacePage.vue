@@ -90,11 +90,28 @@ function applyLoaded(loaded: LoadedSpace | null) {
   }
 }
 
+/** Check if a space is disabled in marketplace settings */
+function isSpaceDisabled(spaceId: string): boolean {
+  try {
+    const raw = localStorage.getItem('construct:installed_spaces')
+    if (!raw) return false
+    const items = JSON.parse(raw) as { id: string; enabled: boolean }[]
+    const entry = items.find(s => s.id === spaceId)
+    return entry?.enabled === false
+  } catch {
+    return false
+  }
+}
+
 /** Load the space on mount and when spaceName changes */
 async function load() {
   loading.value = true
   error.value = null
   try {
+    if (isSpaceDisabled(props.spaceName)) {
+      error.value = `Space "${props.spaceName}" is disabled. Enable it in Settings > Spaces.`
+      return
+    }
     const loaded = await loadSpace(props.spaceName)
     applyLoaded(loaded)
   } catch (err) {

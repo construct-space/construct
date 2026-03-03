@@ -23,7 +23,8 @@ const { spaces, loadSpaces } = useSpaces()
 
 const showUserMenu = ref(false)
 
-// Load spaces on mount
+// Load spaces on mount + listen for changes from marketplace
+const onSpacesChanged = () => { loadSpaces() }
 onMounted(async () => {
   if (spaces.value.length === 0) {
     await loadSpaces()
@@ -31,6 +32,10 @@ onMounted(async () => {
   if (pinnedStore.items.length === 0) {
     await pinnedStore.init()
   }
+  window.addEventListener('construct:spaces-changed', onSpacesChanged)
+})
+onUnmounted(() => {
+  window.removeEventListener('construct:spaces-changed', onSpacesChanged)
 })
 
 const userInitials = computed(() => {

@@ -15,6 +15,7 @@ const router = useRouter()
 const { spaces, loadSpaces } = useSpaces()
 const pinnedStore = usePinnedStore()
 
+const onSpacesChanged = () => { loadSpaces() }
 onMounted(async () => {
   if (spaces.value.length === 0) {
     await loadSpaces()
@@ -22,6 +23,10 @@ onMounted(async () => {
   if (pinnedStore.items.length === 0) {
     await pinnedStore.init()
   }
+  window.addEventListener('construct:spaces-changed', onSpacesChanged)
+})
+onUnmounted(() => {
+  window.removeEventListener('construct:spaces-changed', onSpacesChanged)
 })
 
 const spaceCards = computed(() => {

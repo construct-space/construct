@@ -140,12 +140,15 @@ export function useSpaceMarketplace() {
     error.value = null
     try {
       // Try portal API first (primary)
-      const registryRes = await fetch(`${appConfig.spacesRegistryUrl}/api/registry`)
-      if (registryRes.ok) {
-        const data: RegistryResponse = await registryRes.json()
-        remote.value = (data.spaces || []).map(registryToRemote)
-        return
-      }
+      try {
+        const registryRes = await fetch(`${appConfig.spacesRegistryUrl}/registry`)
+        if (registryRes.ok) {
+          const data: RegistryResponse = await registryRes.json()
+          remote.value = (data.spaces || []).map(registryToRemote)
+          return
+        }
+      } catch { /* primary failed, try fallback */ }
+
       // Fall back to GitHub-hosted index
       const indexRes = await fetch(appConfig.spacesIndexUrl)
       if (indexRes.ok) {
@@ -170,10 +173,59 @@ export function useSpaceMarketplace() {
   }
 
   /**
-   * Load installed spaces from localStorage + validate against disk.
+   * Load installed spaces by scanning ~/.construct/spaces/ on disk,
+   * then merging any marketplace metadata from localStorage.
    */
   async function fetchInstalled(): Promise<void> {
-    installed.value = readInstalledFromStorage()
+    try {
+      const { readTextFile, readDir, exists } = await import('@tauri-apps/plugin-fs')
+      const { homeDir } = await import('@tauri-apps/api/path')
+
+      const home = await homeDir()
+      const spacesDir = `${home}/.construct/spaces`
+
+      if (!(await exists(spacesDir))) {
+        installed.value = []
+        return
+      }
+
+      const entries = await readDir(spacesDir)
+      const storedMeta = readInstalledFromStorage()
+      const metaMap = new Map(storedMeta.map(s => [s.id, s]))
+      const diskSpaces: InstalledSpace[] = []
+
+      for (const entry of entries) {
+        if (!entry.isDirectory || !entry.name) continue
+        const manifestPath = `${spacesDir}/${entry.name}/manifest.json`
+        if (!(await exists(manifestPath))) continue
+
+        try {
+          const raw = await readTextFile(manifestPath)
+          const manifest = JSON.parse(raw)
+          const id = manifest.id || entry.name
+          const existing = metaMap.get(id)
+
+          diskSpaces.push({
+            id,
+            name: id,
+            display_name: manifest.name || id,
+            version: manifest.version || '0.0.0',
+            enabled: existing?.enabled ?? true,
+            installed_at: existing?.installed_at || '',
+            has_update: existing?.has_update ?? false,
+            latest_version: existing?.latest_version,
+          })
+        } catch {
+          // Skip spaces with broken manifests
+        }
+      }
+
+      installed.value = diskSpaces
+      saveInstalledToStorage(diskSpaces)
+    } catch {
+      // Fallback to localStorage if disk scan fails
+      installed.value = readInstalledFromStorage()
+    }
   }
 
   /**
@@ -193,7 +245,10 @@ export function useSpaceMarketplace() {
       }
 
       // Download and extract via Tauri FS
-      const tarballUrl = `https://raw.githubusercontent.com/construct-base/space-releases/main/${registrySpace.tarball}`
+      // tarball field is a full URL (GitHub Release asset)
+      const tarballUrl = registrySpace.tarball.startsWith('http')
+        ? registrySpace.tarball
+        : `https://raw.githubusercontent.com/construct-space/space-releases/main/${registrySpace.tarball}`
       await downloadAndExtract(spaceId, tarballUrl)
 
       // Add to installed list
@@ -214,6 +269,10 @@ export function useSpaceMarketplace() {
       saveInstalledToStorage(current)
 
       console.log(`[Marketplace] Installed ${spaceId} v${registrySpace.version}`)
+
+      // Notify sidebar to refresh
+      window.dispatchEvent(new CustomEvent('construct:spaces-changed'))
+
       return true
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
@@ -242,6 +301,18 @@ export function useSpaceMarketplace() {
       installed.value = current
       saveInstalledToStorage(current)
 
+      // Remove from pinned sidebar
+      try {
+        const { usePinnedStore } = await import('@/stores/pinned')
+        const pinnedStore = usePinnedStore()
+        if (pinnedStore.isPinned(spaceId)) {
+          await pinnedStore.removePin(spaceId)
+        }
+      } catch { /* ignore */ }
+
+      // Notify sidebar to refresh
+      window.dispatchEvent(new CustomEvent('construct:spaces-changed'))
+
       return true
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to uninstall space'
@@ -260,6 +331,7 @@ export function useSpaceMarketplace() {
     if (space) {
       space.enabled = true
       saveInstalledToStorage(installed.value)
+      window.dispatchEvent(new CustomEvent('construct:spaces-changed'))
     }
     return true
   }
@@ -269,6 +341,21 @@ export function useSpaceMarketplace() {
     if (space) {
       space.enabled = false
       saveInstalledToStorage(installed.value)
+
+      // Remove from pinned sidebar when disabled
+      try {
+        const { usePinnedStore } = await import('@/stores/pinned')
+        const pinnedStore = usePinnedStore()
+        // Remove all pins for this space (global and project-scoped)
+        const spacePins = pinnedStore.items.filter(
+          p => p.type === 'space' && p.metadata?.spaceId === spaceId
+        )
+        for (const pin of spacePins) {
+          await pinnedStore.removePin(pin.id)
+        }
+      } catch { /* ignore */ }
+
+      window.dispatchEvent(new CustomEvent('construct:spaces-changed'))
     }
     return true
   }
@@ -357,7 +444,7 @@ export async function autoInstallRecommended(): Promise<void> {
     // Fetch registry
     let registrySpaces: RegistrySpace[] = []
     try {
-      const res = await fetch(`${appConfig.spacesRegistryUrl}/api/registry`)
+      const res = await fetch(`${appConfig.spacesRegistryUrl}/registry`)
       if (res.ok) {
         const data: RegistryResponse = await res.json()
         registrySpaces = data.spaces || []
@@ -401,19 +488,19 @@ export async function autoInstallRecommended(): Promise<void> {
   }
 }
 
-/** Find a space entry in the registry index */
+/** Find a space entry in the registry index (must include tarball for install) */
 async function findRegistrySpace(spaceId: string): Promise<RegistrySpace | null> {
   // Try portal API first
   try {
-    const res = await fetch(`${appConfig.spacesRegistryUrl}/api/registry`)
+    const res = await fetch(`${appConfig.spacesRegistryUrl}/registry`)
     if (res.ok) {
       const data: RegistryResponse = await res.json()
       const found = data.spaces?.find(s => s.id === spaceId)
-      if (found) return found
+      if (found?.tarball) return found
     }
   } catch { /* ignore */ }
 
-  // Fallback to GitHub index
+  // Fallback to GitHub index (has tarball paths)
   try {
     const res = await fetch(appConfig.spacesIndexUrl)
     if (!res.ok) return null
@@ -456,5 +543,17 @@ async function downloadAndExtract(spaceId: string, tarballUrl: string): Promise<
   const output = await cmd.execute()
   if (output.code !== 0) {
     throw new Error(`tar extract failed: ${output.stderr}`)
+  }
+
+  // Tarballs contain files in dist/ subdirectory — flatten to space root
+  const { readDir, rename, remove } = await import('@tauri-apps/plugin-fs')
+  const distDir = `${spaceDir}/dist`
+  if (await exists(distDir)) {
+    const entries = await readDir(distDir)
+    for (const entry of entries) {
+      if (!entry.name) continue
+      await rename(`${distDir}/${entry.name}`, `${spaceDir}/${entry.name}`)
+    }
+    await remove(distDir, { recursive: true })
   }
 }
