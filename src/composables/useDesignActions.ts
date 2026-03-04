@@ -3,6 +3,10 @@
  *
  * Provides a reactive channel for AI-generated design actions to be
  * communicated between AssistantFloat and the UI canvas.
+ *
+ * IMPORTANT: This is the single source of truth for design actions.
+ * Space IIFE bundles (space-design) import this via @construct/sdk
+ * so both host and space share the same pendingActions ref.
  */
 
 import type { DesignNode } from '~/types/design'
@@ -65,47 +69,147 @@ export function consumeDesignActions(): DesignAction[] {
 }
 
 /**
- * Normalize element properties from snake_case to camelCase
- * AI sends snake_case, canvas expects camelCase
+ * Normalize element properties from snake_case to camelCase.
+ * AI sends snake_case, canvas expects camelCase.
+ * Also coerces numeric and boolean fields to correct types.
  */
 function normalizeElement(elem: Record<string, unknown>): DesignNode {
   const normalized = { ...elem } as Record<string, unknown>
 
   // Convert snake_case properties to camelCase
-  if ('image_url' in normalized) {
-    normalized.imageUrl = normalized.image_url
-    delete normalized.image_url
+  const snakeToCamelMap: Record<string, string> = {
+    image_url: 'imageUrl',
+    path_data: 'pathData',
+    corner_radius: 'cornerRadius',
+    stroke_width: 'strokeWidth',
+    stroke_sides: 'strokeSides',
+    stroke_dash_array: 'strokeDashArray',
+    stroke_line_cap: 'strokeLineCap',
+    stroke_line_join: 'strokeLineJoin',
+    stroke_miter_limit: 'strokeMiterLimit',
+    stroke_dash_offset: 'strokeDashOffset',
+    stroke_uniform: 'strokeUniform',
+    paint_first: 'paintFirst',
+    font_size: 'fontSize',
+    font_weight: 'fontWeight',
+    font_family: 'fontFamily',
+    font_style: 'fontStyle',
+    text_sizing_mode: 'textSizingMode',
+    text_resize_mode: 'textSizingMode',
+    text_auto_resize: 'textSizingMode',
+    text_align: 'textAlign',
+    line_height: 'lineHeight',
+    letter_spacing: 'letterSpacing',
+    text_background_color: 'textBackgroundColor',
+    text_transform: 'textTransform',
+    parent_id: 'parentId',
+    child_ids: 'childIds',
+    z_index: 'zIndex',
+    object_position_x: 'objectPositionX',
+    object_position_y: 'objectPositionY',
+    crop_top: 'cropTop',
+    crop_right: 'cropRight',
+    crop_bottom: 'cropBottom',
+    crop_left: 'cropLeft',
+    crop_x: 'cropX',
+    crop_y: 'cropY',
+    prototype_link_target: 'prototypeLinkTarget',
+    prototype_link_page_id: 'prototypeLinkPageId',
+    prototype_trigger: 'prototypeTrigger',
+    prototype_interactions: 'prototypeInteractions',
+    is_component: 'isComponent',
+    component_states: 'componentStates',
+    active_state_id: 'activeStateId',
+    component_id: 'componentId',
+    nine_slice_insets: 'nineSliceInsets',
   }
-  if ('path_data' in normalized) {
-    normalized.pathData = normalized.path_data
-    delete normalized.path_data
+  for (const [snakeKey, camelKey] of Object.entries(snakeToCamelMap)) {
+    if (!(snakeKey in normalized)) continue
+    normalized[camelKey] = normalized[snakeKey]
+    delete normalized[snakeKey]
   }
-  if ('corner_radius' in normalized) {
-    normalized.cornerRadius = normalized.corner_radius
-    delete normalized.corner_radius
+
+  const toFiniteNumber = (value: unknown): number | null => {
+    if (typeof value === 'number') return Number.isFinite(value) ? value : null
+    if (typeof value === 'string') {
+      const parsed = Number.parseFloat(value.trim().replace(',', '.').replace('%', ''))
+      return Number.isFinite(parsed) ? parsed : null
+    }
+    return null
   }
-  if ('stroke_width' in normalized) {
-    normalized.strokeWidth = normalized.stroke_width
-    delete normalized.stroke_width
+
+  const toBoolean = (value: unknown): boolean | null => {
+    if (typeof value === 'boolean') return value
+    if (typeof value === 'number' && Number.isFinite(value)) return value !== 0
+    if (typeof value === 'string') {
+      const v = value.trim().toLowerCase()
+      if (v === 'true' || v === '1' || v === 'yes' || v === 'on') return true
+      if (v === 'false' || v === '0' || v === 'no' || v === 'off') return false
+    }
+    return null
   }
-  if ('font_size' in normalized) {
-    normalized.fontSize = normalized.font_size
-    delete normalized.font_size
+
+  const numericKeys = [
+    'x', 'y', 'width', 'height', 'rotation', 'opacity', 'strokeWidth',
+    'fontSize', 'lineHeight', 'letterSpacing', 'x2', 'y2', 'sides', 'points', 'innerRadius',
+    'skewX', 'skewY', 'blur', 'strokeMiterLimit', 'strokeDashOffset',
+    'objectPositionX', 'objectPositionY',
+    'cropTop', 'cropRight', 'cropBottom', 'cropLeft', 'cropX', 'cropY', 'zIndex',
+  ]
+  for (const key of numericKeys) {
+    if (!(key in normalized)) continue
+    const parsed = toFiniteNumber(normalized[key])
+    if (parsed !== null) {
+      normalized[key] = parsed
+    }
   }
-  if ('font_weight' in normalized) {
-    normalized.fontWeight = normalized.font_weight
-    delete normalized.font_weight
+
+  const booleanKeys = [
+    'visible', 'locked', 'flipX', 'flipY', 'strokeUniform',
+    'underline', 'overline', 'linethrough', 'isComponent',
+  ]
+  for (const key of booleanKeys) {
+    if (!(key in normalized)) continue
+    const parsed = toBoolean(normalized[key])
+    if (parsed !== null) normalized[key] = parsed
   }
-  if ('text_align' in normalized) {
-    normalized.textAlign = normalized.text_align
-    delete normalized.text_align
+
+  if (normalized.strokeSides && typeof normalized.strokeSides === 'object') {
+    const strokeSides = normalized.strokeSides as {
+      top?: unknown
+      right?: unknown
+      bottom?: unknown
+      left?: unknown
+    }
+    normalized.strokeSides = {
+      top: toBoolean(strokeSides.top) ?? false,
+      right: toBoolean(strokeSides.right) ?? false,
+      bottom: toBoolean(strokeSides.bottom) ?? false,
+      left: toBoolean(strokeSides.left) ?? false,
+    }
   }
-  if ('parent_id' in normalized) {
-    normalized.parentId = normalized.parent_id
-    delete normalized.parent_id
+
+  if (Array.isArray(normalized.cornerRadius)) {
+    normalized.cornerRadius = normalized.cornerRadius.map((item) => {
+      const parsed = toFiniteNumber(item)
+      return parsed ?? 0
+    })
+  } else if ('cornerRadius' in normalized) {
+    const parsed = toFiniteNumber(normalized.cornerRadius)
+    if (parsed !== null) normalized.cornerRadius = parsed
+  }
+
+  if (Array.isArray(normalized.strokeDashArray)) {
+    normalized.strokeDashArray = normalized.strokeDashArray
+      .map((item) => toFiniteNumber(item))
+      .filter((item): item is number => item !== null)
   }
 
   return normalized as unknown as DesignNode
+}
+
+function normalizeElementUpdates(updates: Record<string, unknown>): Partial<DesignNode> {
+  return normalizeElement(updates) as Partial<DesignNode>
 }
 
 /**
@@ -133,10 +237,13 @@ export function parseToolResult(resultContent: string): boolean {
     }
 
     if (data.action === 'update_element' && data.element_id) {
+      const rawUpdates = (data.updates && typeof data.updates === 'object')
+        ? data.updates as Record<string, unknown>
+        : {}
       queueDesignAction({
         type: 'update_element',
         elementId: data.element_id,
-        updates: data.updates,
+        updates: normalizeElementUpdates(rawUpdates),
       })
       return true
     }

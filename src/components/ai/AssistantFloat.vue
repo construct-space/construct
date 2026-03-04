@@ -48,7 +48,7 @@ interface DocCacheItem { content: string; title: string; type: string; id: numbe
 // These defaults are used when a space is not installed.
 const useCodeEditor = (() => ({
   state: { rootPath: '', currentFile: '', fileContent: '', currentLanguage: '', fileTree: [] as FileTreeEntry[] },
-  selection: ref<string | null>(null),
+  selection: ref<{ text: string; startLine: number; endLine: number } | null>(null),
   loadDirectory: (..._args: unknown[]) => Promise.resolve(),
   selectFile: () => {},
   openFolder: () => {},

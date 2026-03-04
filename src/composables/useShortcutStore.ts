@@ -55,6 +55,14 @@ export const SHORTCUT_REGISTRY: ShortcutDef[] = [
   // Code — AI
   { id: 'code.ai-edit',         space: 'code', group: 'AI',     label: 'AI edit selection',   defaultKey: 'cmd+k' },
   { id: 'code.ai-assistant',    space: 'code', group: 'AI',     label: 'AI assistant',        defaultKey: 'cmd+l' },
+  // Code — View
+  { id: 'code.toggle-terminal', space: 'code', group: 'View',   label: 'Toggle terminal',     defaultKey: 'cmd+`' },
+  { id: 'code.toggle-sidebar',  space: 'code', group: 'View',   label: 'Toggle sidebar',      defaultKey: 'cmd+b' },
+  { id: 'code.quick-open',      space: 'code', group: 'View',   label: 'Quick open file',     defaultKey: 'cmd+p' },
+  // Code — Tabs
+  { id: 'code.next-tab',        space: 'code', group: 'Tabs',   label: 'Next tab',            defaultKey: 'ctrl+tab' },
+  { id: 'code.prev-tab',        space: 'code', group: 'Tabs',   label: 'Previous tab',        defaultKey: 'ctrl+shift+tab' },
+  { id: 'code.close-tab',       space: 'code', group: 'Tabs',   label: 'Close tab',           defaultKey: 'cmd+w',       readonly: true },
   // Code — Run
   { id: 'code.hotreload',       space: 'code', group: 'Run',    label: 'Hot reload',          defaultKey: 'r' },
   // Git

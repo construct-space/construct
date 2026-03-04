@@ -41,7 +41,7 @@ const useGitRepo = () => ({
 })
 const useCodeEditor = () => ({
   state: { currentFile: '', fileContent: '', currentLanguage: '' },
-  selection: ref<string | null>(null),
+  selection: ref<{ text: string; startLine: number; endLine: number } | null>(null),
 })
 const useUIState = () => ({
   nodes: ref<{ id: string; name?: string }[]>([]),
@@ -64,7 +64,7 @@ export function useSpaceContext() {
   const { currentProject } = storeToRefs(projectStore)
 
   // Space composables use module-level reactive state, so calling them is safe
-  const { state: codeState } = useCodeEditor()
+  const { state: codeState, selection: codeSelection } = useCodeEditor()
   const { nodes, selectedIds } = useUIState()
   const { state: gitState, hasChanges: gitHasChanges } = useGitRepo()
 
@@ -98,11 +98,12 @@ export function useSpaceContext() {
   const codeContext = computed((): SpaceContextCode => {
     const file = codeState.currentFile || null
     const content = codeState.fileContent || ''
+    const sel = codeSelection.value
     return {
       currentFile: file,
       language: file ? (codeState.currentLanguage || null) : null,
-      selectedText: null, // Code editor selection is transient; not stored in state
-      openFiles: file ? [file] : [], // Currently single-file; ready for multi-tab
+      selectedText: sel?.text || null,
+      openFiles: file ? [file] : [],
       filePreview: content
         ? content.slice(0, MAX_FILE_PREVIEW_CHARS) + (content.length > MAX_FILE_PREVIEW_CHARS ? '...' : '')
         : null,

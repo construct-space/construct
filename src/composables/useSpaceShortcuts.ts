@@ -59,6 +59,11 @@ function matchesEvent(e: KeyboardEvent, parsed: ParsedKey): boolean {
     return e.key === "'" || e.code === 'Quote'
   }
 
+  // Backtick key
+  if (target === '`') {
+    return e.key === '`' || e.code === 'Backquote'
+  }
+
   // Letter/digit/other keys — match case-insensitively
   return e.key.toLowerCase() === target.toLowerCase()
 }
