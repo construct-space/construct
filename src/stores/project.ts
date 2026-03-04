@@ -74,32 +74,21 @@ export const useProjectStore = defineStore('project', {
           // Check if it's a valid construct project
           const isConstruct = await projectDir.isConstructProject(entry.path)
 
-          if (isConstruct) {
-            const config = await projectDir.loadProjectConfig(entry.path)
-            projects.push({
-              id: entry.name,
-              name: config?.name || entry.name,
-              path: entry.path,
-              description: config?.description,
-              spaces: (config?.spaces as SpaceType[]) || DEFAULT_SPACES,
-              last_opened_at: this.getRecentTimestamp(entry.path),
-              is_external: false,
-              created_at: config?.created || new Date().toISOString(),
-              updated_at: config?.updated || new Date().toISOString(),
-            })
-          } else {
-            // Non-construct directories still show as projects
-            projects.push({
-              id: entry.name,
-              name: entry.name,
-              path: entry.path,
-              spaces: DEFAULT_SPACES,
-              last_opened_at: this.getRecentTimestamp(entry.path),
-              is_external: false,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            })
-          }
+          // Only show directories that are actual Construct projects
+          if (!isConstruct) continue
+
+          const config = await projectDir.loadProjectConfig(entry.path)
+          projects.push({
+            id: entry.name,
+            name: config?.name || entry.name,
+            path: entry.path,
+            description: config?.description,
+            spaces: (config?.spaces as SpaceType[]) || DEFAULT_SPACES,
+            last_opened_at: this.getRecentTimestamp(entry.path),
+            is_external: false,
+            created_at: config?.created || new Date().toISOString(),
+            updated_at: config?.updated || new Date().toISOString(),
+          })
         }
 
         // Add external projects
