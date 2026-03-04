@@ -2984,6 +2984,57 @@ pub fn run() {
             // Menu commands
             set_app_menu,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(move |app_handle, event| {
+            if let tauri::RunEvent::Exit = event {
+                eprintln!("[app] Exit event — cleaning up child processes...");
+
+                // Kill construct-brain sidecar
+                if let Some(ctx_state) = app_handle.try_state::<SharedContextState>() {
+                    if let Ok(mut ctx) = ctx_state.lock() {
+                        if let Some(child) = ctx.child.take() {
+                            eprintln!("[app] Killing construct-brain sidecar");
+                            let _ = child.kill();
+                        }
+                        ctx.socket = None;
+                        ctx.address = None;
+                    }
+                }
+
+                // Kill all LSP servers
+                if let Some(lsp) = app_handle.try_state::<SharedLspState>() {
+                    if let Ok(mut lsp_state) = lsp.lock() {
+                        for (lang_id, mut server) in lsp_state.servers.drain() {
+                            eprintln!("[app] Killing LSP server for {}", lang_id);
+                            let _ = server.process.kill();
+                        }
+                    }
+                }
+
+                // Kill all shell processes
+                if let Some(procs) = app_handle.try_state::<SharedProcessState>() {
+                    if let Ok(mut proc_state) = procs.lock() {
+                        for (id, mut child) in proc_state.processes.drain() {
+                            eprintln!("[app] Killing shell process {}", id);
+                            let _ = child.kill();
+                            let _ = child.wait();
+                        }
+                    }
+                }
+
+                // PTY sessions are cleaned up when dropped
+                if let Some(pty) = app_handle.try_state::<SharedPtyState>() {
+                    if let Ok(mut pty_state) = pty.lock() {
+                        let count = pty_state.sessions.len();
+                        pty_state.sessions.clear();
+                        if count > 0 {
+                            eprintln!("[app] Cleaned up {} PTY sessions", count);
+                        }
+                    }
+                }
+
+                eprintln!("[app] Cleanup complete");
+            }
+        });
 }
