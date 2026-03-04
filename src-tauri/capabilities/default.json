@@ -46,8 +46,14 @@
         { "path": "$HOME/ConstructProjects/**/.construct" },
         { "path": "$HOME/ConstructProjects/**/.construct/**" },
         { "path": "$DOCUMENT/**" },
+        { "path": "$DOCUMENT/**/.*" },
+        { "path": "$DOCUMENT/**/.*/**" },
         { "path": "$DESKTOP/**" },
+        { "path": "$DESKTOP/**/.*" },
+        { "path": "$DESKTOP/**/.*/**" },
         { "path": "/Volumes/**" },
+        { "path": "/Volumes/**/.*" },
+        { "path": "/Volumes/**/.*/**" },
         { "path": "/tmp/**" }
       ]
     },

@@ -69,7 +69,17 @@ const currentPagePath = computed(() => props.subPage ?? '')
 /** The Vue component to render for the current page */
 const currentPage = computed(() => {
   if (!space.value?.pages) return null
-  return space.value.pages[currentPagePath.value] ?? null
+  // Exact match first
+  if (space.value.pages[currentPagePath.value]) {
+    return space.value.pages[currentPagePath.value]
+  }
+  // Dynamic param match — e.g. ':id' matches any single segment
+  for (const key of Object.keys(space.value.pages)) {
+    if (key.startsWith(':') && currentPagePath.value && !currentPagePath.value.includes('/')) {
+      return space.value.pages[key]
+    }
+  }
+  return null
 })
 
 /** Theme config for the space (colors, icon) */
