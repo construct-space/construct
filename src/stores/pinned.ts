@@ -299,7 +299,7 @@ export const createProjectPin = (project: { id: number | string; name: string; d
   type: 'project',
   name: project.name,
   icon: 'i-lucide-folder',
-  path: project.path ? `/app/code?project=${encodeURIComponent(project.path)}` : '/app',
+  path: `/app/projects/${project.id}/code`,
   metadata: {
     projectId: project.id,
     description: project.description
@@ -331,8 +331,8 @@ export const createSpacePin = (space: { name: string; spaceId: string; projectId
   type: 'space',
   name: space.name,
   icon: space.icon || 'i-lucide-layout-grid',
-  path: space.projectPath
-    ? `/app/${space.spaceId}?project=${encodeURIComponent(space.projectPath)}`
+  path: space.projectId
+    ? `/app/projects/${space.projectId}/${space.spaceId}`
     : `/app/${space.spaceId}`,
   metadata: {
     spaceId: space.spaceId,
@@ -353,8 +353,8 @@ export const createTaskPin = (task: { id: number; title: string; projectId?: num
   type: 'task',
   name: task.title,
   icon: task.priority === 'high' ? 'i-lucide-alert-circle' : task.priority === 'medium' ? 'i-lucide-circle-dot' : 'i-lucide-circle',
-  path: task.projectPath
-    ? `/app/kanban?project=${encodeURIComponent(task.projectPath)}&task=${task.id}`
+  path: task.projectId
+    ? `/app/projects/${task.projectId}/kanban?task=${task.id}`
     : `/app/kanban?task=${task.id}`,
   color: task.priority === 'high' ? 'red' : task.priority === 'medium' ? 'yellow' : undefined,
   metadata: {

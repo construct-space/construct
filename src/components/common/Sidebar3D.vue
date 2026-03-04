@@ -16,9 +16,10 @@ import { getSpace as getSpaceConfig } from '@/config/spaces'
 
 const router = useRouter()
 const route = useRoute()
-const { state, exitSpace } = useSidebar()
+const { state, exitSpace, exitProject } = useSidebar()
 const authStore = useAuthStore()
 const pinnedStore = usePinnedStore()
+const projectStore = useProjectStore()
 const { spaces, loadSpaces } = useSpaces()
 
 const showUserMenu = ref(false)
@@ -73,7 +74,7 @@ const pinnedSpaceNavItems = computed(() => {
   })
 })
 
-// Active route detection — match /app/spaceName*
+// Active route detection — match /app/spaceName* or /app/projects/:id/:spaceName
 const activeId = computed(() => {
   const path = route.path
   if (path === '/app' || path === '/app/') return 'home'
@@ -81,17 +82,28 @@ const activeId = computed(() => {
   if (path === '/app/spaces') return 'all-spaces'
   if (path.startsWith('/app/marketplace')) return 'marketplace'
 
+  // Project-scoped: /app/projects/:id/:spaceName
+  const projectMatch = path.match(/\/app\/projects\/([^/]+)\/([^/]+)/)
+  if (projectMatch?.[2]) return projectMatch[2]
+
   // Match first segment after /app/
   const seg = path.replace('/app/', '').split('/')[0]
   return seg || 'home'
 })
 
-// Rotation angle — 2 panels: main (0deg) and space (-90deg)
+// Rotation angle — main (0deg), space/project (-90deg)
 const rotationY = computed(() => {
-  return state.panel === 'space' ? -90 : 0
+  return (state.panel === 'space' || state.panel === 'project') ? -90 : 0
 })
 
 const goBackToMain = () => {
+  if (state.panel === 'project') {
+    const backRoute = state.projectBackRoute || '/app/projects'
+    projectStore.clearCurrentProject()
+    exitProject()
+    router.push(backRoute)
+    return
+  }
   if (state.spaceBackRoute) {
     router.push(state.spaceBackRoute)
   }
@@ -101,6 +113,14 @@ const goBackToMain = () => {
 const getSpaceIcon = (spaceName: string) => {
   return getSpaceConfig(spaceName).icon || 'i-lucide-circle'
 }
+
+// Auto-exit project mode when route leaves /app/projects/:id/...
+watch(() => route.path, (newPath) => {
+  if (state.panel === 'project' && !newPath.match(/\/app\/projects\/[^/]+\/.+/)) {
+    exitProject()
+    projectStore.clearCurrentProject()
+  }
+})
 </script>
 
 <template>
@@ -184,11 +204,12 @@ const getSpaceIcon = (spaceName: string) => {
           </RouterLink>
         </div>
 
-        <!-- ====== Right Panel (space sub-pages) ====== -->
+        <!-- ====== Right Panel (space sub-pages OR project spaces) ====== -->
         <div
-          class="absolute inset-0 w-full h-full flex flex-col items-center gap-1 pt-2"
+          class="absolute inset-0 w-full h-full flex flex-col items-center gap-1 pt-2 overflow-y-auto scrollbar-none"
           style="backface-visibility: hidden; transform: rotateY(90deg) translateZ(20px)"
         >
+          <!-- Back button (always shown) -->
           <button
             class="sidebar-btn sidebar-btn-inactive"
             title="Back"
@@ -197,24 +218,54 @@ const getSpaceIcon = (spaceName: string) => {
             <Icon name="i-lucide-arrow-left" class="size-5" />
           </button>
 
-          <div
-            v-if="state.activeSpace"
-            class="sidebar-btn sidebar-btn-active"
-          >
-            <Icon :name="getSpaceIcon(state.activeSpace)" class="size-5" />
-          </div>
-
-          <div class="w-8 h-px bg-[var(--app-border)]" />
-
-          <template v-for="item in state.activeSpaceItems" :key="item.route">
-            <RouterLink
-              :to="item.route"
-              class="sidebar-btn"
-              :class="route.path === item.route ? 'sidebar-btn-active' : 'sidebar-btn-inactive'"
-              :title="item.label"
+          <!-- ===== Project mode ===== -->
+          <template v-if="state.panel === 'project' && state.activeProject">
+            <!-- Project name indicator -->
+            <div
+              class="w-10 h-6 flex items-center justify-center rounded-md bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)]"
+              :title="state.activeProject.name"
             >
-              <Icon :name="item.icon || 'i-lucide-circle'" class="size-4" />
-            </RouterLink>
+              <span class="text-[9px] font-bold text-[var(--app-accent)] truncate px-1">
+                {{ state.activeProject.name.slice(0, 3).toUpperCase() }}
+              </span>
+            </div>
+
+            <div class="w-8 h-px bg-[var(--app-border)]" />
+
+            <!-- Project-scoped space icons -->
+            <template v-for="item in state.projectSpaceItems" :key="item.id">
+              <RouterLink
+                :to="item.route"
+                class="sidebar-btn"
+                :class="activeId === item.id ? 'sidebar-btn-active' : 'sidebar-btn-inactive'"
+                :title="item.label"
+              >
+                <Icon :name="item.icon || 'i-lucide-circle'" class="size-5" />
+              </RouterLink>
+            </template>
+          </template>
+
+          <!-- ===== Space sub-page mode ===== -->
+          <template v-else-if="state.panel === 'space'">
+            <div
+              v-if="state.activeSpace"
+              class="sidebar-btn sidebar-btn-active"
+            >
+              <Icon :name="getSpaceIcon(state.activeSpace)" class="size-5" />
+            </div>
+
+            <div class="w-8 h-px bg-[var(--app-border)]" />
+
+            <template v-for="item in state.activeSpaceItems" :key="item.route">
+              <RouterLink
+                :to="item.route"
+                class="sidebar-btn"
+                :class="route.path === item.route ? 'sidebar-btn-active' : 'sidebar-btn-inactive'"
+                :title="item.label"
+              >
+                <Icon :name="item.icon || 'i-lucide-circle'" class="size-4" />
+              </RouterLink>
+            </template>
           </template>
 
           <div class="flex-1" />

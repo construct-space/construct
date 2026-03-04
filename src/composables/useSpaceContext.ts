@@ -188,8 +188,8 @@ export function useSpaceContext() {
     // Primary: detect from route (route may be undefined outside setup context)
     const path = route?.path
     if (path) {
-      const projectMatch = path.match(/\/app\/projects\/\d+\/(\w+)/)
-      if (projectMatch?.[1]) return projectMatch[1]
+      const projectMatch = path.match(/\/app\/projects\/([^/]+)\/([^/]+)/)
+      if (projectMatch?.[2]) return projectMatch[2]
       const directMatch = path.match(/\/app\/([a-z][\w-]*)/)
       if (directMatch?.[1] && !['projects', 'settings', 'marketplace', 'onboarding'].includes(directMatch[1])) {
         return directMatch[1]

@@ -6,6 +6,25 @@
  */
 
 import { registerSpaceTheme } from '@/config/spaces'
+import type { SpaceScope } from '@/types/project'
+
+/** Default scope for known space IDs when manifest doesn't specify one */
+const SCOPE_DEFAULTS: Record<string, SpaceScope> = {
+  code: 'project',
+  design: 'project',
+  git: 'project',
+  kanban: 'project',
+  docs: 'project',
+  notes: 'project',
+  terminal: 'project',
+  calendar: 'project',
+  projects: 'company',
+  chat: 'company',
+  ai: 'company',
+  settings: 'company',
+  marketplace: 'company',
+  architect: 'both',
+}
 
 export interface SpaceToolbarItem {
   id: string
@@ -44,7 +63,8 @@ export interface SpaceConfig {
     order: number
   }
 
-  scope?: 'company' | 'project' | 'both'
+  scope?: SpaceScope
+  dependencies?: string[]
   permission?: string
 
   // Marketplace metadata
@@ -155,6 +175,25 @@ function getDisabledSpaceIds(): Set<string> {
   }
 }
 
+/** Get spaces that belong inside a project (scope = 'project' or 'both') */
+export function getProjectSpaces(allSpaces: SpaceConfig[], projectSpaceIds?: string[]): SpaceConfig[] {
+  return allSpaces.filter(s => {
+    const scope = s.scope || SCOPE_DEFAULTS[s.name] || 'both'
+    if (scope !== 'project' && scope !== 'both') return false
+    // If project declares specific space IDs, filter to those
+    if (projectSpaceIds?.length) return projectSpaceIds.includes(s.name)
+    return true
+  })
+}
+
+/** Get spaces that belong at the company/global level (scope = 'company' or 'both') */
+export function getCompanySpaces(allSpaces: SpaceConfig[]): SpaceConfig[] {
+  return allSpaces.filter(s => {
+    const scope = s.scope || SCOPE_DEFAULTS[s.name] || 'both'
+    return scope === 'company' || scope === 'both'
+  })
+}
+
 /** Convert a manifest from disk to SpaceConfig and register its theme */
 function manifestToSpaceConfig(manifest: Record<string, unknown>): SpaceConfig {
   const id = (manifest.id as string) || (manifest.name as string)
@@ -183,7 +222,8 @@ function manifestToSpaceConfig(manifest: Record<string, unknown>): SpaceConfig {
       to: (nav?.to as string) || id,
       order: (nav?.order as number) || 100,
     },
-    scope: (manifest.scope as SpaceConfig['scope']) || 'both',
+    scope: (manifest.scope as SpaceScope) || SCOPE_DEFAULTS[id] || 'both',
+    dependencies: Array.isArray(manifest.dependencies) ? manifest.dependencies as string[] : undefined,
     isInstalled: true,
     version: manifest.version as string,
     author: typeof manifest.author === 'object'

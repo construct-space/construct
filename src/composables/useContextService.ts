@@ -560,6 +560,14 @@ export function useContextService(): UseContextServiceReturn {
     // Include canvas data so brain tools (get_canvas_state) can see current elements
     const { currentNodes, currentDesignName, currentPageId } = useCanvasContext()
     const canvasNodes = currentNodes.value
+    // Detect project-scoped route for AI context
+    const currentRoute = useRoute?.()
+    const routePath = currentRoute?.path || ''
+    const projectRouteMatch = routePath.match(/\/app\/projects\/([^/]+)\/([^/]+)/)
+    const routeContext = projectRouteMatch
+      ? { isProjectScoped: true, projectId: projectRouteMatch[1], spaceName: projectRouteMatch[2] }
+      : { isProjectScoped: false, projectId: null, spaceName: spaceData.activeSpace }
+
     const enriched: Record<string, unknown> = {
       ...existing,
       space_context: {
@@ -572,6 +580,7 @@ export function useContextService(): UseContextServiceReturn {
         git: spaceData.git,
         docs: spaceData.docs,
       },
+      route_context: routeContext,
     }
 
     // Attach canvas data for get_canvas_state and other design tools

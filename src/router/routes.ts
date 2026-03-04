@@ -133,7 +133,35 @@ export const routes: RouteRecordRaw[] = [
         ],
       },
 
-      // ===== Dynamic space routes =====
+      // ===== Project-scoped space routes =====
+      // /app/projects/:projectId/:spaceName — space within a project
+      // Must come BEFORE the :spaceName catch-all so Vue Router matches literal "projects" first.
+      {
+        path: 'projects/:projectId/:spaceName',
+        component: () => import('@/layouts/SpaceLayout.vue'),
+        meta: { projectScoped: true },
+        children: [
+          {
+            path: '',
+            component: () => import('@/spaces/DynamicSpacePage.vue'),
+            props: (route) => ({
+              spaceName: route.params.spaceName,
+              projectId: route.params.projectId,
+            }),
+          },
+          {
+            path: ':subPage',
+            component: () => import('@/spaces/DynamicSpacePage.vue'),
+            props: (route) => ({
+              spaceName: route.params.spaceName,
+              subPage: route.params.subPage,
+              projectId: route.params.projectId,
+            }),
+          },
+        ],
+      },
+
+      // ===== Dynamic space routes (company-scoped) =====
       // ALL spaces (including code, design, architect) go through DynamicSpacePage.
       // SpaceLoader handles dev (Vite import) vs prod (IIFE bundle) loading.
 

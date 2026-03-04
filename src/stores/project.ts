@@ -37,6 +37,13 @@ export const useProjectStore = defineStore('project', {
       // All spaces are always available in personal mode
       return true
     },
+
+    /** Find a project by its slug ID across projects and recents */
+    getProjectById: (state) => (id: string): LocalProject | null => {
+      return state.projects.find(p => String(p.id) === id)
+        || state.recentProjects.find(p => String(p.id) === id)
+        || null
+    },
   },
 
   actions: {
@@ -218,6 +225,17 @@ export const useProjectStore = defineStore('project', {
         this.currentProject.updated_at = new Date().toISOString()
       }
       return { success: true, data: this.currentProject }
+    },
+
+    /** Open a project by its slug ID (used by project-scoped routes) */
+    openProjectById(id: string): LocalProject | null {
+      const project = this.getProjectById(id)
+      if (project) {
+        this.currentProject = project
+        this.trackRecentOpen(project)
+        return project
+      }
+      return null
     },
 
     clearCurrentProject() {

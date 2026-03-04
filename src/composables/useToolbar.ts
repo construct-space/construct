@@ -128,7 +128,12 @@ export function useToolbar() {
   }
 
   const getSpaceFromPath = (path: string): string | null => {
-    // Space: /app/:spaceName
+    // Project-scoped: /app/projects/:id/:spaceName
+    const projectMatch = path.match(/\/app\/projects\/[^/]+\/([^/]+)/)
+    if (projectMatch?.[1] && isValidSpace(projectMatch[1])) {
+      return projectMatch[1]
+    }
+    // Company-scoped: /app/:spaceName
     const rootMatch = path.match(/\/app\/([^/]+)/)
     if (rootMatch && rootMatch[1] && isValidSpace(rootMatch[1])) {
       return rootMatch[1]
@@ -143,6 +148,10 @@ export function useToolbar() {
 
   // Extract the sub-page path segment after the space name
   const getSubPageFromPath = (path: string, spaceName: string): string => {
+    // Project-scoped: /app/projects/:id/:spaceName/:subPage
+    const projectMatch = path.match(new RegExp(`/app/projects/[^/]+/${spaceName}/?(.*)`))
+    if (projectMatch) return projectMatch[1] || ''
+    // Company-scoped: /app/:spaceName/:subPage
     const rootMatch = path.match(new RegExp(`/app/${spaceName}/?(.*)`))
     if (rootMatch) return rootMatch[1] || ''
     return ''

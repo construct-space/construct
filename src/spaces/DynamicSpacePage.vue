@@ -52,6 +52,7 @@ class ActiveTimeTracker {
 const props = defineProps<{
   spaceName: string
   subPage?: string
+  projectId?: string
 }>()
 
 const router = useRouter()

@@ -1,10 +1,17 @@
 import type { SpacePage } from './useSpaces'
 
-export type SidebarPanel = 'main' | 'space'
+export type SidebarPanel = 'main' | 'space' | 'project'
 
 export interface SpaceNavItem extends SpacePage {
   route: string // Full route path
   requiresContext?: boolean // Inherited from SpacePage
+}
+
+export interface ProjectSpaceNavItem {
+  id: string
+  label: string
+  icon: string
+  route: string
 }
 
 export interface SidebarNavItem {
@@ -23,6 +30,10 @@ interface SidebarState {
   activeSpace: string | null
   activeSpaceItems: SpaceNavItem[]
   spaceBackRoute: string // Route to go back to
+  // Project navigation state
+  activeProject: { id: string; name: string } | null
+  projectSpaceItems: ProjectSpaceNavItem[]
+  projectBackRoute: string
 }
 
 const sidebarState = reactive<SidebarState>({
@@ -31,7 +42,10 @@ const sidebarState = reactive<SidebarState>({
   mainBottomItems: [],
   activeSpace: null,
   activeSpaceItems: [],
-  spaceBackRoute: ''
+  spaceBackRoute: '',
+  activeProject: null,
+  projectSpaceItems: [],
+  projectBackRoute: '',
 })
 
 export function useSidebar() {
@@ -59,11 +73,32 @@ export function useSidebar() {
     sidebarState.panel = 'main'
   }
 
+  // Enter project mode - rotate to project panel
+  const enterProject = (
+    project: { id: string; name: string },
+    items: ProjectSpaceNavItem[],
+    backRoute: string
+  ) => {
+    sidebarState.activeProject = project
+    sidebarState.projectSpaceItems = items
+    sidebarState.projectBackRoute = backRoute
+    sidebarState.panel = 'project'
+  }
+
+  // Exit project mode - back to main panel
+  const exitProject = () => {
+    sidebarState.activeProject = null
+    sidebarState.projectSpaceItems = []
+    sidebarState.panel = 'main'
+  }
+
   return {
     state: sidebarState,
     setPanel,
     setMainItems,
     enterSpace,
     exitSpace,
+    enterProject,
+    exitProject,
   }
 }
