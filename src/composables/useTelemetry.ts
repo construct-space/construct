@@ -60,7 +60,7 @@ async function getDb(): Promise<Database> {
     } catch (e) {
       _dbFailed = true
       _dbPromise = null
-      console.warn('[Telemetry] SQL plugin unavailable — telemetry disabled for this session')
+      import('@/composables/useLogger').then(({ getLogger }) => getLogger().then(l => l.warn('[Telemetry] SQL plugin unavailable — telemetry disabled for this session'))).catch(() => {})
       throw e
     }
   })()
@@ -131,6 +131,9 @@ export function isTelemetryEnabled(): boolean {
 
 export function setTelemetryConsent(enabled: boolean) {
   localStorage.setItem(CONSENT_KEY, enabled ? 'true' : 'false')
+  import('@/composables/useTauriStore').then(({ getTauriStore }) =>
+    getTauriStore().then(s => s?.set(CONSENT_KEY, enabled ? 'true' : 'false'))
+  ).catch(() => {})
 }
 
 // ─── Background API sync ─────────────────────────────────────────────────────
@@ -171,7 +174,15 @@ async function syncToApi(): Promise<void> {
     const data = await getStoredData()
     if (!data || (data.sessions.total === 0 && Object.keys(data.screenViews).length === 0)) return
 
-    const response = await fetch(`${appConfig.apiBase}/telemetry/sync`, {
+    // Enrich with OS info
+    try {
+      const { arch, platform, version, type: osType } = await import('@tauri-apps/plugin-os')
+      data.osInfo = { arch: arch(), platform: platform(), version: version(), type: osType() }
+    } catch {
+      // OS plugin not available
+    }
+
+    const response = await fetch(`${appConfig.apiBase}/me/telemetry/sync`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -223,6 +234,7 @@ interface TelemetrySnapshot {
   spaceEnterCount: Record<string, number>
   spaceActiveMs: Record<string, number>
   featureActions: Record<string, number>
+  osInfo?: { arch: string; platform: string; version: string; type: string }
 }
 
 async function getStoredData(): Promise<TelemetrySnapshot | null> {
@@ -272,7 +284,7 @@ async function getStoredData(): Promise<TelemetrySnapshot | null> {
       featureActions: Object.fromEntries(featureRows.map(r => [r.feature_key, r.count])),
     }
   } catch (e) {
-    console.error('[Telemetry] Failed to read stored data:', e)
+    import('@/composables/useLogger').then(({ getLogger }) => getLogger().then(l => l.error(`[Telemetry] Failed to read stored data: ${e}`))).catch(() => {})
     return null
   }
 }
@@ -287,7 +299,7 @@ async function clearStoredData(): Promise<void> {
     await db.execute('DELETE FROM feature_actions')
     await db.execute(`UPDATE telemetry_meta SET value = ? WHERE key = 'first_recorded_at'`, [new Date().toISOString()])
   } catch (e) {
-    console.error('[Telemetry] Failed to clear data:', e)
+    import('@/composables/useLogger').then(({ getLogger }) => getLogger().then(l => l.error(`[Telemetry] Failed to clear data: ${e}`))).catch(() => {})
   }
 }
 
@@ -312,21 +324,12 @@ async function trackSessionStart(): Promise<void> {
 
 async function trackSessionEnd(): Promise<void> {
   if (!isTelemetryEnabled() || _dbFailed) return
-  try {
-    const db = await getDb()
-    if (_currentSessionId != null) {
-      await db.execute(
-        'UPDATE sessions SET ended_at = ? WHERE id = ?',
-        [new Date().toISOString(), _currentSessionId]
-      )
-    }
-
-    stopPeriodicSync()
-    // Final sync — keepalive ensures it survives page unload
-    syncToApi()
-  } catch {
-    // Silent — telemetry should never disrupt
-  }
+  stopPeriodicSync()
+  // During page unload / visibilitychange the Tauri IPC bridge is already
+  // torn down, so any SQL execute will throw a fetch error in console.
+  // Skip the DB write entirely — the session duration is non-critical.
+  // Just fire the API sync (uses fetch keepalive to survive unload).
+  syncToApi()
 }
 
 async function trackScreenView(routeName: string, spaceId?: string): Promise<void> {

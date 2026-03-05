@@ -207,6 +207,27 @@ function createNotificationsComposable() {
     } catch {
       console.log(`[Notification] ${notification.title}: ${notification.body}`)
     }
+
+    // Fire native OS notification when app is not focused
+    if (document.visibilityState === 'hidden') {
+      fireNativeNotification(notification.title, notification.body)
+    }
+  }
+
+  async function fireNativeNotification(title: string, body: string) {
+    try {
+      const { sendNotification, isPermissionGranted, requestPermission } = await import('@tauri-apps/plugin-notification')
+      let permitted = await isPermissionGranted()
+      if (!permitted) {
+        const result = await requestPermission()
+        permitted = result === 'granted'
+      }
+      if (permitted) {
+        sendNotification({ title, body })
+      }
+    } catch {
+      // Not in Tauri or plugin unavailable
+    }
   }
 
   // Attempt to reconnect

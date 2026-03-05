@@ -152,7 +152,7 @@ watch(() => route.path, (newPath) => {
 </script>
 
 <template>
-  <aside class="w-18creen flex flex-col items-center shrink-0 z-50 bg-app border-r border-app">
+  <aside class="w-[72px] flex flex-col items-center shrink-0 z-50 bg-transparent backdrop-blur-md border-r border-app">
     <!-- Logo (clear macOS traffic lights) -->
     <RouterLink to="/app" class="pt-9 pb-2 shrink-0">
       <svg width="32" height="32" viewBox="0 0 533 533" fill="currentColor" class="text-app-accent">

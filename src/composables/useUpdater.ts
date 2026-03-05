@@ -33,6 +33,10 @@ export function useUpdater() {
       const update = await check()
 
       localStorage.setItem(LAST_CHECK_KEY, new Date().toISOString())
+      // Also persist to Tauri store
+      import('@/composables/useTauriStore').then(({ getTauriStore }) =>
+        getTauriStore().then(s => s?.set(LAST_CHECK_KEY, new Date().toISOString()))
+      ).catch(() => {})
 
       if (update) {
         updateAvailable.value = true
@@ -107,6 +111,9 @@ export function useUpdater() {
 
   function setAutoCheck(enabled: boolean) {
     localStorage.setItem(AUTO_CHECK_KEY, String(enabled))
+    import('@/composables/useTauriStore').then(({ getTauriStore }) =>
+      getTauriStore().then(s => s?.set(AUTO_CHECK_KEY, String(enabled)))
+    ).catch(() => {})
   }
 
   function getLastChecked(): Date | null {

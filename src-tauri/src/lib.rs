@@ -2902,6 +2902,26 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_sql::Builder::new().build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
+        .plugin(tauri_plugin_log::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_os::init())
+        .plugin(tauri_plugin_positioner::init())
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.show();
+                let _ = w.set_focus();
+            }
+        }))
+        .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(tauri_plugin_upload::init())
+        .plugin(tauri_plugin_websocket::init())
+        .plugin(tauri_plugin_window_state::Builder::new().build())
+        // stronghold requires a password callback — configure when needed
+        // .plugin(tauri_plugin_stronghold::Builder::new(|password| { ... }).build())
+        .plugin(tauri_plugin_nspopover::init())
+        .plugin(tauri_plugin_dragout::init())
         .manage(context_state)
         .manage(lsp_state)
         .manage(browser_state)
@@ -2914,6 +2934,19 @@ pub fn run() {
             if let Ok(menu) = build_app_menu(app.handle(), "default") {
                 let _ = app.set_menu(menu);
             }
+
+            // Apply vibrancy to the main window on macOS
+            #[cfg(target_os = "macos")]
+            if let Some(window) = app.get_webview_window("main") {
+                use window_vibrancy::apply_vibrancy;
+                let _ = apply_vibrancy(
+                    &window,
+                    window_vibrancy::NSVisualEffectMaterial::Sidebar,
+                    None,
+                    None,
+                );
+            }
+
             Ok(())
         })
         .on_menu_event(|app, event| {

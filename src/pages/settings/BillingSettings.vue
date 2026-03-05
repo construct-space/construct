@@ -140,7 +140,7 @@ onMounted(async () => {
           <h4 class="text-xl font-bold text-[var(--app-foreground)]">{{ firstPlan.name }}</h4>
           <p v-if="firstPlan.description" class="text-sm text-[var(--app-muted)] mt-1">{{ firstPlan.description }}</p>
           <div class="mt-4">
-            <span class="text-3xl font-bold text-[var(--app-foreground)]">{{ formatPrice(firstPlan.price_per_user_cents, firstPlan.currency) }}</span>
+            <span class="text-3xl font-bold text-[var(--app-foreground)]">{{ formatPrice(firstPlan.price_cents, firstPlan.currency) }}</span>
             <span v-if="firstPlan.billing_interval" class="text-[var(--app-muted)]">/{{ firstPlan.billing_interval }}</span>
           </div>
           <ul class="mt-6 space-y-2 text-sm text-left">
@@ -154,7 +154,7 @@ onMounted(async () => {
             </li>
             <li class="flex items-center gap-2 text-[var(--app-foreground)]">
               <svg class="w-4 h-4 text-green-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12" /></svg>
-              {{ firstPlan.ai_credits_per_user }} AI credits / month
+              {{ firstPlan.ai_credits }} AI credits / month
             </li>
             <li v-if="firstPlan.trial_days > 0" class="flex items-center gap-2 text-[var(--app-foreground)]">
               <svg class="w-4 h-4 text-green-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12" /></svg>

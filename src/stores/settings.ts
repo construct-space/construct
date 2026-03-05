@@ -24,9 +24,6 @@ export const useSettingsStore = defineStore('settings', {
     getByKey: (state: SettingsState) => (key: string) =>
       state.settings.find((s: Setting) => s.setting_key === key),
 
-    companySettings: (state: SettingsState) =>
-      state.settings.filter((s: Setting) => s.group === 'company'),
-
     systemSettings: (state: SettingsState) =>
       state.settings.filter((s: Setting) => s.group === 'system'),
 
@@ -44,12 +41,6 @@ export const useSettingsStore = defineStore('settings', {
 
     aiSettings: (state: SettingsState) =>
       state.settings.filter((s: Setting) => s.group === 'ai'),
-
-    collaborationSettings: (state: SettingsState) =>
-      state.settings.filter((s: Setting) => s.group === 'collaboration'),
-
-    companyName: (state: SettingsState) =>
-      state.settings.find((s: Setting) => s.setting_key === 'company_name')?.value_string || 'Construct',
 
     maintenanceMode: (state: SettingsState) =>
       state.settings.find((s: Setting) => s.setting_key === 'maintenance_mode')?.value_bool || false,
@@ -76,7 +67,13 @@ export const useSettingsStore = defineStore('settings', {
       state.settings.find((s: Setting) => s.setting_key === 'design_show_grid')?.value_bool ?? true,
 
     autoSaveInterval: (state: SettingsState) =>
-      state.settings.find((s: Setting) => s.setting_key === 'design_auto_save_interval')?.value_int ?? 30
+      state.settings.find((s: Setting) => s.setting_key === 'design_auto_save_interval')?.value_int ?? 30,
+
+    collaborationSettings: (state: SettingsState) =>
+      state.settings.filter((s: Setting) => s.group === 'collaboration'),
+
+    companySettings: (state: SettingsState) =>
+      state.settings.filter((s: Setting) => s.group === 'company'),
   },
 
   actions: {
@@ -159,37 +156,6 @@ export const useSettingsStore = defineStore('settings', {
       } finally {
         this.isSaving = false
       }
-    },
-
-    // Update company settings
-    async updateCompanySettings(formData: {
-      company_name: string
-      company_address: string
-      company_phone: string
-      company_email: string
-      company_website?: string
-      company_nui: string
-    }) {
-      const updates = Object.entries(formData).map(([key, value]) => {
-        const setting = this.settings.find((s: Setting) => s.setting_key === key)
-        if (setting && value !== undefined) {
-          return {
-            id: setting.id,
-            data: {
-              setting_key: key,
-              label: setting.label,
-              group: 'company',
-              type: 'string',
-              value_string: value as string,
-              description: setting.description,
-              is_public: setting.is_public
-            }
-          }
-        }
-        return null
-      }).filter(Boolean) as Array<{ id: number; data: SettingUpdate }>
-
-      return this.updateSettings(updates)
     },
 
     // Update system settings
@@ -379,25 +345,58 @@ export const useSettingsStore = defineStore('settings', {
       collab_show_cursors: boolean
       collab_presence_timeout: number
     }) {
-      const updates = Object.entries(formData).map(([key, value]) => {
+      const updates: Array<{ id: number; data: SettingUpdate }> = []
+
+      const boolKeys = ['collab_real_time_sync', 'collab_show_cursors'] as const
+      for (const key of boolKeys) {
         const setting = this.settings.find((s: Setting) => s.setting_key === key && s.group === 'collaboration')
         if (setting) {
-          const data: SettingUpdate = {
-            setting_key: key,
-            label: setting.label,
-            group: 'collaboration',
-            type: setting.type,
-            description: setting.description,
-            is_public: setting.is_public
-          }
+          updates.push({
+            id: setting.id,
+            data: {
+              setting_key: key, label: setting.label, group: 'collaboration',
+              type: 'bool', value_bool: formData[key],
+              description: setting.description, is_public: setting.is_public
+            }
+          })
+        }
+      }
 
-          if (setting.type === 'bool') {
-            data.value_bool = value as boolean
-          } else if (setting.type === 'int') {
-            data.value_int = value as number
+      const timeoutSetting = this.settings.find((s: Setting) => s.setting_key === 'collab_presence_timeout' && s.group === 'collaboration')
+      if (timeoutSetting) {
+        updates.push({
+          id: timeoutSetting.id,
+          data: {
+            setting_key: 'collab_presence_timeout', label: timeoutSetting.label, group: 'collaboration',
+            type: 'int', value_int: formData.collab_presence_timeout,
+            description: timeoutSetting.description, is_public: timeoutSetting.is_public
           }
+        })
+      }
 
-          return { id: setting.id, data }
+      return this.updateSettings(updates)
+    },
+
+    // Update company settings
+    async updateCompanySettings(formData: {
+      company_name: string
+      company_address: string
+      company_phone: string
+      company_email: string
+      company_website: string
+      company_nui: string
+    }) {
+      const updates = Object.entries(formData).map(([key, value]) => {
+        const setting = this.settings.find((s: Setting) => s.setting_key === key && s.group === 'company')
+        if (setting) {
+          return {
+            id: setting.id,
+            data: {
+              setting_key: key, label: setting.label, group: 'company',
+              type: 'string', value_string: value,
+              description: setting.description, is_public: setting.is_public
+            }
+          }
         }
         return null
       }).filter(Boolean) as Array<{ id: number; data: SettingUpdate }>

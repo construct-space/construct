@@ -174,28 +174,77 @@ onUnmounted(() => {
  * Handle system clipboard/edit shortcuts in Tauri.
  * On macOS, Tauri v2 with overlay titlebar can swallow native menu
  * accelerators — this ensures Cmd+C/V/X/A/Z always work in the webview.
+ *
+ * Uses Clipboard API for paste (execCommand('paste') is blocked by browsers).
+ * Uses writeText for copy/cut when selection exists.
  */
 function handleSystemShortcuts(e: KeyboardEvent) {
   if (!(e.metaKey || e.ctrlKey)) return
 
-  const cmds: Record<string, string> = {
-    c: 'copy',
-    x: 'cut',
-    v: 'paste',
-    a: 'selectAll',
-    z: 'undo',
+  // Skip if already handled natively (input/textarea/contenteditable)
+  const target = e.target as HTMLElement
+  const isEditable = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
+
+  switch (e.key.toLowerCase()) {
+    case 'c': {
+      const selection = window.getSelection()?.toString()
+      if (selection) {
+        navigator.clipboard.writeText(selection).catch(() => document.execCommand('copy'))
+      }
+      break
+    }
+    case 'x': {
+      const selection = window.getSelection()?.toString()
+      if (selection) {
+        navigator.clipboard.writeText(selection).catch(() => document.execCommand('cut'))
+        if (isEditable) document.execCommand('delete')
+      }
+      break
+    }
+    case 'v': {
+      if (isEditable) {
+        navigator.clipboard.readText().then(text => {
+          if (!text) return
+          // Insert text at cursor for input/textarea
+          if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+            const input = target as HTMLInputElement | HTMLTextAreaElement
+            const start = input.selectionStart ?? 0
+            const end = input.selectionEnd ?? 0
+            const before = input.value.slice(0, start)
+            const after = input.value.slice(end)
+            input.value = before + text + after
+            const pos = start + text.length
+            input.setSelectionRange(pos, pos)
+            input.dispatchEvent(new Event('input', { bubbles: true }))
+          } else {
+            // contenteditable
+            document.execCommand('insertText', false, text)
+          }
+        }).catch(() => document.execCommand('paste'))
+      }
+      break
+    }
+    case 'a': {
+      if (isEditable) {
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+          ;(target as HTMLInputElement).select()
+        } else {
+          document.execCommand('selectAll')
+        }
+      } else {
+        document.execCommand('selectAll')
+      }
+      break
+    }
+    case 'z': {
+      if (e.shiftKey) {
+        document.execCommand('redo')
+      } else {
+        document.execCommand('undo')
+      }
+      break
+    }
   }
-
-  const cmd = cmds[e.key]
-  if (!cmd) return
-
-  // Shift+Z = redo
-  if (e.key === 'z' && e.shiftKey) {
-    document.execCommand('redo')
-    return
-  }
-
-  document.execCommand(cmd)
 }
 </script>
 

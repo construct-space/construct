@@ -64,7 +64,7 @@ export const useAuthStore = defineStore('auth', {
         }
 
         if (lastError && !isContextNotConnectedError(lastError)) {
-          console.warn('Failed to sync token to context service:', lastError)
+          import('@/composables/useLogger').then(({ getLogger }) => getLogger().then(l => l.warn(`Failed to sync token to context service: ${lastError}`))).catch(() => {})
         }
       } catch {
         // Context service composable not available yet — safe to ignore
@@ -89,7 +89,7 @@ export const useAuthStore = defineStore('auth', {
         const api = useApi()
         api.setToken(accessToken)
 
-        // Fetch user profile from accounts service
+        // Fetch user profile (proxied through local API to avoid CORS)
         const profile = await constructAuth.fetchProfile(accessToken)
 
         const userData: AuthUserData = {
@@ -187,7 +187,7 @@ export const useAuthStore = defineStore('auth', {
         const isNetworkError = msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('ECONNREFUSED')
 
         if (is401 || isSessionExpired) {
-          console.warn('Auth token rejected by server, clearing session')
+          import('@/composables/useLogger').then(({ getLogger }) => getLogger().then(l => l.warn('Auth token rejected by server, clearing session'))).catch(() => {})
           this.clearAuthState()
           this.clearPersistedState()
           return false
@@ -199,7 +199,7 @@ export const useAuthStore = defineStore('auth', {
           this.isAuthenticated = true
         } else {
           // Unknown error — don't silently trust stale auth
-          console.warn('Auth check failed with unexpected error, clearing session:', msg)
+          import('@/composables/useLogger').then(({ getLogger }) => getLogger().then(l => l.warn(`Auth check failed with unexpected error, clearing session: ${msg}`))).catch(() => {})
           this.clearAuthState()
           this.clearPersistedState()
           return false
@@ -228,7 +228,17 @@ export const useAuthStore = defineStore('auth', {
       const stateJson = JSON.stringify(authState)
       localStorage.setItem('cp_auth', stateJson)
 
-      // Also try SQLite for Tauri
+      // Persist to Tauri store plugin (preferred) and SQLite (legacy)
+      try {
+        const { getTauriStore } = await import('@/composables/useTauriStore')
+        const store = await getTauriStore()
+        if (store) {
+          await store.set('cp_auth', authState)
+        }
+      } catch {
+        // Store plugin not available
+      }
+
       try {
         const { useContextDB } = await import('@/composables/useContextDB')
         const db = useContextDB()
@@ -263,12 +273,25 @@ export const useAuthStore = defineStore('auth', {
       if (typeof window === 'undefined') return
 
       try {
-        // Phase 1 (SYNC): Read from localStorage — instant
+        // Phase 1: Try Tauri store first, then localStorage
         // Restore token/user but DON'T set isAuthenticated yet.
         // checkAuth() will set it after server validation.
-        // This prevents Vue watchers from firing premature API calls
-        // with an expired token.
-        const stored = localStorage.getItem('cp_auth')
+        let stored: string | null = null
+        try {
+          const { getTauriStore } = await import('@/composables/useTauriStore')
+          const tauriStore = await getTauriStore()
+          if (tauriStore) {
+            const tauriAuth = await tauriStore.get<{ user: AuthUserData | null; token: string | null; isAuthenticated: boolean }>('cp_auth')
+            if (tauriAuth?.token) {
+              stored = JSON.stringify(tauriAuth)
+            }
+          }
+        } catch {
+          // Tauri store not available
+        }
+        if (!stored) {
+          stored = localStorage.getItem('cp_auth')
+        }
 
         if (stored) {
           const authState = JSON.parse(stored)
@@ -291,7 +314,7 @@ export const useAuthStore = defineStore('auth', {
                 last_name: string
                 phone?: string
                 avatar_url?: string
-              }>('/profile')
+              }>('/me')
 
               if (profile) {
                 this.user = {
@@ -328,7 +351,7 @@ export const useAuthStore = defineStore('auth', {
           // Tauri utils not available
         }
       } catch (error) {
-        console.warn('Failed to hydrate auth state:', error)
+        import('@/composables/useLogger').then(({ getLogger }) => getLogger().then(l => l.warn(`Failed to hydrate auth state: ${error}`))).catch(() => {})
         await this.clearPersistedState()
       }
     },
@@ -363,6 +386,16 @@ export const useAuthStore = defineStore('auth', {
       localStorage.removeItem('cp_auth_token')
 
       try {
+        const { getTauriStore } = await import('@/composables/useTauriStore')
+        const store = await getTauriStore()
+        if (store) {
+          await store.delete('cp_auth')
+        }
+      } catch {
+        // Store plugin not available
+      }
+
+      try {
         const { useContextDB } = await import('@/composables/useContextDB')
         const db = useContextDB()
         if (db.isTauri.value) {
@@ -374,31 +407,17 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async initialize() {
-      // DEV MODE: Hardcode auth to skip OAuth (requires construct:// deep link)
+      // DEV MODE: use persisted OAuth token if available, otherwise redirect to login
       if (import.meta.env.DEV) {
-        const devUser: AuthUserData = {
-          id: 2,
-          email: 'flakerimi@basecode.al',
-          username: 'flakerimi',
-          first_name: 'Flakerim',
-          last_name: 'Ismani',
-          name: 'Flakerim Ismani',
-          avatar: undefined,
-          created_at: '',
-          updated_at: '',
+        await this.hydrateAuthState()
+        if (this.token && this.user) {
+          await this.checkAuth()
+          if (this.isAuthenticated) {
+            console.info('[Auth] Dev mode: restored session for', this.user.email)
+            return
+          }
         }
-        const devToken = 'dev_token_local'
-
-        this.user = devUser
-        this.token = devToken
-        this.isAuthenticated = true
-
-        import('@/composables/useApi').then(({ useApi }) => {
-          useApi().setToken(devToken)
-        })
-
-        await this.persistAuthState()
-        console.info('[Auth] Dev mode: auto-authenticated as flakerimi@basecode.al')
+        console.info('[Auth] Dev mode: no valid session, will redirect to login')
         return
       }
 

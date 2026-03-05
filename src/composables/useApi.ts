@@ -175,6 +175,12 @@ export const useApi = () => {
     const { useAuthStore } = await import('@/stores/auth')
     const authStore = useAuthStore()
     await authStore.logout()
+
+    // Redirect to login instead of showing errors
+    const router = await import('@/router').then(m => m.router)
+    if (router.currentRoute.value.path !== '/login') {
+      router.push('/login')
+    }
   }
 
   const authRequest = async <T = unknown>(
