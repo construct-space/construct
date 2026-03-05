@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Construct Personal",
+  "productName": "Construct",
   "version": "0.2.0",
   "identifier": "space.construct.personal",
   "plugins": {
@@ -27,7 +27,7 @@
     "macOSPrivateApi": true,
     "windows": [
       {
-        "title": "Construct Personal",
+        "title": "Construct",
         "width": 1400,
         "height": 900,
         "resizable": true,
