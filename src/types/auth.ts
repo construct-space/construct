@@ -24,7 +24,6 @@ export interface AuthResponse {
   email: string
   role_id: number
   role_name?: string
-  company_id?: number
   avatar_url?: string
   last_login?: string
   accessToken: string
@@ -35,8 +34,6 @@ export interface AuthResponse {
       name: string
     }
     user_id: number
-    company_id?: number
-    is_company_owner?: boolean
   }
 }
 
@@ -50,7 +47,6 @@ export interface AuthUserData {
   phone?: string
   avatar?: string
   last_login?: string
-  company_id?: number
   created_at: string
   updated_at: string
 }

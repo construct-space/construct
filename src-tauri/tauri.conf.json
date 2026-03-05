@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Construct",
-  "version": "0.2.0",
+  "version": "0.2.6",
   "identifier": "space.construct.personal",
   "plugins": {
     "updater": {
@@ -12,7 +12,7 @@
     },
     "deep-link": {
       "desktop": {
-        "schemes": ["construct"]
+        "schemes": ["construct", "antigravity"]
       }
     }
   },

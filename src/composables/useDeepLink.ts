@@ -11,18 +11,30 @@ export function useDeepLink() {
   const marketplace = useSpaceMarketplace()
   const { closeOAuthWindow } = useConstructAuth()
 
-  function handleUrl(url: string) {
+  function readOAuthParams(parsed: URL): { code?: string; state?: string; error?: string } {
+    let code = parsed.searchParams.get('code') || undefined
+    let state = parsed.searchParams.get('state') || undefined
+    let error = parsed.searchParams.get('error') || undefined
+    if ((!code && !error) && parsed.hash) {
+      const hashParams = new URLSearchParams(parsed.hash.startsWith('#') ? parsed.hash.slice(1) : parsed.hash)
+      code = code || hashParams.get('code') || undefined
+      state = state || hashParams.get('state') || undefined
+      error = error || hashParams.get('error') || undefined
+    }
+    return { code, state, error }
+  }
+
+  async function handleUrl(url: string) {
     console.log('[DeepLink] Received URL:', url)
     const parsed = new URL(url)
     const segments = parsed.pathname.replace(/^\/+/, '').split('/')
     const action = parsed.host
-    console.log('[DeepLink] Parsed — action:', action, 'segments:', segments)
+    const protocol = parsed.protocol
+    console.log('[DeepLink] Parsed — protocol:', protocol, 'action:', action, 'segments:', segments)
 
     // OAuth callback: construct://oauth/callback?code=xxx&state=xxx
-    if (action === 'oauth' && segments[0] === 'callback') {
-      const code = parsed.searchParams.get('code')
-      const state = parsed.searchParams.get('state')
-      const error = parsed.searchParams.get('error')
+    if (protocol === 'construct:' && action === 'oauth' && segments[0] === 'callback') {
+      const { code, state, error } = readOAuthParams(parsed)
 
       // Skip if no params at all (stale getCurrent() on app launch)
       if (!code && !state && !error) {
@@ -62,12 +74,12 @@ export function useDeepLink() {
   // Check if app was launched via deep link
   getCurrent().then(urls => {
     console.log('[DeepLink] getCurrent:', urls)
-    if (urls?.length) handleUrl(urls[0])
+    if (urls?.length) void handleUrl(urls[0])
   }).catch(err => console.error('[DeepLink] getCurrent error:', err))
 
   // Listen for deep links while app is running
   onOpenUrl(urls => {
     console.log('[DeepLink] onOpenUrl:', urls)
-    if (urls.length) handleUrl(urls[0])
+    if (urls.length) void handleUrl(urls[0])
   })
 }

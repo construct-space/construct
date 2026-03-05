@@ -2,11 +2,11 @@
 import FormField from '@/components/ui/FormField.vue'
 import Input from '@/components/ui/Input.vue'
 import Button from '@/components/ui/Button.vue'
-import { useConstructAuth } from '@/composables/useConstructAuth'
+import { useApi } from '@/composables/useApi'
 
 const authStore = useAuthStore()
 const toast = useToast()
-const constructAuth = useConstructAuth()
+const api = useApi()
 
 const form = ref({
   first_name: authStore.user?.first_name ?? '',
@@ -24,7 +24,7 @@ async function save() {
   }
   isSaving.value = true
   try {
-    const updated = await constructAuth.updateProfile(authStore.token, {
+    const updated = await api.put<Record<string, unknown>>('/me', {
       first_name: form.value.first_name,
       last_name: form.value.last_name,
       username: form.value.username || undefined,

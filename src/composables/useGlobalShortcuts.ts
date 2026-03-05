@@ -79,7 +79,10 @@ async function _registerAll(emit: (id: string) => void) {
   if (globalDefs.length === 0) return
 
   try {
-    const { register } = await import('@tauri-apps/plugin-global-shortcut')
+    const { register, unregisterAll } = await import('@tauri-apps/plugin-global-shortcut')
+
+    // Unregister stale shortcuts from previous load/HMR cycle
+    try { await unregisterAll() } catch { /* ignore */ }
 
     for (const def of globalDefs) {
       const effectiveKey = getKey(def.id)

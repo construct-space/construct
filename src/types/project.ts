@@ -4,15 +4,15 @@
 
 export type SpaceType = 'code' | 'design' | 'git' | 'notes' | 'kanban' | 'architect' | 'terminal' | 'docs' | 'calendar' | 'ai' | 'chat'
 
-export type SpaceScope = 'company' | 'project' | 'both'
+export type SpaceScope = 'app' | 'project' | 'both'
 
 /** Spaces that only exist inside a project context */
 export const PROJECT_SCOPED_SPACES: SpaceType[] = [
   'code', 'design', 'git', 'kanban', 'docs', 'notes', 'terminal', 'calendar'
 ]
 
-/** Spaces that live at the company/global level */
-export const COMPANY_SCOPED_SPACES: string[] = [
+/** Spaces that live at the app/global level */
+export const APP_SCOPED_SPACES: string[] = [
   'projects', 'chat', 'ai', 'settings', 'marketplace'
 ]
 

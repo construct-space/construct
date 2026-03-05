@@ -24,7 +24,6 @@ interface DocumentListItem {
   title: string
   type: string
   project_id?: number
-  company_id?: number
 }
 import { useMarkdown } from '~/composables/useMarkdown'
 import { parseToolResult } from '~/composables/useDesignActions'
@@ -148,10 +147,6 @@ function buildLocalData(): Record<string, unknown> {
     localData.project_id = project.id
     localData.project_name = project.name
 
-    // Include project members so backend tools can resolve names
-    if (projectMembers.value.length > 0) {
-      localData.project_members = projectMembers.value
-    }
   }
 
   // Include current code folder path if available
@@ -626,7 +621,7 @@ interface AIConversationResponse {
     context_key: string
     messages_json: string
     user_id: number
-    company_id: number
+
   }>
 }
 
@@ -1313,8 +1308,8 @@ const autocompleteSuggestions = computed(() => {
         .map(d => ({
           label: d.name,
           sublabel: d.nodeCount > 0
-            ? `${d.nodeCount} elements${d.source === 'cloud' ? ' (team)' : d.source === 'local' ? ' (local)' : ''}`
-            : d.source === 'cloud' ? '(team)' : d.source === 'local' ? '(local)' : undefined,
+            ? `${d.nodeCount} elements${d.source === 'cloud' ? ' (cloud)' : d.source === 'local' ? ' (local)' : ''}`
+            : d.source === 'cloud' ? '(cloud)' : d.source === 'local' ? '(local)' : undefined,
           icon: d.source === 'cloud' ? 'i-lucide-cloud' : 'i-lucide-layout',
           type: 'design' as const
         }))
@@ -1628,15 +1623,6 @@ const syncApiDesigns = ref<UIDesign[]>([])
 // Project documents for ^ autocomplete (merged: DB + local .md files)
 const projectDocs = ref<DocumentListItem[]>([])
 const localDocs = ref<{ title: string; path: string; type: string }[]>([])
-// Project members for AI context (so AI knows who's on the team)
-interface ProjectMemberInfo {
-  id: number
-  name: string
-  email: string
-  position?: string
-  role?: string
-}
-const projectMembers = ref<ProjectMemberInfo[]>([])
 
 // Guess doc type from filename
 function guessDocType(filename: string): string {
@@ -1672,7 +1658,7 @@ const initDocsTauri = async () => {
 }
 
 // Bidirectional doc sync: DB <-> local docs/ folder
-// 1. Fetch DB docs (from API - includes docs created by other team members)
+// 1. Fetch DB docs (from API)
 // 2. Scan local docs/ folder for .md files
 // 3. Local -> DB: create DB entries for local .md files not in DB
 // 4. DB -> Local: write .md files for DB docs not on disk
@@ -1824,9 +1810,6 @@ watch(
       // Load designs from sync-api (team cloud) in parallel
       loadDesignsFromSyncApi(projectId)
 
-      // Project members not applicable in personal mode
-      projectMembers.value = []
-
       // Sync documents for ^ autocomplete (bidirectional: DB <-> local docs/)
       try {
         const project = projectStore.currentProject
@@ -1872,7 +1855,6 @@ watch(
       projectDocs.value = []
       localDocs.value = []
       projectFiles.value = []
-      projectMembers.value = []
     }
   },
   { immediate: true }
@@ -3037,7 +3019,7 @@ function buildMessageWithToolContext(msg: ChatMessage): string {
 // Build system prompt with context information
 function buildSystemPrompt(references?: ParsedReferences, docContents?: string): string {
   // This function provides LIVE CONTEXT only — behavioral rules come from Go agent .md files.
-  // Context includes: project info, team members, space state (git/docs), and referenced content.
+  // Context includes: project info, space state (git/docs), and referenced content.
   const parts: string[] = []
 
   // Resolve current space once for reuse below
@@ -3056,19 +3038,6 @@ function buildSystemPrompt(references?: ParsedReferences, docContents?: string):
     }
     // Owner not available in personal/local mode (LocalProject has no owner field)
 
-    // Add project team members
-    if (projectMembers.value.length > 0) {
-      parts.push(`\n## Project Team Members`)
-      parts.push(`When user mentions a person by name (e.g. "assign to Gresa"), match against this list and use their member_id.`)
-      for (const member of projectMembers.value) {
-        let memberLine = `- **${member.name}** (id: ${member.id})`
-        if (member.position) memberLine += ` — ${member.position}`
-        if (member.role && member.role !== 'read') memberLine += ` [${member.role}]`
-        if (member.email) memberLine += ` <${member.email}>`
-        parts.push(memberLine)
-      }
-      parts.push(`\nUse member id as assignee_id when creating/updating tasks. Use list_project_members or search_users tools for fresh data if needed.`)
-    }
   }
 
   // Add route-based context (which space/page the user is in)
@@ -3358,11 +3327,6 @@ function getRouteContext(path: string): string | null {
   // Reports
   if (path.includes('/app/reports')) {
     return 'The user is viewing Reports. Help with analytics, metrics, data visualization, and report generation.'
-  }
-
-  // Company settings
-  if (path.includes('/app/company')) {
-    return 'The user is viewing Company Settings. Help with organization configuration, branding, and company-wide settings.'
   }
 
   // Dashboard

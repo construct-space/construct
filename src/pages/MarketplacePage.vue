@@ -18,7 +18,7 @@ const marketplace = useSpaceMarketplace()
 const categories = [
   { id: 'all', label: 'All' },
   { id: 'project', label: 'Project' },
-  { id: 'company', label: 'Company' },
+  { id: 'app', label: 'App' },
   { id: 'both', label: 'Universal' },
 ]
 

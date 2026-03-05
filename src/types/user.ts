@@ -10,7 +10,6 @@ export interface User {
   username: string
   phone: string
   email: string
-  company_id?: number
   role_id: number
   role?: Role
   name?: string

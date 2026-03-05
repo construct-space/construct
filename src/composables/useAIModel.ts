@@ -11,7 +11,7 @@ import type { AIProvider } from './useContextService'
 
 // Storage key for default model (stores "providerId:modelId")
 const MODEL_STORAGE_KEY = 'cp_default_ai_model'
-const DEFAULT_MODEL = 'zai:glm-4.7' // Z.AI default
+const DEFAULT_MODEL = 'anthropic-oauth:claude-opus-4-6' // Claude Opus 4.6 default
 const AUTO_MODEL_SENTINELS = new Set(['', 'auto', 'conductor'])
 
 export type AuthType = 'oauth' | 'api' | 'local'
@@ -61,9 +61,9 @@ export const isVisionModel = (modelId: string): boolean => {
          model.includes('4.6v') ||
          model.startsWith('claude-') ||
          model.includes('claude') ||
+         model.startsWith('gpt-5.4') || // GPT-5.4 has vision
          model.startsWith('grok-4') || // Grok 4+ has vision
          model.startsWith('kimi-k2') || // Kimi K2+ has vision
-         model.startsWith('gemini-') || // Gemini has vision
          modelId.includes('anthropic') // Provider-based check for Claude
 }
 

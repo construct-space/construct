@@ -31,7 +31,7 @@ async function changePassword() {
   isSaving.value = true
   try {
     const api = useApi()
-    await api.put('/profile/password', {
+    await api.put('/me/password', {
       current_password: passwordForm.value.current_password,
       new_password: passwordForm.value.new_password,
     })

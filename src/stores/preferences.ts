@@ -73,14 +73,17 @@ export const usePreferencesStore = defineStore('preferences', {
 
       try {
         const api = useApi()
-        const response = await api.get<{ data: Record<string, unknown> }>('/user-preferences')
+        const response = await api.get<{ data: Record<string, unknown> }>('/me/preferences')
         this.preferences = response.data || {}
         this.initialized = true
         return this.preferences
       } catch (error) {
-        this.error = (error as Error).message || 'Failed to fetch preferences'
-        // Don't throw - preferences failing shouldn't break the app
-        console.error('Failed to load preferences:', this.error)
+        const msg = (error as Error).message || ''
+        // 404 means endpoint doesn't exist yet — not an error
+        if (!msg.includes('404')) {
+          this.error = msg || 'Failed to fetch preferences'
+          console.error('Failed to load preferences:', this.error)
+        }
         return {}
       } finally {
         this.loading = false
@@ -96,7 +99,7 @@ export const usePreferencesStore = defineStore('preferences', {
 
       try {
         const api = useApi()
-        await api.put(`/user-preferences/${key}`, { value })
+        await api.put(`/me/preferences/${key}`, { value })
         return { success: true }
       } catch (error) {
         // Rollback on error

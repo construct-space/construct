@@ -437,12 +437,6 @@ export const AUTH_OPTIONS: InterviewOption[] = [
     description: 'Traditional email/password authentication'
   },
   {
-    value: 'google',
-    label: 'Google OAuth',
-    icon: 'i-simple-icons-google',
-    description: 'Sign in with Google account'
-  },
-  {
     value: 'github',
     label: 'GitHub OAuth',
     icon: 'i-simple-icons-github',

@@ -11,7 +11,6 @@ export interface Permission {
 
 export interface Role {
   id: number
-  company_id?: number | null
   name: string
   description?: string
   is_system?: boolean
@@ -22,7 +21,6 @@ export interface Role {
 }
 
 export interface RoleCreateRequest {
-  company_id?: number | null
   name: string
   description?: string
 }

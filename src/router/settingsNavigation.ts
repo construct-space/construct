@@ -16,12 +16,11 @@ import {
   Server,
   Settings,
   Shield,
-  Users,
 } from 'lucide-vue-next'
 
 export const SETTINGS_DEFAULT_PATH = '/app/settings/general'
 
-type SettingsGroup = 'Account' | 'Workspace' | 'AI' | 'Organization' | 'System'
+type SettingsGroup = 'Account' | 'Workspace' | 'AI' | 'System'
 
 interface SettingsDefinition {
   label: string
@@ -49,10 +48,8 @@ const settingsDefinitions: SettingsDefinition[] = [
   { label: 'MCP Servers', path: 'mcp', group: 'AI', icon: Server, component: () => import('@/pages/settings/MCPSettings.vue') },
   { label: 'Skills & Hooks', path: 'skills', group: 'AI', icon: Puzzle, component: () => import('@/pages/settings/SkillsSettings.vue') },
 
-  { label: 'Company', path: 'company', group: 'Organization', icon: Users, component: () => import('@/pages/settings/CompanySettings.vue') },
-  { label: 'Collaboration', path: 'collaboration', group: 'Organization', icon: Users, component: () => import('@/pages/settings/CollaborationSettings.vue') },
-  { label: 'Email', path: 'email', group: 'Organization', icon: Mail, component: () => import('@/pages/settings/EmailSettings.vue') },
-  { label: 'Media', path: 'media', group: 'Organization', icon: Image, component: () => import('@/pages/settings/MediaSettings.vue') },
+  { label: 'Email', path: 'email', group: 'Workspace', icon: Mail, component: () => import('@/pages/settings/EmailSettings.vue') },
+  { label: 'Media', path: 'media', group: 'Workspace', icon: Image, component: () => import('@/pages/settings/MediaSettings.vue') },
 
   { label: 'Privacy', path: 'privacy', group: 'System', icon: Shield, component: () => import('@/pages/settings/PrivacySettings.vue') },
   { label: 'Security', path: 'security', group: 'System', icon: Shield, component: () => import('@/pages/settings/SecuritySettings.vue') },
@@ -71,7 +68,7 @@ export interface SettingsNavGroup {
   items: SettingsNavItem[]
 }
 
-const groupOrder: SettingsGroup[] = ['Account', 'Workspace', 'AI', 'Organization', 'System']
+const groupOrder: SettingsGroup[] = ['Account', 'Workspace', 'AI', 'System']
 
 export const settingsNavGroups: SettingsNavGroup[] = groupOrder
   .map((group) => {

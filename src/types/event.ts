@@ -20,7 +20,6 @@ export interface Event {
   location: string
   is_recurring: boolean
   recurrence_rule: string
-  company_id?: number
   project_id?: number
   owner_id?: number
   project?: Project

@@ -1,18 +1,13 @@
 <script setup lang="ts">
-import Input from '@/components/ui/Input.vue'
 import Button from '@/components/ui/Button.vue'
 
 const credits = useCredits()
-const { pool, userAllocation, allocations, packages, transactions, balance, userRemaining, userUsedThisMonth, hasUnlimitedAllocation, usagePercentage, isLowCredits, formatCredits, formatPrice, getTransactionTypeLabel, getTransactionTypeColor } = credits
+const { pool, packages, transactions, balance, isLowCredits, formatCredits, formatPrice, getTransactionTypeLabel, getTransactionTypeColor } = credits
 const toast = useToast()
 
 const loading = ref(true)
 const actionLoading = ref(false)
 const showPurchaseModal = ref(false)
-const showAllocationModal = ref(false)
-const editingAllocation = ref<{ userId: number; monthlyLimit: number } | null>(null)
-
-const isAdmin = computed(() => true)
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
@@ -32,26 +27,6 @@ async function purchasePackage(packageId: number) {
   } finally {
     actionLoading.value = false
     showPurchaseModal.value = false
-  }
-}
-
-function openAllocationEdit(userId: number, currentLimit: number) {
-  editingAllocation.value = { userId, monthlyLimit: currentLimit }
-  showAllocationModal.value = true
-}
-
-async function saveAllocation() {
-  if (!editingAllocation.value) return
-  actionLoading.value = true
-  try {
-    await credits.updateAllocations([{ user_id: editingAllocation.value.userId, monthly_limit: editingAllocation.value.monthlyLimit }])
-    toast.add({ title: 'Allocation updated', color: 'success' })
-    showAllocationModal.value = false
-    editingAllocation.value = null
-  } catch {
-    toast.add({ title: 'Failed to update allocation', color: 'error' })
-  } finally {
-    actionLoading.value = false
   }
 }
 
@@ -90,62 +65,15 @@ onMounted(async () => {
 
     <template v-else>
       <!-- Stats -->
-      <div class="grid grid-cols-3 gap-4 mb-8">
+      <div class="grid grid-cols-2 gap-4 mb-8">
         <div>
-          <p class="text-xs text-[var(--app-muted)] uppercase tracking-wider mb-1">Company Balance</p>
+          <p class="text-xs text-[var(--app-muted)] uppercase tracking-wider mb-1">Balance</p>
           <p class="text-2xl font-bold text-[var(--app-foreground)]">{{ formatCredits(balance) }}</p>
           <p v-if="isLowCredits" class="text-xs text-amber-500 mt-1">Low credit balance</p>
         </div>
         <div>
-          <p class="text-xs text-[var(--app-muted)] uppercase tracking-wider mb-1">Your Remaining</p>
-          <p class="text-2xl font-bold text-[var(--app-foreground)]">{{ hasUnlimitedAllocation ? 'Unlimited' : formatCredits(userRemaining) }}</p>
-          <div v-if="!hasUnlimitedAllocation" class="mt-2">
-            <div class="flex justify-between text-xs text-[var(--app-muted)] mb-1">
-              <span>Used this month</span>
-              <span>{{ userUsedThisMonth }} / {{ userAllocation?.monthly_limit }}</span>
-            </div>
-            <div class="w-full bg-[color-mix(in_srgb,var(--app-muted)_15%,transparent)] rounded-full h-1.5">
-              <div
-                class="h-1.5 rounded-full transition-all"
-                :class="usagePercentage > 80 ? 'bg-amber-500' : 'bg-app-accent'"
-                :style="{ width: `${usagePercentage}%` }"
-              />
-            </div>
-          </div>
-        </div>
-        <div>
           <p class="text-xs text-[var(--app-muted)] uppercase tracking-wider mb-1">Total Used</p>
           <p class="text-2xl font-bold text-[var(--app-foreground)]">{{ formatCredits(pool?.total_used || 0) }}</p>
-        </div>
-      </div>
-
-      <!-- Team Allocations -->
-      <div v-if="isAdmin && allocations.length > 0" class="mb-8">
-        <h3 class="text-sm font-semibold text-[var(--app-foreground)] mb-1">Team Allocations</h3>
-        <p class="text-xs text-[var(--app-muted)] mb-3">Set monthly credit limits per user. Use -1 for unlimited.</p>
-        <div class="rounded-lg border border-[var(--app-border)] overflow-hidden">
-          <table class="w-full text-sm">
-            <thead class="bg-[color-mix(in_srgb,var(--app-muted)_5%,transparent)]">
-              <tr>
-                <th class="px-4 py-2 text-left text-xs font-medium text-[var(--app-muted)] uppercase">User</th>
-                <th class="px-4 py-2 text-left text-xs font-medium text-[var(--app-muted)] uppercase">Limit</th>
-                <th class="px-4 py-2 text-left text-xs font-medium text-[var(--app-muted)] uppercase">Used</th>
-                <th class="px-4 py-2 text-left text-xs font-medium text-[var(--app-muted)] uppercase">Remaining</th>
-                <th class="px-4 py-2 text-right text-xs font-medium text-[var(--app-muted)] uppercase">Actions</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-[var(--app-border)]">
-              <tr v-for="alloc in allocations" :key="alloc.id">
-                <td class="px-4 py-2 text-[var(--app-foreground)]">User #{{ alloc.user_id }}</td>
-                <td class="px-4 py-2 text-[var(--app-foreground)]">{{ alloc.monthly_limit === -1 ? 'Unlimited' : formatCredits(alloc.monthly_limit) }}</td>
-                <td class="px-4 py-2 text-[var(--app-foreground)]">{{ formatCredits(alloc.used_this_month) }}</td>
-                <td class="px-4 py-2 text-[var(--app-foreground)]">{{ alloc.monthly_limit === -1 ? '-' : formatCredits(alloc.remaining) }}</td>
-                <td class="px-4 py-2 text-right">
-                  <Button variant="ghost" size="xs" label="Edit" @click="openAllocationEdit(alloc.user_id, alloc.monthly_limit)" />
-                </td>
-              </tr>
-            </tbody>
-          </table>
         </div>
       </div>
 
@@ -216,29 +144,5 @@ onMounted(async () => {
       </div>
     </Teleport>
 
-    <!-- Allocation edit modal -->
-    <Teleport to="body">
-      <div v-if="showAllocationModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="showAllocationModal = false">
-        <div class="bg-[var(--app-background)] rounded-lg border border-[var(--app-border)] p-6 max-w-sm w-full mx-4">
-          <h3 class="text-lg font-semibold text-[var(--app-foreground)] mb-2">Edit Credit Allocation</h3>
-          <div v-if="editingAllocation" class="space-y-4">
-            <div class="flex gap-2">
-              <Input v-model="editingAllocation.monthlyLimit" type="number" placeholder="Monthly limit" />
-              <Button variant="soft" size="sm" label="Unlimited" @click="editingAllocation.monthlyLimit = -1" />
-            </div>
-            <p class="text-xs text-[var(--app-muted)]">
-              {{ editingAllocation.monthlyLimit === -1 ? 'Unlimited access to company pool' : `Up to ${formatCredits(editingAllocation.monthlyLimit)} credits/month` }}
-            </p>
-            <div class="flex flex-wrap gap-2">
-              <Button v-for="preset in [50, 100, 200, 500, 1000]" :key="preset" variant="outline" size="xs" :label="formatCredits(preset)" @click="editingAllocation.monthlyLimit = preset" />
-            </div>
-          </div>
-          <div class="mt-4 flex justify-end gap-2">
-            <Button variant="ghost" label="Cancel" @click="showAllocationModal = false" />
-            <Button label="Save" :loading="actionLoading" @click="saveAllocation" />
-          </div>
-        </div>
-      </div>
-    </Teleport>
   </div>
 </template>

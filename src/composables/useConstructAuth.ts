@@ -101,8 +101,6 @@ export function useConstructAuth() {
     const codeVerifier = sessionStorage.getItem(OAUTH_VERIFIER_KEY)
       || localStorage.getItem(OAUTH_VERIFIER_KEY_PERSIST)
       || ''
-    sessionStorage.removeItem(OAUTH_VERIFIER_KEY)
-    localStorage.removeItem(OAUTH_VERIFIER_KEY_PERSIST)
 
     console.log('[OAuth] exchangeCode — redirect_uri:', redirectUri)
     console.log('[OAuth] exchangeCode — code_verifier present:', !!codeVerifier, 'length:', codeVerifier.length)
@@ -116,9 +114,16 @@ export function useConstructAuth() {
       code_verifier: codeVerifier,
     }
 
-    const response = await fetch(`${accountsUrl}/oauth/token`, {
+    // Proxy through local API to avoid CORS issues with accounts service
+    const { appConfig: cfg } = await import('@/utils/config')
+    const proxyUrl = `${cfg.apiBase}/oauth/construct/token`
+
+    const response = await fetch(proxyUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Api-Key': cfg.apiKey,
+      },
       body: JSON.stringify(body),
     })
 
@@ -129,6 +134,10 @@ export function useConstructAuth() {
       try { parsed = JSON.parse(errText) } catch { /* not JSON */ }
       throw new Error(parsed.error_description || parsed.error || `Token exchange failed (${response.status})`)
     }
+
+    // Only clear verifier after successful exchange
+    sessionStorage.removeItem(OAUTH_VERIFIER_KEY)
+    localStorage.removeItem(OAUTH_VERIFIER_KEY_PERSIST)
 
     return response.json()
   }
@@ -141,8 +150,15 @@ export function useConstructAuth() {
     last_name: string
     avatar_url?: string
   }> {
-    const response = await fetch(`${accountsUrl}/api/me`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
+    // Proxy through local API to avoid CORS with accounts service
+    const { appConfig: cfg } = await import('@/utils/config')
+    const proxyUrl = `${cfg.apiBase}/oauth/construct/profile`
+
+    const response = await fetch(proxyUrl, {
+      headers: {
+        'X-Api-Key': cfg.apiKey,
+        'X-Construct-Token': accessToken,
+      },
     })
 
     if (!response.ok) {

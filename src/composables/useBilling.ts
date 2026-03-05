@@ -5,21 +5,20 @@ export interface BillingPlan {
   name: string
   slug: string
   description: string
-  price_per_user_cents: number
+  price_cents: number
   currency: string
   billing_interval: string
   trial_days: number
-  ai_credits_per_user: number
+  ai_credits: number
   max_rollover_multiplier: number
   features?: Record<string, unknown>
 }
 
 export interface BillingSubscription {
   id: number
-  company_id: number
+  user_id: number
   plan?: BillingPlan
   status: 'active' | 'canceled' | 'incomplete' | 'incomplete_expired' | 'past_due' | 'trialing' | 'unpaid'
-  quantity: number
   current_period_start: string
   current_period_end: string
   trial_end: string | null
@@ -77,7 +76,7 @@ export const useBilling = () => {
 
   const monthlyPrice = computed(() => {
     if (!subscription.value?.plan) return 0
-    return subscription.value.plan.price_per_user_cents * subscription.value.quantity
+    return subscription.value.plan.price_cents
   })
 
   // API Methods — hit Go API via useApi()
@@ -116,7 +115,7 @@ export const useBilling = () => {
     }
   }
 
-  const createCheckout = async (planSlug: string, successUrl: string, cancelUrl: string, quantity = 1): Promise<string> => {
+  const createCheckout = async (planSlug: string, successUrl: string, cancelUrl: string): Promise<string> => {
     loading.value = true
     error.value = null
     try {
@@ -124,7 +123,6 @@ export const useBilling = () => {
         plan_slug: planSlug,
         success_url: successUrl,
         cancel_url: cancelUrl,
-        quantity,
       })
       return response.url
     } catch (err) {

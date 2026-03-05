@@ -1,16 +1,88 @@
 <script setup lang="ts">
-import { watchEffect } from 'vue'
+import { ref, watchEffect } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useConstructAuth } from '@/composables/useConstructAuth'
-import { ExternalLink, UserPlus } from 'lucide-vue-next'
+import { ExternalLink, UserPlus, ClipboardPaste } from 'lucide-vue-next'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const constructAuth = useConstructAuth()
 
+const showCodeEntry = ref(false)
+const codeError = ref('')
+
 const handleLogin = () => {
+  showCodeEntry.value = true
   constructAuth.startLogin()
+}
+
+async function readClipboard(): Promise<string> {
+  // Try Tauri clipboard plugin first (no native paste banner)
+  try {
+    const { readText } = await import('@tauri-apps/plugin-clipboard-manager')
+    const text = await readText()
+    return text?.trim() ?? ''
+  } catch {
+    // Fallback to web API
+    try {
+      return (await navigator.clipboard.readText()).trim()
+    } catch {
+      return ''
+    }
+  }
+}
+
+async function submitCode(raw: string) {
+  let code = raw.trim()
+  if (!code) return
+
+  // Fix doubled paste: if code is 128 chars and both halves match, take first half
+  if (code.length === 128) {
+    const half = code.length / 2
+    if (code.slice(0, half) === code.slice(half)) {
+      code = code.slice(0, half)
+    }
+  }
+
+  codeError.value = ''
+  authStore.isLoading = true
+
+  try {
+    const { access_token } = await constructAuth.exchangeCode(code)
+    const profile = await constructAuth.fetchProfile(access_token)
+
+    const { useApi } = await import('@/composables/useApi')
+    const api = useApi()
+    api.setToken(access_token)
+
+    authStore.token = access_token
+    authStore.user = {
+      id: Number(profile.id),
+      email: profile.email,
+      username: profile.username,
+      first_name: profile.first_name,
+      last_name: profile.last_name,
+      name: `${profile.first_name} ${profile.last_name}`.trim(),
+      created_at: '',
+      updated_at: '',
+    }
+    authStore.isAuthenticated = true
+    await authStore.persistAuthState()
+  } catch (err) {
+    codeError.value = err instanceof Error ? err.message : 'Invalid code. Please try again.'
+  } finally {
+    authStore.isLoading = false
+  }
+}
+
+const handlePasteAndSubmit = async () => {
+  const code = await readClipboard()
+  if (!code) {
+    codeError.value = 'Nothing in clipboard. Copy the authorization code first.'
+    return
+  }
+  await submitCode(code)
 }
 
 // Redirect if already authenticated
@@ -56,6 +128,22 @@ watchEffect(() => {
             <p class="text-sm text-gray-500 text-center">
               You'll be redirected to accounts.construct.ninja to sign in.
             </p>
+
+            <!-- Manual code entry (shown after clicking sign in) -->
+            <div v-if="showCodeEntry" class="pt-4 border-t border-gray-200 dark:border-gray-800 space-y-3">
+              <p class="text-sm text-gray-500">
+                If the app didn't open, copy the authorization code and click below:
+              </p>
+              <button
+                @click="handlePasteAndSubmit"
+                :disabled="authStore.isLoading"
+                class="w-full py-2.5 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm font-medium hover:border-app-accent transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <ClipboardPaste class="size-4" />
+                {{ authStore.isLoading ? 'Verifying...' : 'Paste Code & Sign In' }}
+              </button>
+              <p v-if="codeError" class="text-sm text-red-500">{{ codeError }}</p>
+            </div>
 
             <!-- Footer Links -->
             <div class="pt-6 border-t border-gray-200 dark:border-gray-800 space-y-3">

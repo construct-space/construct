@@ -1,27 +1,16 @@
 // Types
 export interface CreditPool {
   id: number
-  company_id: number
+  user_id: number
   balance: number
   total_bought: number
   total_used: number
   total_granted: number
 }
 
-export interface UserCreditAllocation {
-  id: number
-  company_id: number
-  user_id: number
-  monthly_limit: number
-  used_this_month: number
-  remaining: number
-  period_start: string
-}
-
 export interface CreditTransaction {
   id: number
-  company_id: number
-  user_id?: number
+  user_id: number
   type: 'purchase' | 'subscription_grant' | 'usage' | 'refund' | 'admin_adjust' | 'rollover' | 'expired'
   amount: number
   balance: number
@@ -42,8 +31,6 @@ export interface CreditPackage {
 
 export interface CreditsSummary {
   pool: CreditPool
-  allocation?: UserCreditAllocation
-  allocations?: UserCreditAllocation[]
 }
 
 export interface CreditBalance {
@@ -58,11 +45,6 @@ export interface PurchaseCreditsRequest {
   cancel_url: string
 }
 
-export interface UpdateAllocationRequest {
-  user_id: number
-  monthly_limit: number
-}
-
 export const useCredits = () => {
   const api = useApi()
 
@@ -73,8 +55,6 @@ export const useCredits = () => {
 
   // State
   const pool = ref<CreditPool | null>(null)
-  const userAllocation = ref<UserCreditAllocation | null>(null)
-  const allocations = ref<UserCreditAllocation[]>([])
   const packages = ref<CreditPackage[]>([])
   const transactions = ref<CreditTransaction[]>([])
   const loading = ref(false)
@@ -82,26 +62,6 @@ export const useCredits = () => {
 
   // Computed
   const balance = computed(() => pool.value?.balance || 0)
-
-  const userRemaining = computed(() => {
-    if (!userAllocation.value) return balance.value
-    if (userAllocation.value.monthly_limit === -1) return balance.value
-    return userAllocation.value.remaining ?? 0
-  })
-
-  const userUsedThisMonth = computed(() => {
-    return userAllocation.value?.used_this_month || 0
-  })
-
-  const hasUnlimitedAllocation = computed(() => {
-    return userAllocation.value?.monthly_limit === -1
-  })
-
-  const usagePercentage = computed(() => {
-    if (!userAllocation.value || userAllocation.value.monthly_limit === -1) return 0
-    if (userAllocation.value.monthly_limit === 0) return 100
-    return Math.min(100, (userAllocation.value.used_this_month / userAllocation.value.monthly_limit) * 100)
-  })
 
   const isLowCredits = computed(() => {
     return balance.value < 20
@@ -114,16 +74,12 @@ export const useCredits = () => {
     try {
       const response = await api.get<CreditsSummary>('/credits')
       pool.value = response.pool
-      userAllocation.value = response.allocation || null
-      allocations.value = response.allocations || []
       return response
     } catch (err) {
       // No credits setup is not an error
       const errMsg = err instanceof Error ? err.message.toLowerCase() : ''
       if (errMsg.includes('not found') || errMsg.includes('404')) {
         pool.value = null
-        userAllocation.value = null
-        allocations.value = []
         return null
       }
       error.value = err instanceof Error ? err.message : 'Failed to fetch credits'
@@ -179,20 +135,6 @@ export const useCredits = () => {
       return response.url
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to create purchase session'
-      throw err
-    } finally {
-      loading.value = false
-    }
-  }
-
-  const updateAllocations = async (updates: UpdateAllocationRequest[]): Promise<void> => {
-    loading.value = true
-    error.value = null
-    try {
-      await api.put('/credits/allocations', { allocations: updates })
-      await fetchCredits()
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Failed to update allocations'
       throw err
     } finally {
       loading.value = false
@@ -288,10 +230,8 @@ export const useCredits = () => {
   }
 
   return {
-    // State (refs are auto-unwrapped in templates)
+    // State
     pool,
-    userAllocation,
-    allocations,
     packages,
     transactions,
     loading,
@@ -299,10 +239,6 @@ export const useCredits = () => {
 
     // Computed
     balance,
-    userRemaining,
-    userUsedThisMonth,
-    hasUnlimitedAllocation,
-    usagePercentage,
     isLowCredits,
 
     // Methods
@@ -310,7 +246,6 @@ export const useCredits = () => {
     fetchBalance,
     fetchPackages,
     purchaseCredits,
-    updateAllocations,
     fetchTransactions,
 
     // Helpers

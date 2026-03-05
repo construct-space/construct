@@ -19,11 +19,11 @@ const SCOPE_DEFAULTS: Record<string, SpaceScope> = {
   notes: 'project',
   terminal: 'project',
   calendar: 'project',
-  projects: 'company',
-  chat: 'company',
-  ai: 'company',
-  settings: 'company',
-  marketplace: 'company',
+  projects: 'app',
+  chat: 'app',
+  ai: 'app',
+  settings: 'app',
+  marketplace: 'app',
   architect: 'both',
 }
 
@@ -197,11 +197,11 @@ export function getProjectSpaces(allSpaces: SpaceConfig[], projectSpaceIds?: str
   })
 }
 
-/** Get spaces that belong at the company/global level (scope = 'company' or 'both') */
-export function getCompanySpaces(allSpaces: SpaceConfig[]): SpaceConfig[] {
+/** Get spaces that belong at the app/global level (scope = 'app' or 'both') */
+export function getAppSpaces(allSpaces: SpaceConfig[]): SpaceConfig[] {
   return allSpaces.filter(s => {
     const scope = s.scope || SCOPE_DEFAULTS[s.name] || 'both'
-    return scope === 'company' || scope === 'both'
+    return scope === 'app' || scope === 'both'
   })
 }
 

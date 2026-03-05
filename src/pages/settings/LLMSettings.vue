@@ -51,7 +51,6 @@ interface ProviderKeyConfig {
 const providers: ProviderKeyConfig[] = [
   { id: 'deepseek', name: 'DeepSeek', description: 'DeepSeek V3/R1 models', placeholder: 'sk-...', kvKey: 'provider_key:deepseek' },
   { id: 'xai', name: 'xAI (Grok)', description: 'Grok models', placeholder: 'xai-...', kvKey: 'provider_key:xai' },
-  { id: 'gemini', name: 'Google Gemini', description: 'Gemini models', placeholder: 'AIza...', kvKey: 'provider_key:gemini' },
   { id: 'zai', name: 'Z.AI', description: 'GLM / CogView models', placeholder: 'API key', kvKey: 'provider_key:zai' },
   { id: 'mimo', name: 'Xiaomi MiMo', description: 'MiMo reasoning model', placeholder: 'API key', kvKey: 'provider_key:mimo' },
   { id: 'kimi', name: 'Kimi (Moonshot)', description: 'Moonshot AI models', placeholder: 'API key', kvKey: 'provider_key:kimi' },
@@ -155,13 +154,13 @@ function logoutAnthropic() {
 }
 
 async function checkOpenAIStatus() {
-  if (!contextService.isTauri.value) return
-  try {
-    const result = await contextService.sendRequest('auth.openai.status', {}) as { authenticated?: boolean }
-    openAIAuthenticated.value = !!result?.authenticated
-  } catch {
-    openAIAuthenticated.value = false
-  }
+	if (!contextService.isTauri.value) return
+	try {
+		const result = await contextService.sendRequest('auth.openai.status', {}) as { authenticated?: boolean }
+		openAIAuthenticated.value = !!result?.authenticated
+	} catch {
+		openAIAuthenticated.value = false
+	}
 }
 
 async function startOpenAIAuth() {
@@ -217,8 +216,8 @@ async function submitOpenAIAuthCode() {
 }
 
 async function logoutOpenAI() {
-  if (!contextService.isTauri.value) return
-  openAIAuthLoading.value = true
+	if (!contextService.isTauri.value) return
+	openAIAuthLoading.value = true
   try {
     await contextService.sendRequest('auth.openai.clear', {})
     openAIAuthenticated.value = false
@@ -229,23 +228,26 @@ async function logoutOpenAI() {
     toast.add({ title: 'Failed to disconnect OpenAI', color: 'error' })
   } finally {
     openAIAuthLoading.value = false
-  }
+	}
 }
 
 onMounted(async () => {
-  try {
-    await anthropicOAuth.checkStatus()
-    await checkOpenAIStatus()
-    await loadKeys()
-    if (route.query.connect === 'oauth' && !anthropicOAuth.isAuthenticated.value) {
-      await startAnthropicAuth()
+	try {
+    if (route.query.connect === 'oauth' || route.query.connect === 'openai') {
+      activeTab.value = 'auth'
     }
-    if (route.query.connect === 'openai' && !openAIAuthenticated.value) {
-      await startOpenAIAuth()
-    }
-  } catch {
-    // silent
-  }
+		await anthropicOAuth.checkStatus()
+		await checkOpenAIStatus()
+		await loadKeys()
+		if (route.query.connect === 'oauth' && !anthropicOAuth.isAuthenticated.value) {
+			await startAnthropicAuth()
+		}
+		if (route.query.connect === 'openai' && !openAIAuthenticated.value) {
+			await startOpenAIAuth()
+		}
+	} catch {
+		// silent
+	}
 })
 </script>
 
@@ -421,8 +423,7 @@ onMounted(async () => {
     <!-- Auth Tab -->
     <template v-else-if="activeTab === 'auth'">
     <div class="space-y-6">
-
-    <!-- Claude Max OAuth -->
+<!-- Claude Max OAuth -->
     <div>
       <div class="flex items-center justify-between mb-4">
         <div>
@@ -526,7 +527,7 @@ onMounted(async () => {
       </div>
     </div>
 
-    </div>
+</div>
     </template>
   </div>
 </template>

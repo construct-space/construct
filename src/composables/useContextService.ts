@@ -903,13 +903,6 @@ export function useContextService(): UseContextServiceReturn {
           ],
         },
         {
-          id: 'gemini', label: 'Gemini', authType: 'api',
-          models: [
-            { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-            { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
-          ],
-        },
-        {
           id: 'xiaomi', label: 'Xiaomi', authType: 'api',
           models: [
             { id: 'mimo-v2-flash', label: 'MiMo V2 Flash' },
