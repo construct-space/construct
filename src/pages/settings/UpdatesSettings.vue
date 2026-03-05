@@ -8,7 +8,9 @@ const {
   checkForUpdates, downloadAndInstall, getAutoCheck, setAutoCheck, getLastChecked,
 } = useUpdater()
 
+const appVersion = ref('')
 const lastChecked = ref<Date | null>(getLastChecked())
+
 const autoCheck = ref(getAutoCheck())
 
 watch(autoCheck, (val) => setAutoCheck(val))
@@ -22,7 +24,13 @@ async function handleInstall() {
   await downloadAndInstall()
 }
 
-onMounted(() => { handleCheck() })
+onMounted(async () => {
+  try {
+    const { getVersion } = await import('@tauri-apps/api/app')
+    appVersion.value = await getVersion()
+  } catch {}
+  handleCheck()
+})
 </script>
 
 <template>
@@ -80,7 +88,7 @@ onMounted(() => { handleCheck() })
       <div v-else-if="!isChecking && !error && lastChecked" class="p-4 rounded-lg bg-green-500/5 border border-green-500/20">
         <div class="flex items-center gap-3">
           <svg class="w-5 h-5 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
-          <span class="text-sm text-[var(--app-foreground)]">You're running the latest version</span>
+          <span class="text-sm text-[var(--app-foreground)]">You're running the latest version<span v-if="appVersion"> (v{{ appVersion }})</span></span>
         </div>
       </div>
     </div>
