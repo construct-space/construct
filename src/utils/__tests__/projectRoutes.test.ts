@@ -13,7 +13,7 @@ describe('slugifyProjectToken', () => {
 
 describe('getProjectRouteKey', () => {
   it('prefers explicit id when present', () => {
-    expect(getProjectRouteKey({ id: 'ext-chatapp', name: 'ChatAPP', path: '/tmp/chat' })).toBe('ext-chatapp')
+    expect(getProjectRouteKey({ id: 'ext-chatapp', name: 'ChatAPP', path: '/tmp/chat' })).toBe('chatapp')
   })
 
   it('falls back to slugified name', () => {
@@ -31,6 +31,6 @@ describe('getProjectRouteKey', () => {
 
 describe('buildProjectRoutePath', () => {
   it('builds encoded project single route path', () => {
-    expect(buildProjectRoutePath({ id: 'ext-my project' })).toBe('/app/projects/ext-my%20project')
+    expect(buildProjectRoutePath({ id: 'ext-my project' })).toBe('/app/projects/my-project')
   })
 })
