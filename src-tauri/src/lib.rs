@@ -3072,6 +3072,7 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(move |app_handle, event| {
+            #[cfg(target_os = "macos")]
             if let tauri::RunEvent::Opened { urls } = &event {
                 // macOS: fired when folders/files are dropped on the dock icon
                 for url in urls {
