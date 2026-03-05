@@ -3,13 +3,63 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { isTauriEnv } from '@/utils/tauri'
 import { useAppTheme } from '@/composables/useAppTheme'
+import { useAppMenu } from '@/composables/useAppMenu'
 import { useDeepLink } from '@/composables/useDeepLink'
 import { useTelemetry } from '@/composables/useTelemetry'
+import { useUpdater } from '@/composables/useUpdater'
+import { useGlobalShortcuts } from '@/composables/useGlobalShortcuts'
 
 const route = useRoute()
 const { initTheme } = useAppTheme()
+useAppMenu()
 useDeepLink()
 const telemetry = useTelemetry()
+const updater = useUpdater()
+
+// Global shortcuts (system-wide, works even when app not focused)
+useGlobalShortcuts(async (id) => {
+  switch (id) {
+    case 'global.toggle-app': {
+      try {
+        const { getCurrentWindow } = await import('@tauri-apps/api/window')
+        const win = getCurrentWindow()
+        if (await win.isVisible()) {
+          await win.hide()
+        } else {
+          await win.show()
+          await win.setFocus()
+        }
+      } catch (e) {
+        console.error('[GlobalShortcut] toggle-app failed:', e)
+      }
+      break
+    }
+    case 'global.toggle-assistant': {
+      const { useAssistant } = await import('@/composables/useAssistant')
+      const assistant = useAssistant()
+      assistant.toggle()
+      // Also bring window to front
+      try {
+        const { getCurrentWindow } = await import('@tauri-apps/api/window')
+        const win = getCurrentWindow()
+        await win.show()
+        await win.setFocus()
+      } catch { /* ignore */ }
+      break
+    }
+    case 'global.quick-capture': {
+      try {
+        const { getCurrentWindow } = await import('@tauri-apps/api/window')
+        const win = getCurrentWindow()
+        await win.show()
+        await win.setFocus()
+      } catch { /* ignore */ }
+      // Emit a custom event that can be picked up by a notes/capture component
+      window.dispatchEvent(new CustomEvent('construct:quick-capture'))
+      break
+    }
+  }
+})
 
 // Check if we're in an app route (needs sidebar + toolbar)
 const showSidebar = computed(() => route.path.startsWith('/app'))
@@ -93,6 +143,11 @@ onMounted(async () => {
   // so we handle them via document.execCommand as a fallback.
   if (isTauri.value) {
     document.addEventListener('keydown', handleSystemShortcuts)
+  }
+
+  // Auto-check for updates (respects user preference)
+  if (isTauri.value) {
+    updater.autoCheckOnStartup()
   }
 
   // Tauri: bridge window focus/blur to custom events for DynamicSpacePage

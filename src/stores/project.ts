@@ -15,6 +15,53 @@ const DEFAULT_SPACES: SpaceType[] = [
   'architect', 'git', 'terminal', 'calendar'
 ]
 
+const slugifyProjectToken = (value: string): string => {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
+const buildProjectId = (name: string, isExternal = false): string => {
+  const slug = slugifyProjectToken(name) || 'project'
+  return isExternal ? `ext-${slug}` : slug
+}
+
+const projectLookupCandidates = (project: LocalProject): Set<string> => {
+  const id = String(project.id || '')
+  const name = project.name || ''
+  const pathName = (project.path || '').split('/').filter(Boolean).pop() || ''
+  const isExternal = Boolean(project.is_external) || id.startsWith('ext-')
+  const canonical = buildProjectId(name || pathName || id, isExternal)
+
+  return new Set([
+    id,
+    slugifyProjectToken(id),
+    name,
+    slugifyProjectToken(name),
+    pathName,
+    slugifyProjectToken(pathName),
+    canonical,
+    slugifyProjectToken(canonical),
+  ])
+}
+
+const projectMatchesLookup = (project: LocalProject, lookup: string): boolean => {
+  if (!lookup) return false
+
+  const rawLookup = String(lookup)
+  const slugLookup = slugifyProjectToken(rawLookup)
+  const unprefixedLookup = rawLookup.replace(/^ext-/, '')
+  const slugUnprefixedLookup = slugifyProjectToken(unprefixedLookup)
+  const wantsExternal = rawLookup.startsWith('ext-')
+
+  const candidates = projectLookupCandidates(project)
+  if (candidates.has(rawLookup) || candidates.has(slugLookup)) return true
+
+  if (wantsExternal) {
+    return candidates.has(`ext-${slugUnprefixedLookup}`)
+  }
+
+  return candidates.has(unprefixedLookup) || candidates.has(slugUnprefixedLookup)
+}
+
 export const useProjectStore = defineStore('project', {
   state: () => ({
     currentProject: null as LocalProject | null,
@@ -40,8 +87,8 @@ export const useProjectStore = defineStore('project', {
 
     /** Find a project by its slug ID across projects and recents */
     getProjectById: (state) => (id: string): LocalProject | null => {
-      return state.projects.find(p => String(p.id) === id)
-        || state.recentProjects.find(p => String(p.id) === id)
+      return state.projects.find(p => projectMatchesLookup(p, id))
+        || state.recentProjects.find(p => projectMatchesLookup(p, id))
         || null
     },
   },
@@ -56,8 +103,6 @@ export const useProjectStore = defineStore('project', {
     },
 
     async loadProjects() {
-      if (!this.projectsRoot) return
-
       this.loading = true
       this.error = null
 
@@ -65,30 +110,32 @@ export const useProjectStore = defineStore('project', {
         const { useProjectDirectory } = await import('@/composables/useProjectDirectory')
         const projectDir = useProjectDirectory()
 
-        // List projects from root directory
-        const entries = await projectDir.listProjects()
-
         const projects: LocalProject[] = []
 
-        for (const entry of entries) {
-          // Check if it's a valid construct project
-          const isConstruct = await projectDir.isConstructProject(entry.path)
+        // Load managed projects from projects root (if configured)
+        if (this.projectsRoot) {
+          const entries = await projectDir.listProjects()
 
-          // Only show directories that are actual Construct projects
-          if (!isConstruct) continue
+          for (const entry of entries) {
+            // Check if it's a valid construct project
+            const isConstruct = await projectDir.isConstructProject(entry.path)
 
-          const config = await projectDir.loadProjectConfig(entry.path)
-          projects.push({
-            id: entry.name,
-            name: config?.name || entry.name,
-            path: entry.path,
-            description: config?.description,
-            spaces: (config?.spaces as SpaceType[]) || DEFAULT_SPACES,
-            last_opened_at: this.getRecentTimestamp(entry.path),
-            is_external: false,
-            created_at: config?.created || new Date().toISOString(),
-            updated_at: config?.updated || new Date().toISOString(),
-          })
+            // Only show directories that are actual Construct projects
+            if (!isConstruct) continue
+
+            const config = await projectDir.loadProjectConfig(entry.path)
+            projects.push({
+              id: buildProjectId(entry.name),
+              name: config?.name || entry.name,
+              path: entry.path,
+              description: config?.description,
+              spaces: (config?.spaces as SpaceType[]) || DEFAULT_SPACES,
+              last_opened_at: this.getRecentTimestamp(entry.path),
+              is_external: false,
+              created_at: config?.created || new Date().toISOString(),
+              updated_at: config?.updated || new Date().toISOString(),
+            })
+          }
         }
 
         // Add external projects
@@ -100,7 +147,7 @@ export const useProjectStore = defineStore('project', {
             const projectDir = useProjectDirectory()
             const config = await projectDir.loadProjectConfig(extPath).catch(() => null)
             projects.push({
-              id: `ext-${name}`,
+              id: buildProjectId(name, true),
               name: config?.name || name,
               path: extPath,
               description: config?.description,
@@ -153,7 +200,7 @@ export const useProjectStore = defineStore('project', {
         }
 
         const project: LocalProject = {
-          id: data.name.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
+          id: buildProjectId(data.name),
           name: data.name,
           path: createdPath,
           local_path: createdPath,
@@ -188,7 +235,7 @@ export const useProjectStore = defineStore('project', {
       // Project not in list — create a minimal entry
       const name = path.split('/').pop() || path
       const newProject: LocalProject = {
-        id: name.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
+        id: buildProjectId(name, true),
         name,
         path,
         local_path: path,
@@ -231,14 +278,21 @@ export const useProjectStore = defineStore('project', {
       this.currentProject = null
     },
 
-    async addExternalProject(path: string) {
-      if (this.externalPaths.includes(path)) return
+    async addExternalFolderByPath(path: string): Promise<LocalProject | null> {
+      if (!path) return null
 
-      this.externalPaths.push(path)
-      localStorage.setItem(STORAGE_KEY_EXTERNALS, JSON.stringify(this.externalPaths))
+      if (!this.externalPaths.includes(path)) {
+        this.externalPaths.push(path)
+        localStorage.setItem(STORAGE_KEY_EXTERNALS, JSON.stringify(this.externalPaths))
+      }
 
-      // Reload projects to include the new external
+      // Reload projects to include the external path.
       await this.loadProjects()
+      return this.projects.find(p => p.path === path) || null
+    },
+
+    async addExternalProject(path: string): Promise<LocalProject | null> {
+      return this.addExternalFolderByPath(path)
     },
 
     trackRecentOpen(project: LocalProject) {

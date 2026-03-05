@@ -1,12 +1,22 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useShortcutStore, SHORTCUT_REGISTRY, type ShortcutSpace } from '@/composables/useShortcutStore'
+import { useGlobalShortcuts } from '@/composables/useGlobalShortcuts'
 
 const store = useShortcutStore()
+
+// Global shortcuts — the handler is only used in App.vue, but we need the
+// enabled/setEnabled/refresh here for the settings toggle.
+const globalShortcuts = useGlobalShortcuts((id) => {
+  // This instance won't handle events — the root App.vue instance does.
+  // We just need access to enabled state for the UI toggle.
+  console.debug('[Settings] global shortcut fired:', id)
+})
 
 // ─── Group shortcuts by space then group ─────────────────────────────────────
 
 const spaces: { id: ShortcutSpace; label: string; icon: string }[] = [
+  { id: 'global', label: 'Global',  icon: 'i-lucide-globe' },
   { id: 'design', label: 'Design',  icon: 'i-lucide-pen-tool' },
   { id: 'code',   label: 'Code',    icon: 'i-lucide-code-2' },
   { id: 'git',    label: 'Git',     icon: 'i-lucide-git-branch' },
@@ -24,7 +34,7 @@ function shortcutsForSpace(space: ShortcutSpace) {
 
 // ─── Active space tab ────────────────────────────────────────────────────────
 
-const activeSpace = ref<ShortcutSpace>('design')
+const activeSpace = ref<ShortcutSpace>('global')
 
 // ─── Key display formatting ──────────────────────────────────────────────────
 
@@ -275,6 +285,45 @@ const spaceExamples = [
         <Icon :name="space.icon" class="size-4" />
         {{ space.label }}
       </button>
+    </div>
+
+    <!-- Global shortcuts toggle -->
+    <div v-if="activeSpace === 'global'" class="mb-6 space-y-3">
+      <div class="rounded-lg border border-[var(--app-border)] p-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <Icon name="i-lucide-globe" class="size-4 text-app-accent shrink-0" />
+          <div>
+            <p class="text-sm font-medium text-[var(--app-foreground)]">System-wide global shortcuts</p>
+            <p class="text-xs text-[var(--app-muted)] mt-0.5">These shortcuts work even when Construct is not focused.</p>
+          </div>
+        </div>
+        <button
+          class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+          :class="globalShortcuts.enabled.value ? 'bg-[var(--app-accent)]' : 'bg-[color-mix(in_srgb,var(--app-muted)_30%,transparent)]'"
+          @click="globalShortcuts.setEnabled(!globalShortcuts.enabled.value)"
+        >
+          <span
+            class="pointer-events-none inline-block size-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+            :class="globalShortcuts.enabled.value ? 'translate-x-4' : 'translate-x-0'"
+          />
+        </button>
+      </div>
+
+      <!-- Accessibility permission notice (macOS) -->
+      <div
+        v-if="globalShortcuts.enabled.value && globalShortcuts.accessibilityGranted.value === false"
+        class="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 flex items-start gap-3"
+      >
+        <Icon name="i-lucide-shield-alert" class="size-4 text-amber-500 mt-0.5 shrink-0" />
+        <div>
+          <p class="text-sm font-medium text-amber-500">Accessibility permission required</p>
+          <p class="text-xs text-[var(--app-muted)] mt-1 leading-relaxed">
+            Global shortcuts need accessibility access on macOS. Open
+            <strong class="text-[var(--app-foreground)]">System Settings → Privacy & Security → Accessibility</strong>
+            and enable Construct. You may need to restart the app after granting access.
+          </p>
+        </div>
+      </div>
     </div>
 
     <!-- Shortcut groups for active space -->

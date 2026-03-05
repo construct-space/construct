@@ -15,6 +15,7 @@
  */
 
 import type { Component } from 'vue'
+import { getCoreSpace, isCoreSpace } from './coreSpaces'
 
 export interface LoadedSpace {
   id: string
@@ -81,7 +82,13 @@ let spaceHostReady = false
 
 /** Ensure space host is initialized (lazy — only when first space loads) */
 async function ensureSpaceHost(): Promise<void> {
-  if (spaceHostReady) return
+  if (spaceHostReady) {
+    // Keep legacy SDK alias available for older space bundles.
+    if (window.__CONSTRUCT__?.['@construct/sdk'] && !window.__CONSTRUCT__['@construct-space/sdk']) {
+      window.__CONSTRUCT__['@construct-space/sdk'] = window.__CONSTRUCT__['@construct/sdk']
+    }
+    return
+  }
   const { initSpaceHost } = await import('@/lib/spaceHost')
   initSpaceHost()
   spaceHostReady = true
@@ -109,6 +116,13 @@ export async function loadSpace(spaceId: string): Promise<LoadedSpace | null> {
   // Return from cache
   if (loadedSpaces.has(spaceId)) {
     return loadedSpaces.get(spaceId)!
+  }
+
+  // Core spaces ship with the app — no disk/IIFE needed
+  const coreSpace = getCoreSpace(spaceId)
+  if (coreSpace) {
+    loadedSpaces.set(spaceId, coreSpace)
+    return coreSpace
   }
 
   // If dev override dir is set, try that first
@@ -258,9 +272,11 @@ export function unloadSpace(spaceId: string): void {
     style.remove()
   }
 
-  // Clean up global
-  const globalKey = `__CONSTRUCT_SPACE_${spaceId}` as `__CONSTRUCT_SPACE_${string}`
-  delete window[globalKey]
+  // Clean up global (core spaces have no window global)
+  if (!isCoreSpace(spaceId)) {
+    const globalKey = `__CONSTRUCT_SPACE_${spaceId}` as `__CONSTRUCT_SPACE_${string}`
+    delete window[globalKey]
+  }
 
   // Clear cache
   loadedSpaces.delete(spaceId)

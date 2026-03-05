@@ -38,7 +38,7 @@ const addExternal = async () => {
     const projectDir = useProjectDirectory()
     const path = await projectDir.openFolderDialog('Add External Project')
     if (path) {
-      await projectStore.addExternalProject(path)
+      await projectStore.addExternalFolderByPath(path)
     }
   } catch (error) {
     console.warn('Failed to add external project:', error)

@@ -6,6 +6,7 @@
  */
 
 import { registerSpaceTheme } from '@/config/spaces'
+import { getCoreSpaceManifests } from '@/spaces/coreSpaces'
 import type { SpaceScope } from '@/types/project'
 
 /** Default scope for known space IDs when manifest doesn't specify one */
@@ -106,6 +107,11 @@ export function useSpaces() {
    * Filters out spaces disabled in marketplace settings.
    */
   const loadFromDisk = async () => {
+    // Always start with core spaces (ship with app, no disk needed)
+    const coreManifests = getCoreSpaceManifests()
+    const coreConfigs = coreManifests.map(m => manifestToSpaceConfig(m as unknown as Record<string, unknown>))
+    const coreIds = new Set(coreManifests.map(m => m.id))
+
     try {
       const { readTextFile, readDir, exists } = await import('@tauri-apps/plugin-fs')
       const { homeDir } = await import('@tauri-apps/api/path')
@@ -114,7 +120,7 @@ export function useSpaces() {
       const spacesDir = `${home}/.construct/spaces`
 
       if (!(await exists(spacesDir))) {
-        spaces.value = []
+        spaces.value = coreConfigs
         return
       }
 
@@ -126,23 +132,28 @@ export function useSpaces() {
 
       for (const entry of entries) {
         if (!entry.isDirectory) continue
-        const manifestPath = `${spacesDir}/${entry.name}/manifest.json`
+        const id = entry.name
+        // Skip disk spaces that are already provided as core
+        if (coreIds.has(id)) continue
+        const manifestPath = `${spacesDir}/${id}/manifest.json`
         if (!(await exists(manifestPath))) continue
 
         try {
           const manifestJson = await readTextFile(manifestPath)
           const manifest = JSON.parse(manifestJson)
-          const id = (manifest.id as string) || entry.name
-          if (disabledIds.has(id)) continue
+          const manifestId = (manifest.id as string) || id
+          if (coreIds.has(manifestId)) continue
+          if (disabledIds.has(manifestId)) continue
           diskSpaces.push(manifestToSpaceConfig(manifest))
         } catch {
           // Skip spaces with broken manifests
         }
       }
 
-      spaces.value = diskSpaces.sort((a, b) => (a.navigation.order || 0) - (b.navigation.order || 0))
+      spaces.value = [...coreConfigs, ...diskSpaces].sort((a, b) => (a.navigation.order || 0) - (b.navigation.order || 0))
     } catch {
-      spaces.value = []
+      // Disk scan failed — still show core spaces
+      spaces.value = coreConfigs
     }
   }
 

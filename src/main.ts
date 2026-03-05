@@ -19,7 +19,7 @@ app.use(router)
 // Initialize auth, then project store, then mount
 import { useAuthStore } from './stores/auth'
 import { useProjectStore } from './stores/project'
-import { autoInstallRecommended } from './composables/useSpaceMarketplace'
+import { autoInstallRecommended, ensureEssentialSpaces } from './composables/useSpaceMarketplace'
 
 const authStore = useAuthStore()
 authStore.initialize().then(() => {
@@ -33,5 +33,9 @@ authStore.initialize().then(() => {
 
   autoInstallRecommended().catch(err => {
     console.warn('[main] Auto-install recommended spaces:', err)
+  })
+
+  ensureEssentialSpaces().catch(err => {
+    console.warn('[main] Ensure essential spaces:', err)
   })
 })

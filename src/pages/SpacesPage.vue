@@ -9,6 +9,7 @@
 import { useSpaces } from '@/composables/useSpaces'
 import { useSpaceMarketplace } from '@/composables/useSpaceMarketplace'
 import { usePinnedStore, createSpacePin } from '@/stores/pinned'
+import { useToast } from '@/composables/useToast'
 import { getSpace as getSpaceConfig } from '@/config/spaces'
 import {
   Pin, PinOff, ArrowRight, Store,
@@ -20,6 +21,7 @@ const router = useRouter()
 const { spaces, loadSpaces } = useSpaces()
 const marketplace = useSpaceMarketplace()
 const pinnedStore = usePinnedStore()
+const toast = useToast()
 
 const openMenu = ref<string | null>(null)
 const confirmUninstall = ref<string | null>(null)
@@ -96,9 +98,12 @@ async function handleUpdate(spaceId: string) {
   closeMenu()
 }
 
-async function handleCheckUpdate(spaceId: string) {
-  await marketplace.checkUpdates()
-  closeMenu()
+async function handleCheckUpdates() {
+  const count = await marketplace.checkUpdates()
+  toast.add(count > 0
+    ? { title: `${count} update${count > 1 ? 's' : ''} available`, color: 'warning' }
+    : { title: 'All spaces are up to date', color: 'success' },
+  )
 }
 
 async function handleUninstall(spaceId: string) {
@@ -129,11 +134,12 @@ function openMarketplace() {
         </div>
         <div class="flex gap-2">
           <button
-            class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border border-[var(--app-border)] text-[var(--app-foreground)] hover:bg-[color-mix(in_srgb,var(--app-muted)_5%,transparent)] transition-colors"
-            @click.stop="marketplace.checkUpdates()"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border border-[var(--app-border)] text-[var(--app-foreground)] hover:bg-[color-mix(in_srgb,var(--app-muted)_5%,transparent)] transition-colors disabled:opacity-50"
+            :disabled="marketplace.isCheckingUpdates.value"
+            @click.stop="handleCheckUpdates()"
           >
-            <RefreshCw class="size-3" />
-            Check Updates
+            <RefreshCw class="size-3" :class="marketplace.isCheckingUpdates.value ? 'animate-spin' : ''" />
+            {{ marketplace.isCheckingUpdates.value ? 'Checking...' : 'Check Updates' }}
           </button>
           <button
             class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-[var(--app-accent)] text-white hover:opacity-90 transition-opacity"
@@ -194,7 +200,7 @@ function openMarketplace() {
               <button
                 v-if="space.isInstalled"
                 class="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-[var(--app-foreground)] hover:bg-[color-mix(in_srgb,var(--app-muted)_8%,transparent)] transition-colors"
-                @click.stop="handleCheckUpdate(space.name)"
+                @click.stop="handleCheckUpdates(); closeMenu()"
               >
                 <RefreshCw class="size-3.5" />
                 Check for update

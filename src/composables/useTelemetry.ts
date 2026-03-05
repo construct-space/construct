@@ -296,7 +296,7 @@ async function clearStoredData(): Promise<void> {
 let _currentSessionId: number | null = null
 
 async function trackSessionStart(): Promise<void> {
-  if (!isTelemetryEnabled()) return
+  if (!isTelemetryEnabled() || _dbFailed) return
   try {
     const db = await getDb()
     const result = await db.execute(
@@ -305,13 +305,13 @@ async function trackSessionStart(): Promise<void> {
     )
     _currentSessionId = result.lastInsertId ?? null
     startPeriodicSync()
-  } catch (e) {
-    console.error('[Telemetry] trackSessionStart failed:', e)
+  } catch {
+    // DB init failed — already logged by getDb()
   }
 }
 
 async function trackSessionEnd(): Promise<void> {
-  if (!isTelemetryEnabled()) return
+  if (!isTelemetryEnabled() || _dbFailed) return
   try {
     const db = await getDb()
     if (_currentSessionId != null) {
@@ -324,13 +324,13 @@ async function trackSessionEnd(): Promise<void> {
     stopPeriodicSync()
     // Final sync — keepalive ensures it survives page unload
     syncToApi()
-  } catch (e) {
-    console.error('[Telemetry] trackSessionEnd failed:', e)
+  } catch {
+    // Silent — telemetry should never disrupt
   }
 }
 
 async function trackScreenView(routeName: string, spaceId?: string): Promise<void> {
-  if (!isTelemetryEnabled()) return
+  if (!isTelemetryEnabled() || _dbFailed) return
   try {
     const key = spaceId ? `space:${spaceId}` : routeName
     const db = await getDb()
@@ -338,26 +338,26 @@ async function trackScreenView(routeName: string, spaceId?: string): Promise<voi
       INSERT INTO screen_views (screen_key, count) VALUES (?, 1)
       ON CONFLICT(screen_key) DO UPDATE SET count = count + 1
     `, [key])
-  } catch (e) {
-    console.error('[Telemetry] trackScreenView failed:', e)
+  } catch {
+    // Silent
   }
 }
 
 async function trackSpaceEnter(spaceId: string): Promise<void> {
-  if (!isTelemetryEnabled()) return
+  if (!isTelemetryEnabled() || _dbFailed) return
   try {
     const db = await getDb()
     await db.execute(`
       INSERT INTO space_enters (space_id, count) VALUES (?, 1)
       ON CONFLICT(space_id) DO UPDATE SET count = count + 1
     `, [spaceId])
-  } catch (e) {
-    console.error('[Telemetry] trackSpaceEnter failed:', e)
+  } catch {
+    // Silent
   }
 }
 
 async function trackSpaceLeave(spaceId: string, activeMs: number): Promise<void> {
-  if (!isTelemetryEnabled()) return
+  if (!isTelemetryEnabled() || _dbFailed) return
   try {
     const ms = Math.round(activeMs)
     if (ms <= 0) return
@@ -366,13 +366,13 @@ async function trackSpaceLeave(spaceId: string, activeMs: number): Promise<void>
       INSERT INTO space_active_ms (space_id, total_ms) VALUES (?, ?)
       ON CONFLICT(space_id) DO UPDATE SET total_ms = total_ms + ?
     `, [spaceId, ms, ms])
-  } catch (e) {
-    console.error('[Telemetry] trackSpaceLeave failed:', e)
+  } catch {
+    // Silent
   }
 }
 
 export async function trackFeature(key: string): Promise<void> {
-  if (!isTelemetryEnabled()) return
+  if (!isTelemetryEnabled() || _dbFailed) return
 
   if (!FEATURE_KEY_SET.has(key)) {
     if (import.meta.env.DEV) {
@@ -387,8 +387,8 @@ export async function trackFeature(key: string): Promise<void> {
       INSERT INTO feature_actions (feature_key, count) VALUES (?, 1)
       ON CONFLICT(feature_key) DO UPDATE SET count = count + 1
     `, [key])
-  } catch (e) {
-    console.error('[Telemetry] trackFeature failed:', e)
+  } catch {
+    // Silent
   }
 }
 

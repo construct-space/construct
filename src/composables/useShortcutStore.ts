@@ -2,7 +2,7 @@ import { ref, readonly } from 'vue'
 
 // ─── Shortcut definition ──────────────────────────────────────────────────────
 
-export type ShortcutSpace = 'design' | 'code' | 'git'
+export type ShortcutSpace = 'design' | 'code' | 'git' | 'global'
 
 export interface ShortcutDef {
   id: string            // e.g. 'design.rectangle'
@@ -69,6 +69,10 @@ export const SHORTCUT_REGISTRY: ShortcutDef[] = [
   { id: 'git.stage-all',    space: 'git',    group: 'Git',     label: 'Stage all',           defaultKey: 's' },
   { id: 'git.unstage-all',  space: 'git',    group: 'Git',     label: 'Unstage all',         defaultKey: 'u' },
   { id: 'git.refresh',      space: 'git',    group: 'Git',     label: 'Refresh',             defaultKey: 'r' },
+  // Global — system-wide shortcuts (registered via Tauri global-shortcut plugin)
+  { id: 'global.toggle-app',       space: 'global', group: 'App',      label: 'Show / Hide Construct',   defaultKey: 'cmd+shift+space' },
+  { id: 'global.quick-capture',    space: 'global', group: 'App',      label: 'Quick capture note',      defaultKey: 'cmd+shift+c' },
+  { id: 'global.toggle-assistant', space: 'global', group: 'AI',       label: 'Open AI assistant',       defaultKey: 'cmd+shift+a' },
 ]
 
 // ─── Persistence ──────────────────────────────────────────────────────────────
@@ -113,14 +117,20 @@ export function hasOverride(id: string): boolean {
 export function setKey(id: string, key: string) {
   _overrides.value = { ..._overrides.value, [id]: key }
   _save()
+  // Notify global shortcuts composable to re-register if a global shortcut changed
+  if (id.startsWith('global.')) {
+    window.dispatchEvent(new CustomEvent('construct:global-shortcuts-changed'))
+  }
 }
 
 /** Resets a shortcut to its default. */
 export function resetKey(id: string) {
-   
   const { [id]: _removed, ...rest } = _overrides.value
   _overrides.value = rest
   _save()
+  if (id.startsWith('global.')) {
+    window.dispatchEvent(new CustomEvent('construct:global-shortcuts-changed'))
+  }
 }
 
 /** Resets all shortcuts to defaults. */

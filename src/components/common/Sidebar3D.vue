@@ -13,6 +13,12 @@
 import { useSpaces } from '@/composables/useSpaces'
 import { usePinnedStore } from '@/stores/pinned'
 import { getSpace as getSpaceConfig } from '@/config/spaces'
+import { BUILTIN_SPACE_IDS } from '@/spaces/builtin'
+import {
+  buildProjectSpaceSubItems,
+  isProjectRoutePath,
+  parseProjectRouteContext,
+} from '@/utils/sidebarProjectNav'
 
 const router = useRouter()
 const route = useRoute()
@@ -62,16 +68,19 @@ function navigateTo(path: string) {
 // Icons come from the live space theme registry (populated from manifests)
 const pinnedSpaceNavItems = computed(() => {
   const pinned = pinnedStore.pinnedByType('space')
-  return pinned.map(pin => {
-    const spaceId = pin.metadata?.spaceId || pin.path.replace('/app/', '').split('?')[0]
-    const theme = getSpaceConfig(spaceId)
-    return {
-      id: spaceId,
-      label: pin.name,
-      icon: theme.icon || pin.icon || 'i-lucide-circle',
-      to: `/app/${spaceId}`,
-    }
-  })
+  return pinned
+    .map(pin => {
+      const spaceId = pin.metadata?.spaceId || pin.path.replace('/app/', '').split('?')[0]
+      const theme = getSpaceConfig(spaceId)
+      return {
+        id: spaceId,
+        label: pin.name,
+        icon: theme.icon || pin.icon || 'i-lucide-circle',
+        to: `/app/${spaceId}`,
+      }
+    })
+    // Filter out essential spaces — they're always shown above
+    .filter(item => !BUILTIN_SPACE_IDS.includes(item.id))
 })
 
 // Active route detection — match /app/spaceName* or /app/projects/:id/:spaceName
@@ -96,8 +105,27 @@ const rotationY = computed(() => {
   return (state.panel === 'space' || state.panel === 'project') ? -90 : 0
 })
 
+const projectRouteContext = computed(() => {
+  return parseProjectRouteContext({
+    projectId: route.params.projectId,
+    spaceName: route.params.spaceName,
+    subPage: route.params.subPage,
+  })
+})
+
+const projectSpaceSubItems = computed(() => {
+  return buildProjectSpaceSubItems(spaces.value, projectRouteContext.value)
+})
+
 const goBackToMain = () => {
   if (state.panel === 'project') {
+    const context = projectRouteContext.value
+    // Level 3 -> level 2: project space back to project single page.
+    if (context?.projectId) {
+      router.push(`/app/projects/${context.projectId}`)
+      return
+    }
+
     const backRoute = state.projectBackRoute || '/app/projects'
     projectStore.clearCurrentProject()
     exitProject()
@@ -116,7 +144,7 @@ const getSpaceIcon = (spaceName: string) => {
 
 // Auto-exit project mode when route leaves /app/projects/:id/...
 watch(() => route.path, (newPath) => {
-  if (state.panel === 'project' && !newPath.match(/\/app\/projects\/[^/]+\/.+/)) {
+  if (state.panel === 'project' && !isProjectRoutePath(newPath)) {
     exitProject()
     projectStore.clearCurrentProject()
   }
@@ -155,6 +183,24 @@ watch(() => route.path, (newPath) => {
             title="Home"
           >
             <Icon name="i-lucide-house" class="size-5" />
+          </RouterLink>
+
+          <!-- Essential spaces (always visible) -->
+          <RouterLink
+            to="/app/architect"
+            class="sidebar-btn"
+            :class="activeId === 'architect' ? 'sidebar-btn-active' : 'sidebar-btn-inactive'"
+            title="Architect"
+          >
+            <Icon name="i-lucide-compass" class="size-5" />
+          </RouterLink>
+          <RouterLink
+            to="/app/projects"
+            class="sidebar-btn"
+            :class="activeId === 'projects' ? 'sidebar-btn-active' : 'sidebar-btn-inactive'"
+            title="Projects"
+          >
+            <Icon name="i-lucide-folder" class="size-5" />
           </RouterLink>
 
           <div class="w-8 h-px bg-[var(--app-border)] my-0.5" />
@@ -242,6 +288,21 @@ watch(() => route.path, (newPath) => {
               >
                 <Icon :name="item.icon || 'i-lucide-circle'" class="size-5" />
               </RouterLink>
+            </template>
+
+            <!-- Active project-space sub-pages (e.g. Code: editor/terminal/responsive) -->
+            <template v-if="projectSpaceSubItems.length > 0">
+              <div class="w-8 h-px bg-[var(--app-border)]" />
+              <template v-for="item in projectSpaceSubItems" :key="item.route">
+                <RouterLink
+                  :to="item.route"
+                  class="sidebar-btn"
+                  :class="route.path === item.route ? 'sidebar-btn-active' : 'sidebar-btn-inactive'"
+                  :title="item.label"
+                >
+                  <Icon :name="item.icon || 'i-lucide-circle'" class="size-4" />
+                </RouterLink>
+              </template>
             </template>
           </template>
 

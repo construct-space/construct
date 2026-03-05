@@ -11,6 +11,11 @@ export default defineConfig({
     tailwindcss(),
     AutoImport({
       imports: ['vue', 'vue-router', 'pinia', '@vueuse/core'],
+      ignore: [
+        // Local overrides in src/composables/ take precedence
+        'useDateFormat',
+        'useStorage',
+      ],
       dirs: [
         'src/composables',
         'src/stores',

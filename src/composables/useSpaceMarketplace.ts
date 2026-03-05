@@ -104,6 +104,7 @@ export function useSpaceMarketplace() {
   const installed = ref<InstalledSpace[]>([])
   const remote = ref<RemoteSpace[]>([])
   const isLoading = ref(false)
+  const isCheckingUpdates = ref(false)
   const searchQuery = ref('')
   const activeCategory = ref('all')
   const error = ref<string | null>(null)
@@ -200,16 +201,26 @@ export function useSpaceMarketplace() {
           const manifest = JSON.parse(raw)
           const id = manifest.id || entry.name
           const existing = metaMap.get(id)
+          const diskVersion = manifest.version || '0.0.0'
+
+          // Validate stored update flag against current disk version —
+          // if the stored latest_version isn't actually newer, clear the flag
+          let hasStoredUpdate = existing?.has_update ?? false
+          let storedLatest = existing?.latest_version
+          if (hasStoredUpdate && storedLatest && !isNewerVersion(storedLatest, diskVersion)) {
+            hasStoredUpdate = false
+            storedLatest = undefined
+          }
 
           diskSpaces.push({
             id,
             name: id,
             display_name: manifest.name || id,
-            version: manifest.version || '0.0.0',
+            version: diskVersion,
             enabled: existing?.enabled ?? true,
             installed_at: existing?.installed_at || '',
-            has_update: existing?.has_update ?? false,
-            latest_version: existing?.latest_version,
+            has_update: hasStoredUpdate,
+            latest_version: storedLatest,
           })
         } catch {
           // Skip spaces with broken manifests
@@ -356,20 +367,25 @@ export function useSpaceMarketplace() {
     return true
   }
 
-  async function checkUpdates(): Promise<void> {
-    if (remote.value.length === 0) await fetchRemote()
+  async function checkUpdates(): Promise<number> {
+    isCheckingUpdates.value = true
+    try {
+      if (remote.value.length === 0) await fetchRemote()
 
-    let updates = 0
-    for (const space of installed.value) {
-      const remoteVer = remote.value.find(r => r.id === space.id)
-      if (remoteVer && remoteVer.version !== space.version) {
-        space.has_update = true
-        space.latest_version = remoteVer.version
-        updates++
-      }
-    }
-    if (updates > 0) {
-      saveInstalledToStorage(installed.value)
+      let updates = 0
+      const updated = installed.value.map(space => {
+        const remoteVer = remote.value.find(r => r.id === space.id)
+        if (remoteVer && isNewerVersion(remoteVer.version, space.version)) {
+          updates++
+          return { ...space, has_update: true, latest_version: remoteVer.version }
+        }
+        return { ...space, has_update: false, latest_version: undefined }
+      })
+      installed.value = updated
+      saveInstalledToStorage(updated)
+      return updates
+    } finally {
+      isCheckingUpdates.value = false
     }
   }
 
@@ -378,6 +394,7 @@ export function useSpaceMarketplace() {
     installed,
     remote,
     isLoading,
+    isCheckingUpdates,
     searchQuery,
     activeCategory,
     error,
@@ -471,6 +488,70 @@ export async function autoInstallRecommended(): Promise<void> {
     console.error('[Marketplace] Auto-install failed:', err)
     // Don't mark as done so it retries next launch
   }
+}
+
+/**
+ * Ensure essential spaces are always installed.
+ *
+ * Runs every launch. Checks if architect + projects exist on disk.
+ * If missing, installs them from the registry. Unlike autoInstallRecommended,
+ * this is not gated by a first-launch flag — essential spaces are always restored.
+ */
+export const ESSENTIAL_SPACE_IDS = ['architect', 'projects']
+
+export async function ensureEssentialSpaces(): Promise<void> {
+  try {
+    const { exists } = await import('@tauri-apps/plugin-fs')
+    const { homeDir } = await import('@tauri-apps/api/path')
+
+    const home = await homeDir()
+    const spacesDir = `${home}/.construct/spaces`
+
+    // Find which essential spaces are missing from disk
+    const missing: string[] = []
+    for (const id of ESSENTIAL_SPACE_IDS) {
+      const manifestPath = `${spacesDir}/${id}/manifest.json`
+      if (!(await exists(manifestPath))) {
+        missing.push(id)
+      }
+    }
+
+    if (missing.length === 0) return
+
+    console.log(`[Marketplace] Essential spaces missing: ${missing.join(', ')} — installing...`)
+
+    const marketplace = useSpaceMarketplace()
+    for (const id of missing) {
+      try {
+        const success = await marketplace.install(id)
+        if (success) {
+          console.log(`[Marketplace] Essential space installed: ${id}`)
+        } else {
+          console.warn(`[Marketplace] Failed to install essential space: ${id}`)
+        }
+      } catch (err) {
+        console.warn(`[Marketplace] Failed to install essential space ${id}:`, err)
+      }
+    }
+
+    // Notify sidebar to refresh
+    window.dispatchEvent(new CustomEvent('construct:spaces-changed'))
+  } catch (err) {
+    console.error('[Marketplace] ensureEssentialSpaces failed:', err)
+  }
+}
+
+/** Compare semver strings — returns true if `remote` is newer than `local` */
+function isNewerVersion(remote: string, local: string): boolean {
+  const r = remote.replace(/^v/, '').split('.').map(Number)
+  const l = local.replace(/^v/, '').split('.').map(Number)
+  for (let i = 0; i < 3; i++) {
+    const rv = r[i] || 0
+    const lv = l[i] || 0
+    if (rv > lv) return true
+    if (rv < lv) return false
+  }
+  return false
 }
 
 /** Fetch JSON via Tauri shell curl (bypasses CORS) with browser fetch fallback */

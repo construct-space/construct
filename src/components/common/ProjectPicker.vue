@@ -54,7 +54,7 @@ const openFolder = async () => {
     const projectDir = useProjectDirectory()
     const path = await projectDir.openFolderDialog('Open Project Folder')
     if (path) {
-      await projectStore.addExternalProject(path)
+      await projectStore.addExternalFolderByPath(path)
       const project = projectStore.projects.find(p => p.path === path)
       if (project) {
         emit('select', project)

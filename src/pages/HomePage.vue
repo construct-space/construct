@@ -3,33 +3,16 @@ import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useProjectStore } from '@/stores/project'
-import { useSpaces } from '@/composables/useSpaces'
+import { buildProjectRoutePath } from '@/utils/projectRoutes'
 import {
-  Calendar, FolderPlus, FolderOpen, Clock, ArrowRight, X,
+  Calendar, FolderPlus, FolderOpen, Clock, ArrowRight,
 } from 'lucide-vue-next'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const projectStore = useProjectStore()
-const { spaces, loadSpaces } = useSpaces()
 
 const userName = computed(() => authStore.user?.first_name || 'User')
-
-// Space picker state
-const showSpacePicker = ref(false)
-const pendingProject = ref<{ path: string; name: string } | null>(null)
-
-const spaceIconMap: Record<string, string> = {
-  code: 'i-lucide-code',
-  design: 'i-lucide-pen-tool',
-  kanban: 'i-lucide-kanban',
-  docs: 'i-lucide-book-open',
-  notes: 'i-lucide-file-text',
-  architect: 'i-lucide-compass',
-  terminal: 'i-lucide-terminal',
-  git: 'i-lucide-git-branch',
-  calendar: 'i-lucide-calendar',
-}
 
 const today = new Date()
 const dayNumber = today.getDate().toString().padStart(2, '0')
@@ -61,33 +44,14 @@ const timeAgo = (dateStr: string) => {
   return new Date(dateStr).toLocaleDateString()
 }
 
-const openProject = (project: { path: string; name: string }) => {
-  pendingProject.value = project
-  showSpacePicker.value = true
-}
-
-// Spaces that should open in their editor sub-page when a project is selected
-const spaceDefaultPage: Record<string, string> = {
-  code: 'editor',
-  design: 'editor',
-}
-
-const openInSpace = (spaceName: string) => {
-  if (!pendingProject.value) return
-  const subPage = spaceDefaultPage[spaceName] || ''
-  const path = subPage ? `/app/${spaceName}/${subPage}` : `/app/${spaceName}`
-  router.push({ path, query: { project: pendingProject.value.path } })
-  showSpacePicker.value = false
-  pendingProject.value = null
-}
-
-const closeSpacePicker = () => {
-  showSpacePicker.value = false
-  pendingProject.value = null
+const openProject = (project: { id?: string | number; path: string; name: string }) => {
+  // Keep recents fresh and align host store context.
+  projectStore.openProject(project.path)
+  router.push(buildProjectRoutePath(project))
 }
 
 const newProject = () => {
-  router.push({ path: '/app/code' })
+  router.push('/app/projects')
 }
 
 const openFolder = async () => {
@@ -96,30 +60,81 @@ const openFolder = async () => {
     const projectDir = useProjectDirectory()
     const path = await projectDir.openFolderDialog('Open Project Folder')
     if (path) {
-      await projectStore.addExternalProject(path)
-      const project = projectStore.projects.find(p => p.path === path)
-      const name = project?.name || path.split('/').pop() || path
-      pendingProject.value = { path, name }
-      showSpacePicker.value = true
+      await addDroppedFolder(path)
     }
   } catch (error) {
     console.warn('Failed to open folder:', error)
   }
 }
 
-onMounted(async () => {
-  if (spaces.value.length === 0) {
-    await loadSpaces()
+async function addDroppedFolder(path: string) {
+  const added = await projectStore.addExternalFolderByPath(path)
+  if (added) {
+    openProject(added)
+    return
   }
-  // Initialize project store if needed
+  const project = projectStore.projects.find(p => p.path === path)
+  if (project) {
+    openProject(project)
+    return
+  }
+  router.push('/app/projects')
+}
+
+// Drag-and-drop state
+const isDragging = ref(false)
+
+onMounted(async () => {
   if (projectStore.projects.length === 0 && projectStore.projectsRoot) {
     await projectStore.loadProjects()
+  }
+
+  // Listen for Tauri file drop events
+  if (window.__TAURI__) {
+    try {
+      const { getCurrentWebview } = await import('@tauri-apps/api/webview')
+      const webview = getCurrentWebview()
+      await webview.onDragDropEvent(async (event) => {
+        if (event.payload.type === 'enter' || event.payload.type === 'over') {
+          isDragging.value = true
+        } else if (event.payload.type === 'drop') {
+          isDragging.value = false
+          for (const path of event.payload.paths) {
+            // Check if it's a directory
+            const { exists, stat } = await import('@tauri-apps/plugin-fs')
+            try {
+              const meta = await stat(path)
+              if (meta.isDirectory) {
+                await addDroppedFolder(path)
+                break // Only open first folder
+              }
+            } catch { /* skip invalid paths */ }
+          }
+        } else if (event.payload.type === 'leave') {
+          isDragging.value = false
+        }
+      })
+    } catch { /* not in Tauri */ }
   }
 })
 </script>
 
 <template>
-  <div class="h-screen overflow-hidden flex items-center justify-center px-6">
+  <div class="h-screen overflow-hidden flex items-center justify-center px-6 relative">
+    <!-- Drop zone overlay -->
+    <Transition name="fade">
+      <div
+        v-if="isDragging"
+        class="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      >
+        <div class="flex flex-col items-center gap-3 p-10 rounded-2xl border-2 border-dashed border-app-accent/60 bg-[color-mix(in_srgb,var(--app-accent)_8%,transparent)]">
+          <FolderPlus class="size-12 text-app-accent" />
+          <p class="text-lg font-semibold text-app">Drop folder to add as project</p>
+          <p class="text-sm text-app-muted">Release to open project details</p>
+        </div>
+      </div>
+    </Transition>
+
     <div class="w-full max-w-4xl">
 <!-- Welcome header -->
       <div class="mb-10">
@@ -202,35 +217,10 @@ onMounted(async () => {
       </div>
 </div>
 
-    <!-- Space Picker Modal -->
-    <Teleport to="body">
-      <div v-if="showSpacePicker" class="fixed inset-0 z-[300] flex items-center justify-center">
-        <!-- Backdrop -->
-        <div class="absolute inset-0 bg-black/50" @click="closeSpacePicker" />
-        <!-- Modal -->
-        <div class="relative w-full max-w-md rounded-xl border border-app bg-[var(--app-background)] shadow-2xl p-5 z-10">
-          <div class="flex items-center justify-between mb-4">
-            <div>
-              <h3 class="text-base font-semibold text-app">Open in Space</h3>
-              <p class="text-xs text-app-muted mt-0.5">{{ pendingProject?.name }}</p>
-            </div>
-            <button class="p-1 rounded hover:bg-white/10 transition-colors" @click="closeSpacePicker">
-              <X class="size-4 text-app-muted" />
-            </button>
-          </div>
-          <div class="grid grid-cols-3 gap-2">
-            <button
-              v-for="space in spaces"
-              :key="space.name"
-              class="flex flex-col items-center gap-1.5 p-3 rounded-lg border border-app hover:border-app-accent/40 hover:bg-[color-mix(in_srgb,var(--app-accent)_5%,transparent)] transition-all"
-              @click="openInSpace(space.name)"
-            >
-              <Icon :name="spaceIconMap[space.name] || 'i-lucide-circle'" class="size-5 text-app-muted" />
-              <span class="text-xs text-app font-medium">{{ space.displayName || space.name }}</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
   </div>
 </template>
+
+<style scoped>
+.fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+</style>

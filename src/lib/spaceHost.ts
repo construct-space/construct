@@ -17,6 +17,7 @@ import * as TauriApi from '@tauri-apps/api'
 import * as TauriApiCore from '@tauri-apps/api/core'
 import * as TauriApiPath from '@tauri-apps/api/path'
 import * as TauriApiEvent from '@tauri-apps/api/event'
+import * as TauriApiWebview from '@tauri-apps/api/webview'
 import * as TauriFs from '@tauri-apps/plugin-fs'
 import * as TauriShell from '@tauri-apps/plugin-shell'
 import * as TauriDialog from '@tauri-apps/plugin-dialog'
@@ -53,6 +54,7 @@ export function initSpaceHost(): void {
     '@tauri-apps/api/core': TauriApiCore,
     '@tauri-apps/api/path': TauriApiPath,
     '@tauri-apps/api/event': TauriApiEvent,
+    '@tauri-apps/api/webview': TauriApiWebview,
     '@tauri-apps/plugin-fs': TauriFs,
     '@tauri-apps/plugin-shell': TauriShell,
     '@tauri-apps/plugin-dialog': TauriDialog,
@@ -63,6 +65,9 @@ export function initSpaceHost(): void {
     'dexie': Object.assign(DexieDefault, DexieNs),
     'zod': Zod,
     '@construct/sdk': ConstructSdk,
+    // Backward compatibility for older space bundles that still externalize
+    // the pre-rename SDK module id.
+    '@construct-space/sdk': ConstructSdk,
   }
 }
 

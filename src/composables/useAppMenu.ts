@@ -17,6 +17,64 @@ const unlisteners: UnlistenFn[] = []
 export function useAppMenu() {
   const route = useRoute()
   const router = useRouter()
+  const toast = useToast()
+
+  const ensureFolderAccess = async (folderPath: string): Promise<string | null> => {
+    if (!folderPath) return null
+
+    try {
+      const { stat } = await import('@tauri-apps/plugin-fs')
+      await stat(folderPath)
+      return folderPath
+    } catch (error) {
+      const message = String(error || '')
+      const needsGrant =
+        message.includes('forbidden path') ||
+        message.includes('Operation not permitted') ||
+        message.includes('not allowed')
+
+      if (!needsGrant) {
+        return folderPath
+      }
+
+      // Dock-opened paths are not granted through a dialog selection, so ask
+      // the user to confirm access once.
+      const { open } = await import('@tauri-apps/plugin-dialog')
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        defaultPath: folderPath,
+        title: 'Grant access to opened folder',
+      })
+
+      if (selected && typeof selected === 'string') {
+        return selected
+      }
+
+      toast.add({
+        title: 'Folder access denied',
+        description: 'Please grant access to open this folder.',
+        color: 'warning',
+      })
+      return null
+    }
+  }
+
+  const handleDockOpenFolder = async (folderPath: string) => {
+    if (!folderPath) return
+
+    const accessiblePath = await ensureFolderAccess(folderPath)
+    if (!accessiblePath) return
+
+    const projectStore = useProjectStore()
+    await projectStore.addExternalFolderByPath(accessiblePath)
+    projectStore.openProject(accessiblePath)
+
+    const name = accessiblePath.split('/').filter(Boolean).pop() || accessiblePath
+    toast.add({ title: `Project added: ${name}`, color: 'success' })
+
+    router.push('/app')
+  }
 
   // Determine space from route
   const activeSpace = computed(() => {
@@ -83,6 +141,19 @@ export function useAppMenu() {
       const assistant = useAssistant()
       assistant.toggle()
     }))
+
+    // macOS: folder dropped on dock icon → add as project
+    unlisteners.push(await listen<string>('dock:open-folder', async (event) => {
+      await handleDockOpenFolder(event.payload)
+    }))
+
+    // Mark the frontend dock listener as ready and process any early drops
+    // that arrived before Vue mounted and registered listeners.
+    const { invoke } = await import('@tauri-apps/api/core')
+    const pending = await invoke<string[]>('dock_set_listener_ready').catch(() => [])
+    for (const folderPath of pending) {
+      await handleDockOpenFolder(folderPath)
+    }
   }
 
   // Cleanup listeners

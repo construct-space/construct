@@ -32,6 +32,7 @@ getrandom = "0.2"
 base64 = "0.22"
 urlencoding = "2"
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+tauri-plugin-global-shortcut = "2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"

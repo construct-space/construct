@@ -1,0 +1,11 @@
+export default {
+  test: {
+    environment: 'node',
+    include: [
+      'src/**/*.test.ts',
+      'src/**/*.spec.ts',
+      'src/**/__tests__/**/*.test.ts',
+      'src/**/__tests__/**/*.spec.ts',
+    ],
+  },
+}

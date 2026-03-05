@@ -602,6 +602,14 @@ struct PtyState {
 
 type SharedPtyState = Arc<Mutex<PtyState>>;
 
+// Dock folder-open state (macOS RunEvent::Opened)
+struct DockOpenState {
+    pending_folders: Vec<String>,
+    listener_ready: bool,
+}
+
+type SharedDockOpenState = Arc<Mutex<DockOpenState>>;
+
 // Event emitted for PTY output
 #[derive(Clone, Serialize)]
 struct PtyOutput {
@@ -2668,6 +2676,15 @@ fn set_app_menu(app: tauri::AppHandle, space: String) -> Result<(), String> {
     }
 }
 
+#[tauri::command]
+fn dock_set_listener_ready(
+    state: tauri::State<'_, SharedDockOpenState>,
+) -> Result<Vec<String>, String> {
+    let mut dock_state = state.lock().map_err(|_| "Lock error")?;
+    dock_state.listener_ready = true;
+    Ok(std::mem::take(&mut dock_state.pending_folders))
+}
+
 // ==================== END MENU ====================
 
 // macOS traffic lights visibility control
@@ -2700,6 +2717,64 @@ fn set_traffic_lights_visible(window: tauri::WebviewWindow, visible: bool) -> Re
 #[tauri::command]
 fn set_traffic_lights_visible(_visible: bool) -> Result<(), String> {
     Ok(()) // No-op on non-macOS platforms
+}
+
+// macOS accessibility permission check for global shortcuts
+#[cfg(target_os = "macos")]
+#[tauri::command]
+fn check_accessibility_permission(prompt: bool) -> bool {
+    use std::ffi::c_void;
+    extern "C" {
+        fn AXIsProcessTrustedWithOptions(options: *const c_void) -> bool;
+    }
+    if prompt {
+        // Create options dictionary with kAXTrustedCheckOptionPrompt = true
+        // This triggers the macOS system prompt to grant accessibility access
+        unsafe {
+            extern "C" {
+                fn CFStringCreateWithCString(alloc: *const c_void, c_str: *const u8, encoding: u32) -> *const c_void;
+                fn CFDictionaryCreate(
+                    allocator: *const c_void,
+                    keys: *const *const c_void,
+                    values: *const *const c_void,
+                    num_values: isize,
+                    key_callbacks: *const c_void,
+                    value_callbacks: *const c_void,
+                ) -> *const c_void;
+                fn CFRelease(cf: *const c_void);
+                static kCFTypeDictionaryKeyCallBacks: c_void;
+                static kCFTypeDictionaryValueCallBacks: c_void;
+                static kCFBooleanTrue: *const c_void;
+            }
+            let key = CFStringCreateWithCString(
+                std::ptr::null(),
+                b"AXTrustedCheckOptionPrompt\0".as_ptr(),
+                0x08000100, // kCFStringEncodingUTF8
+            );
+            let keys = [key];
+            let values = [kCFBooleanTrue as *const c_void];
+            let options = CFDictionaryCreate(
+                std::ptr::null(),
+                keys.as_ptr(),
+                values.as_ptr(),
+                1,
+                &kCFTypeDictionaryKeyCallBacks as *const c_void,
+                &kCFTypeDictionaryValueCallBacks as *const c_void,
+            );
+            let result = AXIsProcessTrustedWithOptions(options);
+            CFRelease(options);
+            CFRelease(key);
+            result
+        }
+    } else {
+        unsafe { AXIsProcessTrustedWithOptions(std::ptr::null()) }
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+fn check_accessibility_permission(_prompt: bool) -> bool {
+    true // Other platforms don't need accessibility permissions for global shortcuts
 }
 
 #[cfg(target_os = "macos")]
@@ -2811,6 +2886,11 @@ pub fn run() {
         sessions: HashMap::new(),
     }));
 
+    let dock_open_state: SharedDockOpenState = Arc::new(Mutex::new(DockOpenState {
+        pending_folders: Vec::new(),
+        listener_ready: false,
+    }));
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
@@ -2821,12 +2901,14 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_sql::Builder::new().build())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(context_state)
         .manage(lsp_state)
         .manage(browser_state)
         .manage(oauth_state)
         .manage(process_state)
         .manage(pty_state)
+        .manage(dock_open_state)
         .setup(|app| {
             // Set up initial menu (default space)
             if let Ok(menu) = build_app_menu(app.handle(), "default") {
@@ -2983,10 +3065,44 @@ pub fn run() {
             pty_list,
             // Menu commands
             set_app_menu,
+            dock_set_listener_ready,
+            // Accessibility
+            check_accessibility_permission,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(move |app_handle, event| {
+            if let tauri::RunEvent::Opened { urls } = &event {
+                // macOS: fired when folders/files are dropped on the dock icon
+                for url in urls {
+                    if let Ok(path) = url.to_file_path() {
+                        if path.is_dir() {
+                            let folder_path = path.to_string_lossy().to_string();
+                            eprintln!("[app] Folder dropped on dock: {}", folder_path);
+
+                            // If the frontend listener is not ready yet, queue the
+                            // folder and replay it once Vue registers the listener.
+                            let mut should_emit = true;
+                            if let Some(state) = app_handle.try_state::<SharedDockOpenState>() {
+                                if let Ok(mut dock_state) = state.lock() {
+                                    if dock_state.listener_ready {
+                                        should_emit = true;
+                                    } else {
+                                        should_emit = false;
+                                        if !dock_state.pending_folders.contains(&folder_path) {
+                                            dock_state.pending_folders.push(folder_path.clone());
+                                        }
+                                    }
+                                }
+                            }
+
+                            if should_emit {
+                                let _ = app_handle.emit("dock:open-folder", folder_path);
+                            }
+                        }
+                    }
+                }
+            }
             if let tauri::RunEvent::Exit = event {
                 eprintln!("[app] Exit event — cleaning up child processes...");
 
