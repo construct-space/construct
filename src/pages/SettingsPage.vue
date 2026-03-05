@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import {
-  Palette, Bot, Cpu, Server, Puzzle,
+  Bot, Cpu, Server, Puzzle,
   Download, Brush, Keyboard, CircleUser,
-  Settings, FolderOpen, LayoutGrid, Shield,
+  Settings, FolderOpen, Shield,
 } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -21,7 +21,6 @@ const navGroups = [
       { label: 'General',      path: '/app/settings',          icon: Settings },
       { label: 'Projects',     path: '/app/settings/projects', icon: FolderOpen },
       { label: 'Appearance',   path: '/app/settings/appearance', icon: Brush },
-      { label: 'Design',       path: '/app/settings/design',   icon: Palette },
       { label: 'Shortcuts',    path: '/app/settings/shortcuts', icon: Keyboard },
     ],
   },
@@ -32,7 +31,6 @@ const navGroups = [
       { label: 'LLMs & Models',  path: '/app/settings/llms',  icon: Cpu },
       { label: 'MCP Servers',    path: '/app/settings/mcp',   icon: Server },
       { label: 'Skills & Hooks', path: '/app/settings/skills', icon: Puzzle },
-      { label: 'Spaces',        path: '/app/settings/spaces', icon: LayoutGrid },
     ],
   },
   {
