@@ -60,6 +60,12 @@ let tauriPath: typeof import('@tauri-apps/api/path') | null = null
 // Storage key for projects root preference
 const PROJECTS_ROOT_KEY = 'construct_projects_root'
 
+const normalizePath = (value: string): string => {
+  if (!value) return value
+  if (value === '/') return value
+  return value.replace(/\/+$/g, '')
+}
+
 // Shell command helper that bypasses fs:scope restrictions
 const runShellCommand = async (cmd: string, args: string[], cwd: string): Promise<{ success: boolean; output: string }> => {
   try {
@@ -93,7 +99,7 @@ export function useProjectDirectory() {
    * @returns Absolute path or empty string if no project path
    */
   const resolveProjectPath = (relativePath: string): string => {
-    const basePath = projectLocalPath.value
+    const basePath = normalizePath(projectLocalPath.value)
     if (!basePath) return ''
     // Normalize: remove leading slash from relative path
     const normalized = relativePath.replace(/^\/+/, '')
@@ -116,8 +122,8 @@ export function useProjectDirectory() {
     const basePath = projectLocalPath.value
     if (!basePath || !targetPath) return false
 
-    const normalizedTarget = targetPath.replace(/\/+/g, '/').replace(/\/$/, '')
-    const normalizedBase = basePath.replace(/\/+/g, '/').replace(/\/$/, '')
+    const normalizedTarget = normalizePath(targetPath.replace(/\/+/g, '/'))
+    const normalizedBase = normalizePath(basePath.replace(/\/+/g, '/'))
 
     if (!normalizedTarget.startsWith(normalizedBase + '/') && normalizedTarget !== normalizedBase) {
       return false
@@ -167,14 +173,15 @@ export function useProjectDirectory() {
     // Check localStorage for saved preference
     const savedRoot = localStorage.getItem(PROJECTS_ROOT_KEY)
     if (savedRoot) {
+      const normalizedSavedRoot = normalizePath(savedRoot)
       // Verify the directory still exists
       try {
         await initTauri()
         if (tauriFs) {
-          const exists = await tauriFs.exists(savedRoot)
+          const exists = await tauriFs.exists(normalizedSavedRoot)
           if (exists) {
-            state.projectsRoot = savedRoot
-            return savedRoot
+            state.projectsRoot = normalizedSavedRoot
+            return normalizedSavedRoot
           }
         }
       } catch (e) {
@@ -190,20 +197,21 @@ export function useProjectDirectory() {
    * Set the projects root directory
    */
   const setProjectsRoot = async (path: string): Promise<boolean> => {
-    console.log('setProjectsRoot called with:', path)
+    const normalizedPath = normalizePath(path)
+    console.log('setProjectsRoot called with:', normalizedPath)
 
     try {
       // Create directory if it doesn't exist using shell command
-      console.log('Creating projects root directory:', path)
-      const mkdirResult = await runShellCommand('mkdir', ['-p', path], '/')
+      console.log('Creating projects root directory:', normalizedPath)
+      const mkdirResult = await runShellCommand('mkdir', ['-p', normalizedPath], '/')
       if (!mkdirResult.success) {
         console.error('Failed to create projects root:', mkdirResult.output)
         return false
       }
       console.log('Projects root directory ready')
 
-      state.projectsRoot = path
-      localStorage.setItem(PROJECTS_ROOT_KEY, path)
+      state.projectsRoot = normalizedPath
+      localStorage.setItem(PROJECTS_ROOT_KEY, normalizedPath)
       return true
     } catch (e) {
       console.error('Failed to set projects root:', e)
@@ -260,7 +268,7 @@ export function useProjectDirectory() {
 
     try {
       // Determine project path
-      const root = basePath || state.projectsRoot
+      const root = normalizePath(basePath || state.projectsRoot)
       if (!root) {
         console.error('No projects root set and no basePath provided')
         return null
@@ -335,7 +343,8 @@ EOFCONFIG`], projectPath)
     if (!tauriFs) return null
 
     try {
-      const configPath = `${projectPath}/.construct/project.json`
+      const normalizedProjectPath = normalizePath(projectPath)
+      const configPath = `${normalizedProjectPath}/.construct/project.json`
       const exists = await tauriFs.exists(configPath)
 
       if (!exists) {
@@ -345,7 +354,7 @@ EOFCONFIG`], projectPath)
       const content = await tauriFs.readTextFile(configPath)
       const config = JSON.parse(content) as ProjectConfig
 
-      state.currentProjectPath = projectPath
+      state.currentProjectPath = normalizedProjectPath
       state.currentConfig = config
 
       return config
@@ -353,7 +362,7 @@ EOFCONFIG`], projectPath)
       // Scope errors for external paths are expected — don't spam console
       const msg = String(e)
       if (msg.includes('forbidden path')) {
-        console.debug('[ProjectDir] Path outside scope:', projectPath)
+        console.debug('[ProjectDir] Path outside scope:', normalizePath(projectPath))
       } else {
         console.warn('Failed to load project config:', e)
       }
@@ -369,7 +378,8 @@ EOFCONFIG`], projectPath)
     if (!tauriFs) return false
 
     try {
-      const configPath = `${projectPath}/.construct/project.json`
+      const normalizedProjectPath = normalizePath(projectPath)
+      const configPath = `${normalizedProjectPath}/.construct/project.json`
       config.updated = new Date().toISOString()
 
       await tauriFs.writeTextFile(configPath, JSON.stringify(config, null, 2))
@@ -394,14 +404,15 @@ EOFCONFIG`], projectPath)
     if (!tauriFs) return []
 
     try {
-      const entries = await tauriFs.readDir(dirPath)
+      const normalizedDirPath = normalizePath(dirPath)
+      const entries = await tauriFs.readDir(normalizedDirPath)
       const result: ProjectDirectoryEntry[] = []
 
       for (const entry of entries) {
         // Skip hidden files except .git
         if (entry.name.startsWith('.') && entry.name !== '.git') continue
 
-        const fullPath = `${dirPath}/${entry.name}`
+        const fullPath = `${normalizedDirPath}/${entry.name}`
         const isDir = entry.isDirectory
 
         const projectEntry: ProjectDirectoryEntry = {
@@ -461,7 +472,7 @@ EOFCONFIG`], projectPath)
       for (const entry of entries) {
         if (!entry.isDirectory || entry.name.startsWith('.')) continue
 
-        const projectPath = `${state.projectsRoot}/${entry.name}`
+        const projectPath = `${normalizePath(state.projectsRoot)}/${entry.name}`
         const config = await loadProjectConfig(projectPath)
 
         projects.push({
@@ -491,7 +502,8 @@ EOFCONFIG`], projectPath)
     if (!tauriFs) return false
 
     try {
-      const codePath = `${projectPath}/code`
+      const normalizedProjectPath = normalizePath(projectPath)
+      const codePath = `${normalizedProjectPath}/code`
       const targetPath = `${codePath}/${repoName}`
 
       // Ensure code directory exists
@@ -510,14 +522,14 @@ EOFCONFIG`], projectPath)
       }
 
       // Update project config
-      const config = await loadProjectConfig(projectPath)
+      const config = await loadProjectConfig(normalizedProjectPath)
       if (config) {
         config.repos.push({
           name: repoName,
           path: `code/${repoName}`,
           origin: source.type === 'clone' ? source.url : undefined,
         })
-        await saveProjectConfig(projectPath, config)
+        await saveProjectConfig(normalizedProjectPath, config)
       }
 
       return true
@@ -539,7 +551,8 @@ EOFCONFIG`], projectPath)
     if (!tauriFs) return null
 
     try {
-      const designPath = `${projectPath}/design`
+      const normalizedProjectPath = normalizePath(projectPath)
+      const designPath = `${normalizedProjectPath}/design`
 
       // Ensure design directory exists
       const designExists = await tauriFs.exists(designPath)
@@ -577,14 +590,14 @@ EOFCONFIG`], projectPath)
       await tauriFs.writeTextFile(filePath, JSON.stringify(emptyDesign, null, 2))
 
       // Update project config
-      const config = await loadProjectConfig(projectPath)
+      const config = await loadProjectConfig(normalizedProjectPath)
       if (config) {
         config.designs.push({
           name: fullName,
           path: `design/${fullName}`,
           type,
         })
-        await saveProjectConfig(projectPath, config)
+        await saveProjectConfig(normalizedProjectPath, config)
       }
 
       return filePath
@@ -663,7 +676,7 @@ EOFCONFIG`], projectPath)
     path?: string,
     spaces: string[] = ['code', 'design', 'assets']
   ): Promise<boolean> => {
-    const targetPath = path || projectLocalPath.value
+    const targetPath = normalizePath(path || projectLocalPath.value)
     if (!targetPath) {
       console.error('[ensureProjectStructure] No project path provided')
       return false
@@ -704,25 +717,28 @@ EOFCONFIG`], projectPath)
     watch(
       () => projectStore.currentProject?.local_path,
       async (newPath, oldPath) => {
+        const normalizedNewPath = normalizePath(newPath || '')
+        const normalizedOldPath = normalizePath(oldPath || '')
+
         // Skip initial watch trigger or same path
-        if (!newPath || newPath === oldPath) return
+        if (!normalizedNewPath || normalizedNewPath === normalizedOldPath) return
 
         // Skip if this is just the initial set (not a change)
-        if (!previousLocalPath && !oldPath) {
-          previousLocalPath = newPath
+        if (!previousLocalPath && !normalizedOldPath) {
+          previousLocalPath = normalizedNewPath
           return
         }
 
-        console.log('[LocalPathWatcher] Path changed from', oldPath, 'to', newPath)
-        previousLocalPath = newPath
+        console.log('[LocalPathWatcher] Path changed from', normalizedOldPath, 'to', normalizedNewPath)
+        previousLocalPath = normalizedNewPath
 
         // Get project's enabled spaces for directory creation
         const spaces = projectStore.currentProject?.spaces || ['code', 'ui', 'assets']
 
         // Ensure the new directory structure exists
-        const success = await ensureProjectStructure(newPath, spaces)
+        const success = await ensureProjectStructure(normalizedNewPath, spaces)
         if (success) {
-          console.log('[LocalPathWatcher] Directory structure ensured at:', newPath)
+          console.log('[LocalPathWatcher] Directory structure ensured at:', normalizedNewPath)
         } else {
           console.error('[LocalPathWatcher] Failed to ensure directory structure')
         }

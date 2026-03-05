@@ -3,6 +3,8 @@ import { isTauriEnv } from '@/utils/tauri'
 
 const OAUTH_STATE_KEY = 'construct_oauth_state'
 const OAUTH_VERIFIER_KEY = 'construct_oauth_verifier'
+const OAUTH_STATE_KEY_PERSIST = 'construct_oauth_state_persist'
+const OAUTH_VERIFIER_KEY_PERSIST = 'construct_oauth_verifier_persist'
 
 function generateState(): string {
   const array = new Uint8Array(32)
@@ -51,6 +53,8 @@ export function useConstructAuth() {
 
     sessionStorage.setItem(OAUTH_STATE_KEY, state)
     sessionStorage.setItem(OAUTH_VERIFIER_KEY, codeVerifier)
+    localStorage.setItem(OAUTH_STATE_KEY_PERSIST, state)
+    localStorage.setItem(OAUTH_VERIFIER_KEY_PERSIST, codeVerifier)
 
     const redirectUri = getRedirectUri()
     const params = new URLSearchParams({
@@ -86,15 +90,19 @@ export function useConstructAuth() {
   }
 
   function validateState(state: string): boolean {
-    const stored = sessionStorage.getItem(OAUTH_STATE_KEY)
+    const stored = sessionStorage.getItem(OAUTH_STATE_KEY) || localStorage.getItem(OAUTH_STATE_KEY_PERSIST)
     sessionStorage.removeItem(OAUTH_STATE_KEY)
+    localStorage.removeItem(OAUTH_STATE_KEY_PERSIST)
     return stored === state
   }
 
   async function exchangeCode(code: string): Promise<{ access_token: string }> {
     const redirectUri = getRedirectUri()
-    const codeVerifier = sessionStorage.getItem(OAUTH_VERIFIER_KEY) || ''
+    const codeVerifier = sessionStorage.getItem(OAUTH_VERIFIER_KEY)
+      || localStorage.getItem(OAUTH_VERIFIER_KEY_PERSIST)
+      || ''
     sessionStorage.removeItem(OAUTH_VERIFIER_KEY)
+    localStorage.removeItem(OAUTH_VERIFIER_KEY_PERSIST)
 
     console.log('[OAuth] exchangeCode — redirect_uri:', redirectUri)
     console.log('[OAuth] exchangeCode — code_verifier present:', !!codeVerifier, 'length:', codeVerifier.length)
