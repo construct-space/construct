@@ -166,6 +166,8 @@ async function syncToApi(): Promise<void> {
   if (!isTelemetryEnabled()) return
   if (!isAuthenticated()) return
   if (_dbFailed) return
+  // Skip in dev mode — local API cannot validate OAuth tokens
+  if (import.meta.env.DEV) return
 
   try {
     const token = getAuthToken()
