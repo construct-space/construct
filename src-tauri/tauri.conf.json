@@ -5,7 +5,7 @@
   "identifier": "space.construct.personal",
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZCMjBDRjJBRDg4RDU1MTgKUldRWVZZM1lLczhnYThaWEphR1NxVmtwMXZzQ3J2SGRGUHNYcWRIWVZKeEZNb2dCVzlQaGFxSnoK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVEODJEMzhCQzM1MEJBRUMKUldUc3VsRERpOU9DWGVDYy9ZRmtrYkhOb1lIWSt0UElFR0RDa2xnOEZyOHZsajhDK0dRZnpZeTEK",
       "endpoints": [
         "https://github.com/construct-space/releases/releases/latest/download/latest.json"
       ]
