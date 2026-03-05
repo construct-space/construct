@@ -24,11 +24,11 @@ export interface ContextUIDesign {
 }
 
 export interface ContextProjectSettings {
-  project_id: number
-  local_path?: string
-  editor_path?: string
-  synced_at?: string
-  updated_at: string
+  projectId: number
+  localPath?: string
+  editorPath?: string
+  syncedAt?: string
+  updatedAt: string
 }
 
 export interface KVEntry {
@@ -204,10 +204,25 @@ export function useContextDB() {
   async function projectSettingsGet(projectId: number): Promise<ContextProjectSettings | null> {
     if (!await ensureConnected()) return null
     try {
-      const result = await contextService.sendRequest<ContextProjectSettings>('project.local_settings.get', {
-        project_id: projectId
+      const result = await contextService.sendRequest<{
+        projectId: number
+        localPath?: string
+        editorPath?: string
+        syncedAt?: string
+        updatedAt?: string
+      }>('project_settings.get', {
+        projectId,
       })
-      return result || null
+
+      if (!result || typeof result.projectId !== 'number') return null
+
+      return {
+        projectId: result.projectId,
+        localPath: result.localPath,
+        editorPath: result.editorPath,
+        syncedAt: result.syncedAt,
+        updatedAt: result.updatedAt || new Date().toISOString(),
+      }
     } catch (error) {
       console.error('[ContextDB] projectSettingsGet failed:', error)
       return null
@@ -217,10 +232,10 @@ export function useContextDB() {
   async function projectSettingsSet(settings: ContextProjectSettings): Promise<boolean> {
     if (!await ensureConnected()) return false
     try {
-      await contextService.sendRequest('project.local_settings.set', {
-        project_id: settings.project_id,
-        local_path: settings.local_path,
-        editor_path: settings.editor_path
+      await contextService.sendRequest('project_settings.set', {
+        projectId: settings.projectId,
+        localPath: settings.localPath,
+        editorPath: settings.editorPath
       })
       return true
     } catch (error) {

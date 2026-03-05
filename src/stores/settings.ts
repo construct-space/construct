@@ -82,12 +82,6 @@ export const useSettingsStore = defineStore('settings', {
   actions: {
     // Fetch all settings
     async fetchSettings() {
-      // DEV MODE: Skip remote API
-      if (import.meta.env.DEV) {
-        this.isLoading = false
-        return
-      }
-
       this.isLoading = true
       this.error = null
 

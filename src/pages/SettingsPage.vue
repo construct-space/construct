@@ -1,56 +1,18 @@
 <script setup lang="ts">
-import {
-  Bot, Cpu, Server, Puzzle,
-  Download, Brush, Keyboard, CircleUser,
-  Settings, FolderOpen, Shield,
-} from 'lucide-vue-next'
+import { allSettingsNavItems, settingsNavGroups } from '@/router/settingsNavigation'
 
 const route = useRoute()
 const settingsStore = useSettingsStore()
 
-const navGroups = [
-  {
-    label: 'Account',
-    items: [
-      { label: 'Profile', path: '/app/settings/profile', icon: CircleUser },
-    ],
-  },
-  {
-    label: 'Workspace',
-    items: [
-      { label: 'General',      path: '/app/settings',          icon: Settings },
-      { label: 'Projects',     path: '/app/settings/projects', icon: FolderOpen },
-      { label: 'Appearance',   path: '/app/settings/appearance', icon: Brush },
-      { label: 'Shortcuts',    path: '/app/settings/shortcuts', icon: Keyboard },
-    ],
-  },
-  {
-    label: 'AI',
-    items: [
-      { label: 'AI Assistant',   path: '/app/settings/ai',    icon: Bot },
-      { label: 'LLMs & Models',  path: '/app/settings/llms',  icon: Cpu },
-      { label: 'MCP Servers',    path: '/app/settings/mcp',   icon: Server },
-      { label: 'Skills & Hooks', path: '/app/settings/skills', icon: Puzzle },
-    ],
-  },
-  {
-    label: 'System',
-    items: [
-      { label: 'Privacy',        path: '/app/settings/privacy', icon: Shield },
-      { label: 'Updates',        path: '/app/settings/updates', icon: Download },
-    ],
-  },
-]
-
-const allItems = navGroups.flatMap(g => g.items)
+const navGroups = settingsNavGroups
 
 const currentSection = computed(() =>
-  allItems.find(item => route.path === item.path)?.label ?? ''
+  allSettingsNavItems.find(item => route.path === item.path)?.label ?? ''
 )
 
 onMounted(() => {
   if (settingsStore.settings.length === 0) {
-    settingsStore.fetchSettings()
+    settingsStore.fetchSettings().catch(() => undefined)
   }
 })
 </script>

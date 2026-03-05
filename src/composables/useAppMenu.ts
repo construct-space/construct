@@ -4,6 +4,7 @@
  * Handles menu events from native menus
  */
 import type { UnlistenFn } from '@tauri-apps/api/event'
+import { SETTINGS_DEFAULT_PATH } from '@/router/settingsNavigation'
 
 // Track current space to avoid unnecessary updates
 const currentMenuSpace = ref<string | null>(null)
@@ -113,7 +114,7 @@ export function useAppMenu() {
     }))
 
     unlisteners.push(await listen('menu:settings', () => {
-      router.push('/app/settings')
+      router.push(SETTINGS_DEFAULT_PATH)
     }))
 
     unlisteners.push(await listen('menu:projects', () => {
@@ -125,7 +126,7 @@ export function useAppMenu() {
     }))
 
     unlisteners.push(await listen('menu:about', () => {
-      router.push('/app/settings/about')
+      router.push('/app/settings/system')
     }))
 
     unlisteners.push(await listen('menu:keyboard-shortcuts', () => {

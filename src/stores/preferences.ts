@@ -68,12 +68,6 @@ export const usePreferencesStore = defineStore('preferences', {
         return {}
       }
 
-      // DEV MODE: Use local defaults, skip remote API
-      if (import.meta.env.DEV) {
-        this.initialized = true
-        return this.preferences
-      }
-
       this.loading = true
       this.error = null
 

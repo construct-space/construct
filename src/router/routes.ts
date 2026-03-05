@@ -1,4 +1,5 @@
 import type { RouteRecordRaw } from 'vue-router'
+import { SETTINGS_DEFAULT_PATH, settingsRouteChildren } from './settingsNavigation'
 
 /**
  * Routes — fully dynamic space loading.
@@ -80,56 +81,9 @@ export const routes: RouteRecordRaw[] = [
         children: [
           {
             path: '',
-            component: () => import('@/pages/settings/GeneralSettings.vue'),
+            redirect: SETTINGS_DEFAULT_PATH,
           },
-          {
-            path: 'profile',
-            component: () => import('@/pages/settings/ProfileSettings.vue'),
-          },
-          {
-            path: 'projects',
-            component: () => import('@/pages/settings/ProjectsSettings.vue'),
-          },
-          {
-            path: 'appearance',
-            component: () => import('@/pages/settings/AppearanceSettings.vue'),
-          },
-          {
-            path: 'design',
-            component: () => import('@/pages/settings/DesignSettings.vue'),
-          },
-          {
-            path: 'shortcuts',
-            component: () => import('@/pages/settings/ShortcutsSettings.vue'),
-          },
-          {
-            path: 'ai',
-            component: () => import('@/pages/settings/AISettings.vue'),
-          },
-          {
-            path: 'llms',
-            component: () => import('@/pages/settings/LLMSettings.vue'),
-          },
-          {
-            path: 'mcp',
-            component: () => import('@/pages/settings/MCPSettings.vue'),
-          },
-          {
-            path: 'skills',
-            component: () => import('@/pages/settings/SkillsSettings.vue'),
-          },
-          {
-            path: 'updates',
-            component: () => import('@/pages/settings/UpdatesSettings.vue'),
-          },
-          {
-            path: 'spaces',
-            component: () => import('@/pages/settings/SpacesSettings.vue'),
-          },
-          {
-            path: 'privacy',
-            component: () => import('@/pages/settings/PrivacySettings.vue'),
-          },
+          ...settingsRouteChildren,
         ],
       },
 
