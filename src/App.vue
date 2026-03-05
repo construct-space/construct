@@ -88,6 +88,13 @@ onMounted(async () => {
   window.addEventListener('beforeunload', handleBeforeUnload)
   document.addEventListener('visibilitychange', handleVisibilityChange)
 
+  // Tauri: enable system clipboard shortcuts (Cmd+C/V/X/A/Z)
+  // Tauri v2 with overlay titlebar can miss native menu accelerators,
+  // so we handle them via document.execCommand as a fallback.
+  if (isTauri.value) {
+    document.addEventListener('keydown', handleSystemShortcuts)
+  }
+
   // Tauri: bridge window focus/blur to custom events for DynamicSpacePage
   if (isTauri.value) {
     try {
@@ -104,26 +111,54 @@ onMounted(async () => {
 onUnmounted(() => {
   window.removeEventListener('beforeunload', handleBeforeUnload)
   document.removeEventListener('visibilitychange', handleVisibilityChange)
+  document.removeEventListener('keydown', handleSystemShortcuts)
   unlisten?.()
 })
+
+/**
+ * Handle system clipboard/edit shortcuts in Tauri.
+ * On macOS, Tauri v2 with overlay titlebar can swallow native menu
+ * accelerators — this ensures Cmd+C/V/X/A/Z always work in the webview.
+ */
+function handleSystemShortcuts(e: KeyboardEvent) {
+  if (!(e.metaKey || e.ctrlKey)) return
+
+  const cmds: Record<string, string> = {
+    c: 'copy',
+    x: 'cut',
+    v: 'paste',
+    a: 'selectAll',
+    z: 'undo',
+  }
+
+  const cmd = cmds[e.key]
+  if (!cmd) return
+
+  // Shift+Z = redo
+  if (e.key === 'z' && e.shiftKey) {
+    document.execCommand('redo')
+    return
+  }
+
+  document.execCommand(cmd)
+}
 </script>
 
 <template>
   <div class="bg-app text-app min-h-screen">
     <!-- Tauri semaphore (traffic lights) placeholder -->
-    <div v-if="isTauri && showSidebar" class="fixed top-3 left-[10px] z-[200]">
-      <!-- CommonSemaphore will go here once migrated -->
+    <div v-if="isTauri && showSidebar" class="fixed top-3 left-[10px] z-[200]" style="-webkit-app-region: no-drag">
       <div class="flex gap-2">
         <button
-          class="w-3 h-3 rounded-full bg-red-500 hover:bg-red-600"
+          class="w-3 h-3 rounded-full bg-red-500 hover:bg-red-600 cursor-default"
           @click="handleClose"
         />
         <button
-          class="w-3 h-3 rounded-full bg-yellow-500 hover:bg-yellow-600"
+          class="w-3 h-3 rounded-full bg-yellow-500 hover:bg-yellow-600 cursor-default"
           @click="handleMinimize"
         />
         <button
-          class="w-3 h-3 rounded-full bg-green-500 hover:bg-green-600"
+          class="w-3 h-3 rounded-full bg-green-500 hover:bg-green-600 cursor-default"
           @click="handleMaximize"
         />
       </div>
