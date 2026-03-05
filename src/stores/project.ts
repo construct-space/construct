@@ -15,6 +15,12 @@ const DEFAULT_SPACES: SpaceType[] = [
   'architect', 'git', 'terminal', 'calendar'
 ]
 
+const normalizePath = (value: string): string => {
+  if (!value) return value
+  if (value === '/') return value
+  return value.replace(/\/+$/g, '')
+}
+
 const slugifyProjectToken = (value: string): string => {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
@@ -97,9 +103,22 @@ export const useProjectStore = defineStore('project', {
     async initialize() {
       // Load persisted state from localStorage only — no FS scanning.
       // FS scanning happens lazily via loadProjects() when pages need it.
-      this.projectsRoot = localStorage.getItem(STORAGE_KEY_ROOT) || ''
-      this.externalPaths = JSON.parse(localStorage.getItem(STORAGE_KEY_EXTERNALS) || '[]')
-      this.recentProjects = JSON.parse(localStorage.getItem(STORAGE_KEY_RECENTS) || '[]')
+      this.projectsRoot = normalizePath(localStorage.getItem(STORAGE_KEY_ROOT) || '')
+
+      const rawExternals = JSON.parse(localStorage.getItem(STORAGE_KEY_EXTERNALS) || '[]') as string[]
+      this.externalPaths = [...new Set(rawExternals.map(path => normalizePath(path)).filter(Boolean))]
+      localStorage.setItem(STORAGE_KEY_EXTERNALS, JSON.stringify(this.externalPaths))
+
+      const rawRecents = JSON.parse(localStorage.getItem(STORAGE_KEY_RECENTS) || '[]') as LocalProject[]
+      this.recentProjects = rawRecents.map((project) => {
+        const normalizedPath = normalizePath(project.path)
+        return {
+          ...project,
+          path: normalizedPath,
+          local_path: normalizePath(project.local_path || normalizedPath),
+        }
+      })
+      localStorage.setItem(STORAGE_KEY_RECENTS, JSON.stringify(this.recentProjects))
     },
 
     async loadProjects() {
@@ -139,8 +158,15 @@ export const useProjectStore = defineStore('project', {
         }
 
         // Add external projects
-        for (const extPath of this.externalPaths) {
-          const name = extPath.split('/').pop() || extPath
+        const normalizedExternals = [...new Set(this.externalPaths.map(path => normalizePath(path)).filter(Boolean))]
+        if (normalizedExternals.length !== this.externalPaths.length
+          || normalizedExternals.some((value, index) => value !== this.externalPaths[index])) {
+          this.externalPaths = normalizedExternals
+          localStorage.setItem(STORAGE_KEY_EXTERNALS, JSON.stringify(this.externalPaths))
+        }
+
+        for (const extPath of normalizedExternals) {
+          const name = extPath.split('/').filter(Boolean).pop() || extPath
           const existing = projects.find(p => p.path === extPath)
           if (!existing) {
             const { useProjectDirectory } = await import('@/composables/useProjectDirectory')
@@ -162,7 +188,8 @@ export const useProjectStore = defineStore('project', {
 
         // Set local_path alias for backward compat
         for (const p of projects) {
-          p.local_path = p.path
+          p.path = normalizePath(p.path)
+          p.local_path = normalizePath(p.path)
         }
         this.projects = projects
       } catch (error) {
@@ -185,8 +212,8 @@ export const useProjectStore = defineStore('project', {
         if (!this.projectsRoot) {
           const root = await projectDir.getProjectsRoot()
           if (root) {
-            this.projectsRoot = root
-            localStorage.setItem(STORAGE_KEY_ROOT, root)
+            this.projectsRoot = normalizePath(root)
+            localStorage.setItem(STORAGE_KEY_ROOT, this.projectsRoot)
           } else {
             throw new Error('No projects root directory set')
           }
@@ -202,8 +229,8 @@ export const useProjectStore = defineStore('project', {
         const project: LocalProject = {
           id: buildProjectId(data.name),
           name: data.name,
-          path: createdPath,
-          local_path: createdPath,
+          path: normalizePath(createdPath),
+          local_path: normalizePath(createdPath),
           description: data.description,
           spaces,
           last_opened_at: new Date().toISOString(),
@@ -225,7 +252,8 @@ export const useProjectStore = defineStore('project', {
     },
 
     openProject(path: string) {
-      const project = this.projects.find(p => p.path === path)
+      const normalizedPath = normalizePath(path)
+      const project = this.projects.find(p => normalizePath(p.path) === normalizedPath)
       if (project) {
         this.currentProject = project
         this.trackRecentOpen(project)
@@ -233,12 +261,12 @@ export const useProjectStore = defineStore('project', {
       }
 
       // Project not in list — create a minimal entry
-      const name = path.split('/').pop() || path
+      const name = normalizedPath.split('/').filter(Boolean).pop() || normalizedPath
       const newProject: LocalProject = {
         id: buildProjectId(name, true),
         name,
-        path,
-        local_path: path,
+        path: normalizedPath,
+        local_path: normalizedPath,
         spaces: DEFAULT_SPACES,
         last_opened_at: new Date().toISOString(),
         is_external: true,
@@ -279,16 +307,17 @@ export const useProjectStore = defineStore('project', {
     },
 
     async addExternalFolderByPath(path: string): Promise<LocalProject | null> {
-      if (!path) return null
+      const normalizedPath = normalizePath(path)
+      if (!normalizedPath) return null
 
-      if (!this.externalPaths.includes(path)) {
-        this.externalPaths.push(path)
+      if (!this.externalPaths.includes(normalizedPath)) {
+        this.externalPaths.push(normalizedPath)
         localStorage.setItem(STORAGE_KEY_EXTERNALS, JSON.stringify(this.externalPaths))
       }
 
       // Reload projects to include the external path.
       await this.loadProjects()
-      return this.projects.find(p => p.path === path) || null
+      return this.projects.find(p => p.path === normalizedPath) || null
     },
 
     async addExternalProject(path: string): Promise<LocalProject | null> {
@@ -296,6 +325,8 @@ export const useProjectStore = defineStore('project', {
     },
 
     trackRecentOpen(project: LocalProject) {
+      project.path = normalizePath(project.path)
+      project.local_path = normalizePath(project.local_path || project.path)
       project.last_opened_at = new Date().toISOString()
 
       // Update in projects list
@@ -313,12 +344,13 @@ export const useProjectStore = defineStore('project', {
     },
 
     setProjectsRoot(path: string) {
-      this.projectsRoot = path
-      localStorage.setItem(STORAGE_KEY_ROOT, path)
+      this.projectsRoot = normalizePath(path)
+      localStorage.setItem(STORAGE_KEY_ROOT, this.projectsRoot)
     },
 
     getRecentTimestamp(path: string): string {
-      const recent = this.recentProjects.find(p => p.path === path)
+      const normalizedPath = normalizePath(path)
+      const recent = this.recentProjects.find(p => normalizePath(p.path) === normalizedPath)
       return recent?.last_opened_at || ''
     },
   },
