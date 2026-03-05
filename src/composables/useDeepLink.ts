@@ -23,6 +23,13 @@ export function useDeepLink() {
       const code = parsed.searchParams.get('code')
       const state = parsed.searchParams.get('state')
       const error = parsed.searchParams.get('error')
+
+      // Skip if no params at all (stale getCurrent() on app launch)
+      if (!code && !state && !error) {
+        console.log('[DeepLink] OAuth callback with no params, ignoring')
+        return
+      }
+
       console.log('[DeepLink] OAuth callback — code:', code?.slice(0, 8) + '...', 'state:', state?.slice(0, 8) + '...', 'error:', error)
 
       // Close the OAuth login window

@@ -152,115 +152,77 @@ watch(() => route.path, (newPath) => {
 </script>
 
 <template>
-  <aside class="w-[72px] h-screen flex flex-col items-center shrink-0 z-50 bg-app border-r border-app">
+  <aside class="w-18creen flex flex-col items-center shrink-0 z-50 bg-app border-r border-app">
     <!-- Logo (clear macOS traffic lights) -->
     <RouterLink to="/app" class="pt-9 pb-2 shrink-0">
-      <svg width="32" height="32" viewBox="0 0 533 533" fill="currentColor" class="text-[#34C759]">
-        <path d="M266.5 410.156C230.912 410.156 199.106 402.203 171.081 386.297C143.056 370.39 121.036 348.519 105.022 320.684C89.0072 292.848 81 261.256 81 225.909C81 190.12 89.0072 158.308 105.022 130.472C121.036 102.636 143.056 80.7655 171.081 64.8593C199.106 48.9531 230.912 41 266.5 41C302.087 41 333.671 48.9531 361.252 64.8593C389.277 80.7655 411.297 102.636 427.311 130.472C443.326 158.308 451.555 190.12 452 225.909C452 261.256 443.77 292.848 427.311 320.684C411.297 348.519 389.277 370.39 361.252 386.297C333.671 402.203 302.087 410.156 266.5 410.156ZM266.5 363.763C292.301 363.763 315.433 357.798 335.896 345.868C356.359 333.939 372.373 317.591 383.939 296.824C395.505 276.058 401.288 252.42 401.288 225.909C401.288 199.399 395.505 175.761 383.939 154.994C372.373 133.786 356.359 117.217 335.896 105.287C315.433 93.3579 292.301 87.393 266.5 87.393C240.699 87.393 217.567 93.3579 197.104 105.287C176.641 117.217 160.405 133.786 148.394 154.994C136.828 175.761 131.045 199.399 131.045 225.909C131.045 252.42 136.828 276.058 148.394 296.824C160.405 317.591 176.641 333.939 197.104 345.868C217.567 357.798 240.699 363.763 266.5 363.763Z" />
-        <path d="M378.22 451.578C393.077 451.578 405.121 460.85 405.121 472.289C405.121 483.727 393.077 493 378.22 493H160.945C146.089 493 134.044 483.727 134.044 472.289C134.044 460.85 146.089 451.578 160.945 451.578H378.22Z" />
+      <svg width="32" height="32" viewBox="0 0 533 533" fill="currentColor" class="text-app-accent">
+        <path
+          d="M266.5 410.156C230.912 410.156 199.106 402.203 171.081 386.297C143.056 370.39 121.036 348.519 105.022 320.684C89.0072 292.848 81 261.256 81 225.909C81 190.12 89.0072 158.308 105.022 130.472C121.036 102.636 143.056 80.7655 171.081 64.8593C199.106 48.9531 230.912 41 266.5 41C302.087 41 333.671 48.9531 361.252 64.8593C389.277 80.7655 411.297 102.636 427.311 130.472C443.326 158.308 451.555 190.12 452 225.909C452 261.256 443.77 292.848 427.311 320.684C411.297 348.519 389.277 370.39 361.252 386.297C333.671 402.203 302.087 410.156 266.5 410.156ZM266.5 363.763C292.301 363.763 315.433 357.798 335.896 345.868C356.359 333.939 372.373 317.591 383.939 296.824C395.505 276.058 401.288 252.42 401.288 225.909C401.288 199.399 395.505 175.761 383.939 154.994C372.373 133.786 356.359 117.217 335.896 105.287C315.433 93.3579 292.301 87.393 266.5 87.393C240.699 87.393 217.567 93.3579 197.104 105.287C176.641 117.217 160.405 133.786 148.394 154.994C136.828 175.761 131.045 199.399 131.045 225.909C131.045 252.42 136.828 276.058 148.394 296.824C160.405 317.591 176.641 333.939 197.104 345.868C217.567 357.798 240.699 363.763 266.5 363.763Z" />
+        <path
+          d="M378.22 451.578C393.077 451.578 405.121 460.85 405.121 472.289C405.121 483.727 393.077 493 378.22 493H160.945C146.089 493 134.044 483.727 134.044 472.289C134.044 460.85 146.089 451.578 160.945 451.578H378.22Z" />
       </svg>
     </RouterLink>
 
     <!-- 3D Rotating Cube (2 panels) -->
     <div class="flex-1 w-full overflow-hidden py-1" style="perspective: 1000px">
-      <div
-        class="relative w-full h-full transition-transform duration-500 ease-out"
-        :style="{
-          transformStyle: 'preserve-3d',
-          transform: `rotateY(${rotationY}deg)`,
-        }"
-      >
+      <div class="relative w-full h-full transition-transform duration-500 ease-out" :style="{
+        transformStyle: 'preserve-3d',
+        transform: `rotateY(${rotationY}deg)`,
+      }">
         <!-- ====== Front Panel (main) — Home + pinned spaces + All Spaces + Settings ====== -->
-        <div
-          class="absolute inset-0 w-full h-full flex flex-col items-center gap-1 pt-2 overflow-y-auto scrollbar-none"
-          style="backface-visibility: hidden; transform: translateZ(20px)"
-        >
+        <div class="absolute inset-0 w-full h-full flex flex-col items-center gap-1 pt-2 overflow-y-auto scrollbar-none"
+          style="backface-visibility: hidden; transform: translateZ(20px)">
           <!-- Home -->
-          <RouterLink
-            to="/app"
-            class="sidebar-btn"
-            :class="activeId === 'home' ? 'sidebar-btn-active' : 'sidebar-btn-inactive'"
-            title="Home"
-          >
+          <RouterLink to="/app" class="sidebar-btn"
+            :class="activeId === 'home' ? 'sidebar-btn-active' : 'sidebar-btn-inactive'" title="Home">
             <Icon name="i-lucide-house" class="size-5" />
           </RouterLink>
 
           <!-- Essential spaces (always visible) -->
-          <RouterLink
-            to="/app/architect"
-            class="sidebar-btn"
-            :class="activeId === 'architect' ? 'sidebar-btn-active' : 'sidebar-btn-inactive'"
-            title="Architect"
-          >
+          <RouterLink to="/app/architect" class="sidebar-btn"
+            :class="activeId === 'architect' ? 'sidebar-btn-active' : 'sidebar-btn-inactive'" title="Architect">
             <Icon name="i-lucide-compass" class="size-5" />
           </RouterLink>
-          <RouterLink
-            to="/app/projects"
-            class="sidebar-btn"
-            :class="activeId === 'projects' ? 'sidebar-btn-active' : 'sidebar-btn-inactive'"
-            title="Projects"
-          >
+          <RouterLink to="/app/projects" class="sidebar-btn"
+            :class="activeId === 'projects' ? 'sidebar-btn-active' : 'sidebar-btn-inactive'" title="Projects">
             <Icon name="i-lucide-folder" class="size-5" />
           </RouterLink>
 
-          <div class="w-8 h-px bg-[var(--app-border)] my-0.5" />
+          <div class="w-8 h-px bg-app-border my-0.5" />
 
           <!-- Pinned spaces -->
-          <RouterLink
-            v-for="item in pinnedSpaceNavItems"
-            :key="item.id"
-            :to="item.to"
-            class="sidebar-btn"
-            :class="activeId === item.id ? 'sidebar-btn-active' : 'sidebar-btn-inactive'"
-            :title="item.label"
-          >
+          <RouterLink v-for="item in pinnedSpaceNavItems" :key="item.id" :to="item.to" class="sidebar-btn"
+            :class="activeId === item.id ? 'sidebar-btn-active' : 'sidebar-btn-inactive'" :title="item.label">
             <Icon :name="item.icon" class="size-5" />
           </RouterLink>
 
           <!-- Empty state hint when no spaces pinned -->
-          <div
-            v-if="pinnedSpaceNavItems.length === 0"
-            class="flex flex-col items-center gap-1 py-2"
-          >
-            <span class="text-[9px] text-[var(--app-muted)] text-center leading-tight px-1">Pin spaces below</span>
+          <div v-if="pinnedSpaceNavItems.length === 0" class="flex flex-col items-center gap-1 py-2">
+            <span class="text-[9px] text-app-muted text-center leading-tight px-1">Pin spaces below</span>
           </div>
 
           <div class="flex-1" />
 
-          <div class="w-8 h-px bg-[var(--app-border)] my-0.5" />
+          <div class="w-8 h-px bg-app-border my-0.5" />
 
           <!-- All Spaces (Launchpad) -->
-          <RouterLink
-            to="/app/spaces"
-            class="sidebar-btn"
-            :class="activeId === 'all-spaces' ? 'sidebar-btn-active' : 'sidebar-btn-inactive'"
-            title="All Spaces"
-          >
+          <RouterLink to="/app/spaces" class="sidebar-btn"
+            :class="activeId === 'all-spaces' ? 'sidebar-btn-active' : 'sidebar-btn-inactive'" title="All Spaces">
             <Icon name="i-lucide-grid-2x2" class="size-5" />
           </RouterLink>
 
           <!-- Settings at bottom -->
-          <RouterLink
-            to="/app/settings"
-            class="sidebar-btn mb-4"
-            :class="activeId === 'settings' ? 'sidebar-btn-active' : 'sidebar-btn-inactive'"
-            title="Settings"
-          >
+          <RouterLink to="/app/settings" class="sidebar-btn mb-4"
+            :class="activeId === 'settings' ? 'sidebar-btn-active' : 'sidebar-btn-inactive'" title="Settings">
             <Icon name="i-lucide-settings" class="size-5" />
           </RouterLink>
         </div>
 
         <!-- ====== Right Panel (space sub-pages OR project spaces) ====== -->
-        <div
-          class="absolute inset-0 w-full h-full flex flex-col items-center gap-1 pt-2 overflow-y-auto scrollbar-none"
-          style="backface-visibility: hidden; transform: rotateY(90deg) translateZ(20px)"
-        >
+        <div class="absolute inset-0 w-full h-full flex flex-col items-center gap-1 pt-2 overflow-y-auto scrollbar-none"
+          style="backface-visibility: hidden; transform: rotateY(90deg) translateZ(20px)">
           <!-- Back button (always shown) -->
-          <button
-            class="sidebar-btn sidebar-btn-inactive"
-            title="Back"
-            @click="goBackToMain"
-          >
+          <button class="sidebar-btn sidebar-btn-inactive" title="Back" @click="goBackToMain">
             <Icon name="i-lucide-arrow-left" class="size-5" />
           </button>
 
@@ -269,37 +231,29 @@ watch(() => route.path, (newPath) => {
             <!-- Project name indicator -->
             <div
               class="w-10 h-6 flex items-center justify-center rounded-md bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)]"
-              :title="state.activeProject.name"
-            >
-              <span class="text-[9px] font-bold text-[var(--app-accent)] truncate px-1">
+              :title="state.activeProject.name">
+              <span class="text-[9px] font-bold text-app-accent truncate px-1">
                 {{ state.activeProject.name.slice(0, 3).toUpperCase() }}
               </span>
             </div>
 
-            <div class="w-8 h-px bg-[var(--app-border)]" />
+            <div class="w-8 h-px bg-app-border" />
 
             <!-- Project-scoped space icons -->
             <template v-for="item in state.projectSpaceItems" :key="item.id">
-              <RouterLink
-                :to="item.route"
-                class="sidebar-btn"
-                :class="activeId === item.id ? 'sidebar-btn-active' : 'sidebar-btn-inactive'"
-                :title="item.label"
-              >
+              <RouterLink :to="item.route" class="sidebar-btn"
+                :class="activeId === item.id ? 'sidebar-btn-active' : 'sidebar-btn-inactive'" :title="item.label">
                 <Icon :name="item.icon || 'i-lucide-circle'" class="size-5" />
               </RouterLink>
             </template>
 
             <!-- Active project-space sub-pages (e.g. Code: editor/terminal/responsive) -->
             <template v-if="projectSpaceSubItems.length > 0">
-              <div class="w-8 h-px bg-[var(--app-border)]" />
+              <div class="w-8 h-px bg-app-border" />
               <template v-for="item in projectSpaceSubItems" :key="item.route">
-                <RouterLink
-                  :to="item.route"
-                  class="sidebar-btn"
+                <RouterLink :to="item.route" class="sidebar-btn"
                   :class="route.path === item.route ? 'sidebar-btn-active' : 'sidebar-btn-inactive'"
-                  :title="item.label"
-                >
+                  :title="item.label">
                   <Icon :name="item.icon || 'i-lucide-circle'" class="size-4" />
                 </RouterLink>
               </template>
@@ -308,22 +262,15 @@ watch(() => route.path, (newPath) => {
 
           <!-- ===== Space sub-page mode ===== -->
           <template v-else-if="state.panel === 'space'">
-            <div
-              v-if="state.activeSpace"
-              class="sidebar-btn sidebar-btn-active"
-            >
+            <div v-if="state.activeSpace" class="sidebar-btn sidebar-btn-active">
               <Icon :name="getSpaceIcon(state.activeSpace)" class="size-5" />
             </div>
 
-            <div class="w-8 h-px bg-[var(--app-border)]" />
+            <div class="w-8 h-px bg-app-border" />
 
             <template v-for="item in state.activeSpaceItems" :key="item.route">
-              <RouterLink
-                :to="item.route"
-                class="sidebar-btn"
-                :class="route.path === item.route ? 'sidebar-btn-active' : 'sidebar-btn-inactive'"
-                :title="item.label"
-              >
+              <RouterLink :to="item.route" class="sidebar-btn"
+                :class="route.path === item.route ? 'sidebar-btn-active' : 'sidebar-btn-inactive'" :title="item.label">
                 <Icon :name="item.icon || 'i-lucide-circle'" class="size-4" />
               </RouterLink>
             </template>
@@ -336,21 +283,13 @@ watch(() => route.path, (newPath) => {
 
     <!-- Avatar / user menu — always visible outside the 3D cube -->
     <div class="shrink-0 mb-4 relative flex justify-center">
-      <button
-        class="size-9 rounded-full flex items-center justify-center overflow-hidden ring-2 transition-all"
-        :class="showUserMenu
-          ? 'ring-[var(--app-accent)]'
-          : 'ring-[var(--app-border)] hover:ring-[var(--app-muted)]'"
-        :title="authStore.user?.name || authStore.userEmail"
-        @click="showUserMenu = !showUserMenu"
-      >
-        <img
-          v-if="authStore.userAvatar"
-          :src="authStore.userAvatar"
-          :alt="authStore.userName"
-          class="w-full h-full object-cover"
-        />
-        <span v-else class="text-sm font-semibold text-[var(--app-foreground)]">
+      <button class="size-9 rounded-full flex items-center justify-center overflow-hidden ring-2 transition-all" :class="showUserMenu
+        ? 'ring-app-accent'
+        : 'ring-app-border hover:ring-app-muted'" :title="authStore.user?.name || authStore.userEmail"
+        @click="showUserMenu = !showUserMenu">
+        <img v-if="authStore.userAvatar" :src="authStore.userAvatar" :alt="authStore.userName"
+          class="w-full h-full object-cover" />
+        <span v-else class="text-sm font-semibold text-app-foreground">
           {{ userInitials }}
         </span>
       </button>
@@ -358,45 +297,36 @@ watch(() => route.path, (newPath) => {
       <!-- Dropdown — flies out to the right -->
       <Teleport to="body">
         <!-- Backdrop -->
-        <div
-          v-if="showUserMenu"
-          class="fixed inset-0 z-[199]"
-          @click="showUserMenu = false"
-        />
+        <div v-if="showUserMenu" class="fixed inset-0 z-199" @click="showUserMenu = false" />
         <!-- Menu -->
-        <div
-          v-if="showUserMenu"
-          class="fixed z-[200] left-[80px] bottom-4 w-44 rounded-lg border border-[var(--app-border)] bg-[var(--app-background)] shadow-xl overflow-hidden"
-        >
+        <div v-if="showUserMenu"
+          class="fixed z-200 left-20 bottom-4 w-44 rounded-lg border border-app-border bg-app-background shadow-xl overflow-hidden">
           <!-- User info header -->
-          <div class="px-3 py-2.5 border-b border-[var(--app-border)]">
-            <p class="text-xs font-medium text-[var(--app-foreground)] truncate">{{ authStore.userName }}</p>
-            <p class="text-[10px] text-[var(--app-muted)] truncate">{{ authStore.userEmail }}</p>
+          <div class="px-3 py-2.5 border-b border-app-border">
+            <p class="text-xs font-medium text-app-foreground truncate">{{ authStore.userName }}</p>
+            <p class="text-[10px] text-app-muted truncate">{{ authStore.userEmail }}</p>
           </div>
 
           <!-- Menu items -->
           <div class="py-1">
             <button
-              class="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[var(--app-foreground)] hover:bg-[color-mix(in_srgb,var(--app-muted)_8%,transparent)] transition-colors text-left"
-              @click="navigateTo('/app/settings/profile')"
-            >
-              <Icon name="i-lucide-circle-user" class="size-4 text-[var(--app-muted)] shrink-0" />
+              class="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-app-foreground hover:bg-[color-mix(in_srgb,var(--app-muted)_8%,transparent)] transition-colors text-left"
+              @click="navigateTo('/app/settings/profile')">
+              <Icon name="i-lucide-circle-user" class="size-4 text-app-muted shrink-0" />
               Profile
             </button>
             <button
-              class="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-[var(--app-foreground)] hover:bg-[color-mix(in_srgb,var(--app-muted)_8%,transparent)] transition-colors text-left"
-              @click="navigateTo('/app/settings')"
-            >
-              <Icon name="i-lucide-settings" class="size-4 text-[var(--app-muted)] shrink-0" />
+              class="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-app-foreground-[color-mix(in_srgb,var(--app-muted)_8%,transparent)] transition-colors text-left"
+              @click="navigateTo('/app/settings')">
+              <Icon name="i-lucide-settings" class="size-4 text-app-muted shrink-0" />
               Settings
             </button>
           </div>
 
-          <div class="border-t border-[var(--app-border)] py-1">
+          <div class="border-t border-app-border py-1">
             <button
               class="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-500 hover:bg-red-500/10 transition-colors text-left"
-              @click="logout"
-            >
+              @click="logout">
               <Icon name="i-lucide-log-out" class="size-4 shrink-0" />
               Log out
             </button>
@@ -404,7 +334,7 @@ watch(() => route.path, (newPath) => {
         </div>
       </Teleport>
     </div>
-</aside>
+  </aside>
 </template>
 
 <style scoped>
@@ -436,6 +366,7 @@ watch(() => route.path, (newPath) => {
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
+
 .scrollbar-none {
   -ms-overflow-style: none;
   scrollbar-width: none;
