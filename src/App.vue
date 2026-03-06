@@ -120,6 +120,39 @@ const handleVisibilityChange = () => {
   if (document.visibilityState === 'hidden') telemetry.trackSessionEnd()
 }
 
+function shouldAllowNativeContextMenu(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+
+  if (target.closest('[data-allow-native-context-menu]')) {
+    return true
+  }
+
+  const editable = target.closest('textarea, [contenteditable=""], [contenteditable="true"], input')
+  if (!editable) return false
+
+  if (editable instanceof HTMLInputElement) {
+    return !new Set([
+      'button',
+      'checkbox',
+      'color',
+      'file',
+      'hidden',
+      'image',
+      'radio',
+      'range',
+      'reset',
+      'submit',
+    ]).has(editable.type)
+  }
+
+  return true
+}
+
+function handleReleaseContextMenu(event: MouseEvent) {
+  if (shouldAllowNativeContextMenu(event.target)) return
+  event.preventDefault()
+}
+
 let unlisten: (() => void) | null = null
 
 onMounted(async () => {
@@ -145,6 +178,12 @@ onMounted(async () => {
     document.addEventListener('keydown', handleSystemShortcuts)
   }
 
+  // Release builds should not expose the WebView's default browser menu
+  // (Back / Reload / Inspect Element) over app surfaces.
+  if (isTauri.value && import.meta.env.PROD) {
+    document.addEventListener('contextmenu', handleReleaseContextMenu, true)
+  }
+
   // Auto-check for updates (respects user preference)
   if (isTauri.value) {
     updater.autoCheckOnStartup()
@@ -167,6 +206,7 @@ onUnmounted(() => {
   window.removeEventListener('beforeunload', handleBeforeUnload)
   document.removeEventListener('visibilitychange', handleVisibilityChange)
   document.removeEventListener('keydown', handleSystemShortcuts)
+  document.removeEventListener('contextmenu', handleReleaseContextMenu, true)
   unlisten?.()
 })
 
