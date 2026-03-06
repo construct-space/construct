@@ -80,6 +80,14 @@ function getIconColorClass(color?: string): string {
               >
                 {{ t.description }}
               </p>
+              <button
+                v-if="t.action"
+                class="mt-1.5 text-xs font-medium px-2.5 py-1 rounded-md transition-colors cursor-pointer"
+                :class="[getIconColorClass(t.color), 'hover:bg-white/10 border border-current/20']"
+                @click="t.action!.onClick(); toast.remove(t.id)"
+              >
+                {{ t.action.label }}
+              </button>
             </div>
 
             <button

@@ -121,10 +121,24 @@ export function useUpdater() {
     return raw ? new Date(raw) : null
   }
 
-  /** Call on app startup — checks if auto-check is enabled */
+  /** Call on app startup — checks if auto-check is enabled, shows toast if update found */
   async function autoCheckOnStartup() {
     if (!getAutoCheck()) return
-    await checkForUpdates()
+    const info = await checkForUpdates()
+    if (info) {
+      const { useToast } = await import('@/composables/useToast')
+      const { add } = useToast()
+      add({
+        title: `Update available: v${info.version}`,
+        description: 'A new version of Construct is ready to install.',
+        color: 'info',
+        duration: 0,
+        action: {
+          label: 'Install & Restart',
+          onClick: () => downloadAndInstall(),
+        },
+      })
+    }
   }
 
   return {

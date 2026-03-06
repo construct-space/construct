@@ -6,6 +6,7 @@ export interface Toast {
   description?: string
   color?: 'success' | 'error' | 'warning' | 'info'
   duration?: number
+  action?: { label: string; onClick: () => void }
 }
 
 const toasts = ref<Toast[]>([])
