@@ -140,9 +140,6 @@
     "websocket:allow-send",
     "window-state:default",
     "window-state:allow-restore-state",
-    "window-state:allow-save-window-state",
-    "nspopover:allow-show-popover",
-    "nspopover:allow-hide-popover",
-    "nspopover:allow-is-popover-shown"
+    "window-state:allow-save-window-state"
   ]
 }
