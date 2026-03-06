@@ -54,7 +54,6 @@ const providers: ProviderKeyConfig[] = [
   { id: 'zai', name: 'Z.AI', description: 'GLM / CogView models', placeholder: 'API key', kvKey: 'provider_key:zai' },
   { id: 'mimo', name: 'Xiaomi MiMo', description: 'MiMo reasoning model', placeholder: 'API key', kvKey: 'provider_key:mimo' },
   { id: 'kimi', name: 'Kimi (Moonshot)', description: 'Moonshot AI models', placeholder: 'API key', kvKey: 'provider_key:kimi' },
-  { id: 'lmstudio', name: 'LM Studio', description: 'Local models via OpenAI-compatible server', placeholder: 'http://localhost:1234/v1', kvKey: 'provider_key:lmstudio', isUrl: true },
 ]
 
 const apiKeys = ref<Record<string, string>>({})
@@ -320,7 +319,7 @@ onMounted(async () => {
           <p class="text-xs text-[var(--app-muted)] uppercase tracking-wider">Or select specific model:</p>
           <div v-for="group in modelsByProvider" :key="group.provider.id" class="space-y-1">
             <p class="text-xs font-medium text-[var(--app-muted)]">{{ group.provider.label }}</p>
-            <div class="grid grid-cols-2 gap-1">
+            <div v-if="group.models.length > 0" class="grid grid-cols-2 gap-1">
               <button
                 v-for="model in group.models"
                 :key="model.compositeId"
@@ -333,6 +332,12 @@ onMounted(async () => {
                 {{ model.label }}
               </button>
             </div>
+            <p v-else-if="group.authType === 'local'" class="text-xs text-[var(--app-muted)] italic px-3 py-2">
+              No models loaded — start a model in LM Studio to use it here
+            </p>
+            <p v-else-if="group.authType === 'oauth'" class="text-xs text-[var(--app-muted)] italic px-3 py-2">
+              Connect in the Auth tab to see available models
+            </p>
           </div>
         </div>
       </div>
@@ -359,7 +364,7 @@ onMounted(async () => {
     <template v-else-if="activeTab === 'providers'">
     <div>
       <h3 class="text-sm font-semibold text-[var(--app-foreground)] mb-1">Provider API Keys</h3>
-      <p class="text-xs text-[var(--app-muted)] mb-2">{{ providers.filter(p => configuredProviders[p.id] || apiKeys[p.id]?.trim()).length }} of {{ providers.length }} providers configured</p>
+      <p class="text-xs text-[var(--app-muted)] mb-2">{{ providers.filter(p => configuredProviders[p.id]).length }} of {{ providers.length }} providers configured</p>
       <p class="text-xs text-[var(--app-muted)] mb-4">Add API keys to enable additional providers. Keys are stored locally in the brain service.</p>
 
       <div class="space-y-3">
@@ -374,7 +379,7 @@ onMounted(async () => {
               <p class="text-xs text-[var(--app-muted)]">{{ provider.description }}</p>
             </div>
             <span
-              v-if="apiKeys[provider.id]"
+              v-if="configuredProviders[provider.id]"
               class="px-2 py-0.5 text-[10px] rounded-full bg-green-500/10 text-green-500"
             >
               Configured
