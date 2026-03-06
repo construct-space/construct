@@ -91,9 +91,12 @@ export function useConstructAuth() {
 
   function validateState(state: string): boolean {
     const stored = sessionStorage.getItem(OAUTH_STATE_KEY) || localStorage.getItem(OAUTH_STATE_KEY_PERSIST)
-    sessionStorage.removeItem(OAUTH_STATE_KEY)
-    localStorage.removeItem(OAUTH_STATE_KEY_PERSIST)
-    return stored === state
+    if (stored === state) {
+      sessionStorage.removeItem(OAUTH_STATE_KEY)
+      localStorage.removeItem(OAUTH_STATE_KEY_PERSIST)
+      return true
+    }
+    return false
   }
 
   async function exchangeCode(code: string): Promise<{ access_token: string }> {
