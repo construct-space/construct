@@ -14,8 +14,7 @@ const props = defineProps<{
 const iconName = computed(() => {
   const n = props.name || ''
   if (n.startsWith('i-')) {
-    // i-lucide-check → lucide-check → lucide:check
-    const stripped = n.slice(2) // remove 'i-'
+    const stripped = n.slice(2)
     const colonIdx = stripped.indexOf('-')
     if (colonIdx > 0) {
       return stripped.slice(0, colonIdx) + ':' + stripped.slice(colonIdx + 1)
@@ -24,8 +23,15 @@ const iconName = computed(() => {
   }
   return n
 })
+
+// Guard: only render if the resolved name looks like a valid icon identifier
+// (e.g. "lucide:check", "mdi:home"). Reject plain text / sentences.
+const isValid = computed(() => {
+  const n = iconName.value
+  return n.length > 0 && n.length < 80 && !n.includes(' ')
+})
 </script>
 
 <template>
-  <IconifyIcon v-if="name" :icon="iconName" />
+  <IconifyIcon v-if="name && isValid" :icon="iconName" />
 </template>
