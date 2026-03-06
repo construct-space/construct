@@ -6,12 +6,9 @@ import {
   Brush,
   CircleUser,
   Cpu,
-  CreditCard,
   Download,
   FolderOpen,
-  Image,
   Keyboard,
-  Mail,
   Puzzle,
   Server,
   Settings,
@@ -32,14 +29,10 @@ interface SettingsDefinition {
 
 const settingsDefinitions: SettingsDefinition[] = [
   { label: 'Profile', path: 'profile', group: 'Account', icon: CircleUser, component: () => import('@/pages/settings/ProfileSettings.vue') },
-  { label: 'Billing', path: 'billing', group: 'Account', icon: CreditCard, component: () => import('@/pages/settings/BillingSettings.vue') },
-  { label: 'Credits', path: 'credits', group: 'Account', icon: CreditCard, component: () => import('@/pages/settings/CreditsSettings.vue') },
 
   { label: 'General', path: 'general', group: 'Workspace', icon: Settings, component: () => import('@/pages/settings/GeneralSettings.vue') },
   { label: 'Projects', path: 'projects', group: 'Workspace', icon: FolderOpen, component: () => import('@/pages/settings/ProjectsSettings.vue') },
   { label: 'Appearance', path: 'appearance', group: 'Workspace', icon: Brush, component: () => import('@/pages/settings/AppearanceSettings.vue') },
-  { label: 'Design', path: 'design', group: 'Workspace', icon: Brush, component: () => import('@/pages/settings/DesignSettings.vue') },
-  { label: 'Spaces', path: 'spaces', group: 'Workspace', icon: FolderOpen, component: () => import('@/pages/settings/SpacesSettings.vue') },
   { label: 'Shortcuts', path: 'shortcuts', group: 'Workspace', icon: Keyboard, component: () => import('@/pages/settings/ShortcutsSettings.vue') },
   { label: 'Notifications', path: 'notifications', group: 'Workspace', icon: Bell, component: () => import('@/pages/settings/NotificationSettings.vue') },
 
@@ -47,9 +40,6 @@ const settingsDefinitions: SettingsDefinition[] = [
   { label: 'LLMs & Models', path: 'llms', group: 'AI', icon: Cpu, component: () => import('@/pages/settings/LLMSettings.vue') },
   { label: 'MCP Servers', path: 'mcp', group: 'AI', icon: Server, component: () => import('@/pages/settings/MCPSettings.vue') },
   { label: 'Skills & Hooks', path: 'skills', group: 'AI', icon: Puzzle, component: () => import('@/pages/settings/SkillsSettings.vue') },
-
-  { label: 'Email', path: 'email', group: 'Workspace', icon: Mail, component: () => import('@/pages/settings/EmailSettings.vue') },
-  { label: 'Media', path: 'media', group: 'Workspace', icon: Image, component: () => import('@/pages/settings/MediaSettings.vue') },
 
   { label: 'Privacy', path: 'privacy', group: 'System', icon: Shield, component: () => import('@/pages/settings/PrivacySettings.vue') },
   { label: 'Security', path: 'security', group: 'System', icon: Shield, component: () => import('@/pages/settings/SecuritySettings.vue') },
