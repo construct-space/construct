@@ -15,6 +15,7 @@
  */
 
 import type { Component } from 'vue'
+import type { SpaceContextMenuConfig } from '@/lib/contextMenuTypes'
 import { getCoreSpace, isCoreSpace } from './coreSpaces'
 
 export interface LoadedSpace {
@@ -59,6 +60,7 @@ export interface SpaceManifest {
     action?: string
     to?: string
   }>
+  contextMenus?: SpaceContextMenuConfig
   theme?: {
     color: string
     bg: string

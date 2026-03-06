@@ -4,7 +4,7 @@
  * Ported from construct-mono (Nuxt) to Vue/Vite
  */
 import { FileTreeContextKey, type FileEntry } from './fileTreeContext'
-import { showContextMenu } from '~/composables/useNativeContextMenu'
+import { openContextMenu } from '~/composables/useContextMenus'
 // Space composable provided at runtime by IIFE bundle
 const useCodeEditor = (() => ({
   state: { rootPath: '', currentFile: '', fileContent: '', currentLanguage: '', fileTree: [] as FileEntry[], expandedFolders: new Set<string>(), selectedFile: null as string | null, isDirty: false, isLoading: false, originalContent: '' },
@@ -79,20 +79,30 @@ const showRootContextMenu = async (e: MouseEvent) => {
   if (!state.rootPath) return
   e.preventDefault()
 
-  await showContextMenu([
-    [
-      { label: 'New File', onSelect: () => startCreateRoot('file') },
-      { label: 'New Folder', onSelect: () => startCreateRoot('folder') },
+  await openContextMenu({
+    sourceSpace: 'code',
+    projectId: projectStore.currentProject?.id,
+    target: {
+      kind: 'folder',
+      path: state.rootPath,
+      name: state.rootPath.split('/').pop() || state.rootPath,
+      projectId: projectStore.currentProject?.id,
+    },
+    items: [
+      [
+        { id: 'root-new-file', label: 'New File', onSelect: () => startCreateRoot('file') },
+        { id: 'root-new-folder', label: 'New Folder', onSelect: () => startCreateRoot('folder') },
+      ],
+      [
+        { id: 'root-copy-path', label: 'Copy Path', onSelect: () => copyPath(state.rootPath) },
+        { id: 'root-open-terminal', label: 'Open in Terminal', onSelect: () => openInTerminal(state.rootPath) },
+        { id: 'root-reveal', label: 'Reveal in Finder', onSelect: () => revealInFinder(state.rootPath) },
+      ],
+      [
+        { id: 'root-refresh', label: 'Refresh', onSelect: () => loadDirectory(state.rootPath) },
+      ],
     ],
-    [
-      { label: 'Copy Path', onSelect: () => copyPath(state.rootPath) },
-      { label: 'Open in Terminal', onSelect: () => openInTerminal(state.rootPath) },
-      { label: 'Reveal in Finder', onSelect: () => revealInFinder(state.rootPath) },
-    ],
-    [
-      { label: 'Refresh', onSelect: () => loadDirectory(state.rootPath) },
-    ],
-  ])
+  })
 }
 
 // Provide context for recursive FileTreeItem components

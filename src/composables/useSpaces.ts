@@ -6,6 +6,7 @@
  */
 
 import { registerSpaceTheme } from '@/config/spaces'
+import type { SpaceContextMenuConfig } from '@/lib/contextMenuTypes'
 import { getCoreSpaceManifests } from '@/spaces/coreSpaces'
 import type { SpaceScope } from '@/types/project'
 
@@ -67,6 +68,7 @@ export interface SpaceConfig {
   scope?: SpaceScope
   dependencies?: string[]
   permission?: string
+  contextMenus?: SpaceContextMenuConfig
 
   // Marketplace metadata
   isInstalled?: boolean
@@ -235,6 +237,7 @@ function manifestToSpaceConfig(manifest: Record<string, unknown>): SpaceConfig {
     },
     scope: (manifest.scope as SpaceScope) || SCOPE_DEFAULTS[id] || 'both',
     dependencies: Array.isArray(manifest.dependencies) ? manifest.dependencies as string[] : undefined,
+    contextMenus: isRecord(manifest.contextMenus) ? manifest.contextMenus as SpaceContextMenuConfig : undefined,
     isInstalled: true,
     version: manifest.version as string,
     author: typeof manifest.author === 'object'
@@ -243,4 +246,8 @@ function manifestToSpaceConfig(manifest: Record<string, unknown>): SpaceConfig {
     recommended: manifest.recommended as boolean,
     theme: manifest.theme as SpaceConfig['theme'],
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

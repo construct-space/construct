@@ -4,7 +4,7 @@
  * Uses injected context from FileExplorer to avoid re-calling useCodeEditor
  */
 import { FileTreeContextKey, type FileEntry } from './fileTreeContext'
-import { showContextMenu } from '~/composables/useNativeContextMenu'
+import { openContextMenu } from '~/composables/useContextMenus'
 
 // Required for recursive component self-reference
 defineOptions({
@@ -15,6 +15,8 @@ const props = defineProps<{
   entry: FileEntry
   depth: number
 }>()
+
+const projectStore = useProjectStore()
 
 // Inject context from FileExplorer - this prevents stack overflow
 // by not re-calling useCodeEditor() in every recursive instance
@@ -128,45 +130,73 @@ const handleContextMenu = async (e: MouseEvent) => {
   e.stopPropagation()
 
   if (props.entry.isDirectory) {
-    await showContextMenu([
-      [
-        { label: 'New File', onSelect: () => startCreate('file') },
-        { label: 'New Folder', onSelect: () => startCreate('folder') },
+    await openContextMenu({
+      sourceSpace: 'code',
+      projectId: projectStore.currentProject?.id,
+      target: {
+        kind: 'folder',
+        path: props.entry.path,
+        name: props.entry.name,
+        projectId: projectStore.currentProject?.id,
+      },
+      items: [
+        [
+          { id: 'folder-new-file', label: 'New File', onSelect: () => startCreate('file') },
+          { id: 'folder-new-folder', label: 'New Folder', onSelect: () => startCreate('folder') },
+        ],
+        [
+          { id: 'folder-rename', label: 'Rename', onSelect: startRename },
+          { id: 'folder-delete', label: 'Delete', onSelect: handleDelete },
+        ],
+        [
+          { id: 'folder-copy-name', label: 'Copy Name', onSelect: () => copyName(props.entry.path) },
+          { id: 'folder-copy-path', label: 'Copy Path', onSelect: () => copyPath(props.entry.path) },
+          { id: 'folder-copy-relative-path', label: 'Copy Relative Path', onSelect: () => copyRelativePath(props.entry.path) },
+        ],
+        [
+          { id: 'folder-open-terminal', label: 'Open in Terminal', onSelect: () => openInTerminal(props.entry.path) },
+          {
+            id: 'folder-refresh',
+            label: 'Refresh',
+            onSelect: () => {
+              if (!state.rootPath) return
+              return loadDirectory(state.rootPath)
+            },
+          },
+          { id: 'folder-reveal', label: 'Reveal in Finder', onSelect: () => revealInFinder(props.entry.path) },
+        ],
       ],
-      [
-        { label: 'Rename', onSelect: startRename },
-        { label: 'Delete', onSelect: handleDelete },
-      ],
-      [
-        { label: 'Copy Name', onSelect: () => copyName(props.entry.path) },
-        { label: 'Copy Path', onSelect: () => copyPath(props.entry.path) },
-        { label: 'Copy Relative Path', onSelect: () => copyRelativePath(props.entry.path) },
-      ],
-      [
-        { label: 'Open in Terminal', onSelect: () => openInTerminal(props.entry.path) },
-        { label: 'Refresh', onSelect: () => state.rootPath && loadDirectory(state.rootPath) },
-        { label: 'Reveal in Finder', onSelect: () => revealInFinder(props.entry.path) },
-      ],
-    ])
+    })
   } else {
-    await showContextMenu([
-      [
-        { label: 'Open', onSelect: () => selectFile(props.entry) },
+    await openContextMenu({
+      sourceSpace: 'code',
+      projectId: projectStore.currentProject?.id,
+      target: {
+        kind: 'file',
+        path: props.entry.path,
+        name: props.entry.name,
+        extension: props.entry.name.includes('.') ? props.entry.name.split('.').pop() : undefined,
+        projectId: projectStore.currentProject?.id,
+      },
+      items: [
+        [
+          { id: 'file-open', label: 'Open', onSelect: () => selectFile(props.entry) },
+        ],
+        [
+          { id: 'file-rename', label: 'Rename', onSelect: startRename },
+          { id: 'file-duplicate', label: 'Duplicate', onSelect: () => duplicateEntry(props.entry.path) },
+          { id: 'file-delete', label: 'Delete', onSelect: handleDelete },
+        ],
+        [
+          { id: 'file-copy-name', label: 'Copy Name', onSelect: () => copyName(props.entry.path) },
+          { id: 'file-copy-path', label: 'Copy Path', onSelect: () => copyPath(props.entry.path) },
+          { id: 'file-copy-relative-path', label: 'Copy Relative Path', onSelect: () => copyRelativePath(props.entry.path) },
+        ],
+        [
+          { id: 'file-reveal', label: 'Reveal in Finder', onSelect: () => revealInFinder(props.entry.path) },
+        ],
       ],
-      [
-        { label: 'Rename', onSelect: startRename },
-        { label: 'Duplicate', onSelect: () => duplicateEntry(props.entry.path) },
-        { label: 'Delete', onSelect: handleDelete },
-      ],
-      [
-        { label: 'Copy Name', onSelect: () => copyName(props.entry.path) },
-        { label: 'Copy Path', onSelect: () => copyPath(props.entry.path) },
-        { label: 'Copy Relative Path', onSelect: () => copyRelativePath(props.entry.path) },
-      ],
-      [
-        { label: 'Reveal in Finder', onSelect: () => revealInFinder(props.entry.path) },
-      ],
-    ])
+    })
   }
 }
 </script>

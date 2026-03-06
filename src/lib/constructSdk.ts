@@ -78,6 +78,12 @@ export {
 } from '@/composables/useGoogleFonts'
 export { useMarkdown, renderMarkdown, renderStreamingMarkdown } from '@/composables/useMarkdown'
 export { showContextMenu } from '@/composables/useNativeContextMenu'
+export {
+  useContextMenus,
+  openContextMenu,
+  registerContextMenuContributor,
+  resolveContextMenuGroups,
+} from '@/composables/useContextMenus'
 export { useNotifications } from '@/composables/useNotifications'
 export { usePanelLayout, PRESET_LAYOUTS } from '@/composables/usePanelLayout'
 export { usePanelResize } from '@/composables/usePanelResize'
@@ -117,6 +123,19 @@ export {
 } from '@/composables/useTranslation'
 export { useUpdater } from '@/composables/useUpdater'
 export { useUserModule } from '@/composables/useUserModule'
+export {
+  CONTEXT_SOURCE_SPACE_QUERY_KEY,
+  CONTEXT_TARGET_QUERY_KEY,
+  decodeContextTarget,
+  encodeContextTarget,
+} from '@/lib/contextMenuTypes'
+export {
+  buildSpaceOpenLocation,
+  navigateToSpace,
+  openTargetInSpace,
+  registerSpaceOpenHandler,
+  resolveSpacePath,
+} from '@/lib/spaceNavigation'
 
 // === UI Components ===
 export { default as Accordion } from '@/components/ui/Accordion.vue'
