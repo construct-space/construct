@@ -126,26 +126,8 @@ function shouldAllowNativeContextMenu(target: EventTarget | null): boolean {
   if (target.closest('[data-allow-native-context-menu]')) {
     return true
   }
-
-  const editable = target.closest('textarea, [contenteditable=""], [contenteditable="true"], input')
-  if (!editable) return false
-
-  if (editable instanceof HTMLInputElement) {
-    return !new Set([
-      'button',
-      'checkbox',
-      'color',
-      'file',
-      'hidden',
-      'image',
-      'radio',
-      'range',
-      'reset',
-      'submit',
-    ]).has(editable.type)
-  }
-
-  return true
+ 
+  return false
 }
 
 function handleReleaseContextMenu(event: MouseEvent) {
