@@ -45,12 +45,12 @@ tauri-plugin-upload = "2"
 tauri-plugin-websocket = "2"
 tauri-plugin-window-state = "2"
 tauri-plugin-stronghold = "2"
+
+[target.'cfg(target_os = "macos")'.dependencies]
 window-vibrancy = "0.5"
 tauri-plugin-dragout = "0.1"
 tauri-plugin-nspopover = { git = "https://github.com/freethinkel/tauri-nspopover-plugin.git" }
 tauri-plugin-macos-permissions = "2"
-
-[target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", features = ["NSWindow", "NSButton", "NSControl", "NSResponder", "NSView"] }
 objc2-foundation = "0.3"

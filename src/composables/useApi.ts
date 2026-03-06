@@ -141,10 +141,11 @@ export const useApi = () => {
         // Check for token expiration first (only for protected endpoints)
         if (!options.skipErrorHandling && response.status === 401) {
           if (!isAuthEndpoint(endpoint)) {
-            // In dev mode the local API can't validate OAuth tokens — don't auto-logout
-            if (!import.meta.env.DEV) {
-              await handleTokenExpired()
+            if (import.meta.env.DEV) {
+              // In dev mode the local API can't always validate OAuth tokens — return empty
+              return {} as T
             }
+            await handleTokenExpired()
             throw new Error('Session expired. Please login again.')
           }
         }

@@ -28,7 +28,10 @@ onMounted(async () => {
   try {
     const { getVersion } = await import('@tauri-apps/api/app')
     appVersion.value = await getVersion()
-  } catch {}
+  } catch {
+    // Fallback to package.json version
+    appVersion.value = __APP_VERSION__
+  }
   handleCheck()
 })
 </script>

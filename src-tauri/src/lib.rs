@@ -2891,7 +2891,7 @@ pub fn run() {
         listener_ready: false,
     }));
 
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
@@ -2917,11 +2917,19 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_upload::init())
         .plugin(tauri_plugin_websocket::init())
-        .plugin(tauri_plugin_window_state::Builder::new().build())
+        .plugin(tauri_plugin_window_state::Builder::new().build());
         // stronghold requires a password callback — configure when needed
         // .plugin(tauri_plugin_stronghold::Builder::new(|password| { ... }).build())
-        .plugin(tauri_plugin_nspopover::init())
-        .plugin(tauri_plugin_dragout::init())
+
+    // macOS-only plugins
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder
+            .plugin(tauri_plugin_nspopover::init())
+            .plugin(tauri_plugin_dragout::init());
+    }
+
+    builder
         .manage(context_state)
         .manage(lsp_state)
         .manage(browser_state)

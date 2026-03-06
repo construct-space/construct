@@ -61,6 +61,7 @@ const apiKeys = ref<Record<string, string>>({})
 const visibleKeys = ref<Record<string, boolean>>({})
 const savedKeys = ref<Record<string, boolean>>({})
 const savingKeys = ref<Record<string, boolean>>({})
+const configuredProviders = ref<Record<string, boolean>>({})
 
 function toggleVisibility(id: string) {
   visibleKeys.value[id] = !visibleKeys.value[id]
@@ -72,17 +73,16 @@ async function saveKey(provider: ProviderKeyConfig) {
 
   savingKeys.value[provider.id] = true
   try {
-    // Store in brain's KV store
-    await db.kvSet(provider.kvKey, value, 'provider_keys')
+    // Save to brain SQLite (primary store) and hot-reload provider
+    await contextService.sendRequest('settings.set', {
+      key: provider.kvKey,
+      value,
+    })
 
-    // Also notify the brain to reload the key
-    try {
-      await contextService.sendRequest('settings.set', {
-        key: provider.kvKey,
-        value,
-      })
-    } catch { /* brain may not support this yet */ }
+    // Also cache in Tauri KV for faster UI loading
+    try { await db.kvSet(provider.kvKey, value, 'provider_keys') } catch { /* ignore */ }
 
+    configuredProviders.value[provider.id] = true
     savedKeys.value[provider.id] = true
     setTimeout(() => { savedKeys.value[provider.id] = false }, 2000)
     toast.add({ title: `${provider.name} API key saved`, color: 'success' })
@@ -95,11 +95,10 @@ async function saveKey(provider: ProviderKeyConfig) {
 
 async function clearKey(provider: ProviderKeyConfig) {
   try {
-    await db.kvSet(provider.kvKey, '', 'provider_keys')
+    await contextService.sendRequest('settings.set', { key: provider.kvKey, value: '' })
     apiKeys.value[provider.id] = ''
-    try {
-      await contextService.sendRequest('settings.set', { key: provider.kvKey, value: '' })
-    } catch { /* ignore */ }
+    configuredProviders.value[provider.id] = false
+    try { await db.kvSet(provider.kvKey, '', 'provider_keys') } catch { /* ignore */ }
     toast.add({ title: `${provider.name} key cleared`, color: 'info' })
   } catch {
     toast.add({ title: `Failed to clear ${provider.name} key`, color: 'error' })
@@ -107,12 +106,21 @@ async function clearKey(provider: ProviderKeyConfig) {
 }
 
 async function loadKeys() {
+  // Load cached key values from Tauri KV (for input fields)
   for (const p of providers) {
     try {
       const val = await db.kvGet(p.kvKey)
       if (val) apiKeys.value[p.id] = val
     } catch { /* ignore */ }
   }
+
+  // Check which providers actually have keys configured in the brain
+  try {
+    const result = await contextService.sendRequest('settings.provider_status', {}) as { providers?: Record<string, boolean> }
+    if (result?.providers) {
+      configuredProviders.value = result.providers
+    }
+  } catch { /* ignore */ }
 }
 
 // OAuth functions
@@ -351,7 +359,7 @@ onMounted(async () => {
     <template v-else-if="activeTab === 'providers'">
     <div>
       <h3 class="text-sm font-semibold text-[var(--app-foreground)] mb-1">Provider API Keys</h3>
-      <p class="text-xs text-[var(--app-muted)] mb-2">{{ providers.filter(p => apiKeys[p.id]?.trim()).length }} of {{ providers.length }} providers configured</p>
+      <p class="text-xs text-[var(--app-muted)] mb-2">{{ providers.filter(p => configuredProviders[p.id] || apiKeys[p.id]?.trim()).length }} of {{ providers.length }} providers configured</p>
       <p class="text-xs text-[var(--app-muted)] mb-4">Add API keys to enable additional providers. Keys are stored locally in the brain service.</p>
 
       <div class="space-y-3">

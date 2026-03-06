@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
 import { resolve } from 'path'
+import pkg from './package.json'
 
 export default defineConfig({
   plugins: [
@@ -58,5 +59,6 @@ export default defineConfig({
   define: {
     'import.meta.client': 'true',
     'import.meta.server': 'false',
+    __APP_VERSION__: JSON.stringify(pkg.version),
   },
 })
