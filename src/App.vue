@@ -225,6 +225,7 @@ function handleSystemShortcuts(e: KeyboardEvent) {
     }
     case 'v': {
       if (isEditable) {
+        e.preventDefault()
         navigator.clipboard.readText().then(text => {
           if (!text) return
           // Insert text at cursor for input/textarea
