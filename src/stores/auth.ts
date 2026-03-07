@@ -406,20 +406,6 @@ export const useAuthStore = defineStore('auth', {
     },
 
     async initialize() {
-      // DEV MODE: use persisted OAuth token if available, otherwise redirect to login
-      if (import.meta.env.DEV) {
-        await this.hydrateAuthState()
-        if (this.token && this.user) {
-          await this.checkAuth()
-          if (this.isAuthenticated) {
-            console.info('[Auth] Dev mode: restored session for', this.user.email)
-            return
-          }
-        }
-        console.info('[Auth] Dev mode: no valid session, will redirect to login')
-        return
-      }
-
       await this.hydrateAuthState()
 
       if (this.token && this.user) {
