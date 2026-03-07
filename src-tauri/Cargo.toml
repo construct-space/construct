@@ -13,6 +13,7 @@ crate-type = ["lib", "cdylib", "staticlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+log = "0.4"
 tauri = { version = "2", features = ["macos-private-api", "devtools"] }
 tauri-plugin-shell = "2"
 tauri-plugin-fs = "2"

@@ -49,14 +49,17 @@ async function submitCode(raw: string) {
   authStore.isLoading = true
 
   try {
-    const { access_token } = await constructAuth.exchangeCode(code)
-    const profile = await constructAuth.fetchProfile(access_token)
+    const tokenData = await constructAuth.exchangeCode(code)
+    const apiToken = tokenData.access_token
+    const oauthToken = tokenData.oauth_token || apiToken
+    const profile = await constructAuth.fetchProfile(oauthToken)
 
     const { useApi } = await import('@/composables/useApi')
     const api = useApi()
-    api.setToken(access_token)
+    api.setToken(apiToken)
 
-    authStore.token = access_token
+    authStore.token = apiToken
+    authStore.oauthToken = oauthToken
     authStore.user = {
       id: Number(profile.id),
       email: profile.email,

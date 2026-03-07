@@ -1,5 +1,6 @@
 import { appConfig } from '@/utils/config'
 import { isTauriEnv } from '@/utils/tauri'
+import { info, error as logError } from '@tauri-apps/plugin-log'
 
 const OAUTH_STATE_KEY = 'construct_oauth_state'
 const OAUTH_VERIFIER_KEY = 'construct_oauth_verifier'
@@ -57,6 +58,8 @@ export function useConstructAuth() {
     localStorage.setItem(OAUTH_VERIFIER_KEY_PERSIST, codeVerifier)
 
     const redirectUri = getRedirectUri()
+    info(`[OAuth] startLogin — redirect_uri: ${redirectUri}, client_id: ${clientId}, state: ${state.slice(0, 8)}...`)
+
     const params = new URLSearchParams({
       client_id: clientId,
       redirect_uri: redirectUri,
@@ -99,15 +102,14 @@ export function useConstructAuth() {
     return false
   }
 
-  async function exchangeCode(code: string): Promise<{ access_token: string }> {
+  async function exchangeCode(code: string): Promise<{ access_token: string; oauth_token?: string }> {
     const redirectUri = getRedirectUri()
     const codeVerifier = sessionStorage.getItem(OAUTH_VERIFIER_KEY)
       || localStorage.getItem(OAUTH_VERIFIER_KEY_PERSIST)
       || ''
 
-    console.log('[OAuth] exchangeCode — redirect_uri:', redirectUri)
-    console.log('[OAuth] exchangeCode — code_verifier present:', !!codeVerifier, 'length:', codeVerifier.length)
-    console.log('[OAuth] exchangeCode — client_id:', clientId)
+    info(`[OAuth] exchangeCode — redirect_uri: ${redirectUri}, verifier present: ${!!codeVerifier}, length: ${codeVerifier.length}, client_id: ${clientId}`)
+    console.log('[OAuth] exchangeCode — redirect_uri:', redirectUri, 'verifier:', !!codeVerifier, 'length:', codeVerifier.length)
 
     const body: Record<string, string> = {
       grant_type: 'authorization_code',
@@ -132,6 +134,7 @@ export function useConstructAuth() {
 
     if (!response.ok) {
       const errText = await response.text()
+      logError(`[OAuth] Token exchange failed: ${response.status} ${errText}`)
       console.error('[OAuth] Token exchange failed:', response.status, errText)
       let parsed: Record<string, string> = {}
       try { parsed = JSON.parse(errText) } catch { /* not JSON */ }
@@ -142,6 +145,7 @@ export function useConstructAuth() {
     sessionStorage.removeItem(OAUTH_VERIFIER_KEY)
     localStorage.removeItem(OAUTH_VERIFIER_KEY_PERSIST)
 
+    info('[OAuth] Token exchange successful')
     return response.json()
   }
 
@@ -165,6 +169,7 @@ export function useConstructAuth() {
     })
 
     if (!response.ok) {
+      logError(`[OAuth] fetchProfile failed: ${response.status}`)
       throw new Error('Failed to fetch user profile')
     }
 

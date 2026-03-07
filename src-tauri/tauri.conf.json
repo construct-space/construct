@@ -35,8 +35,10 @@
         "height": 900,
         "resizable": true,
         "fullscreen": false,
-        "minWidth": 800,
+        "minWidth": 900,
         "minHeight": 600,
+        "maxWidth": 3840,
+        "maxHeight": 2160,
         "titleBarStyle": "Overlay",
         "dragDropEnabled": true,
         "hiddenTitle": true

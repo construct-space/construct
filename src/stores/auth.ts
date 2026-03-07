@@ -5,6 +5,7 @@ import type { AuthUserData } from '@/types'
 interface AuthState {
   user: AuthUserData | null
   token: string | null
+  oauthToken: string | null
   isAuthenticated: boolean
   isLoading: boolean
   error: string | null
@@ -17,6 +18,7 @@ export const useAuthStore = defineStore('auth', {
   state: (): AuthState => ({
     user: null,
     token: null,
+    oauthToken: null,
     isAuthenticated: false,
     isLoading: false,
     error: null,
@@ -79,18 +81,20 @@ export const useAuthStore = defineStore('auth', {
         const { useConstructAuth } = await import('@/composables/useConstructAuth')
         const constructAuth = useConstructAuth()
 
-        // Exchange code for access token
+        // Exchange code for API JWT + OAuth token
         const tokenData = await constructAuth.exchangeCode(code)
-        const accessToken = tokenData.access_token
+        const apiToken = tokenData.access_token // JWT for API calls
+        const oauthToken = tokenData.oauth_token || apiToken // OAuth token for accounts service
 
-        this.token = accessToken
+        this.token = apiToken
+        this.oauthToken = oauthToken
 
         const { useApi } = await import('@/composables/useApi')
         const api = useApi()
-        api.setToken(accessToken)
+        api.setToken(apiToken)
 
-        // Fetch user profile (proxied through local API to avoid CORS)
-        const profile = await constructAuth.fetchProfile(accessToken)
+        // Fetch user profile using OAuth token (proxied through local API)
+        const profile = await constructAuth.fetchProfile(oauthToken)
 
         const userData: AuthUserData = {
           id: typeof profile.id === 'string' ? parseInt(profile.id, 10) || 0 : profile.id as number,
@@ -108,7 +112,7 @@ export const useAuthStore = defineStore('auth', {
         this.isAuthenticated = true
 
         await this.persistAuthState()
-        await this.syncTokenToContextService(accessToken, userData)
+        await this.syncTokenToContextService(apiToken, userData)
 
         return { success: true as const, data: userData }
       } catch (error: unknown) {
@@ -176,30 +180,21 @@ export const useAuthStore = defineStore('auth', {
       try {
         const { useConstructAuth } = await import('@/composables/useConstructAuth')
         const constructAuth = useConstructAuth()
-        await constructAuth.fetchProfile(this.token)
+        // Use OAuth token for profile validation (API JWT won't work against accounts service)
+        const profileToken = this.oauthToken || this.token
+        await constructAuth.fetchProfile(profileToken!)
         this.isAuthenticated = true
       } catch (error: unknown) {
-        // If the server explicitly rejected the token (401), clear auth.
-        // Only keep local session for genuine network failures (server unreachable).
         const msg = error instanceof Error ? error.message : ''
-        const is401 = msg.includes('401')
-        const isSessionExpired = msg.toLowerCase().includes('session expired')
         const isNetworkError = msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('ECONNREFUSED')
 
-        if (is401 || isSessionExpired) {
-          import('@/composables/useLogger').then(({ getLogger }) => getLogger().then(l => l.warn('Auth token rejected by server, clearing session'))).catch(() => {})
-          this.clearAuthState()
-          this.clearPersistedState()
-          return false
-        }
-
         if (isNetworkError) {
-          // Server genuinely unreachable — trust local state
-          console.info('Auth server unreachable, keeping local session')
+          // Server unreachable — trust local state
+          console.info('[Auth] Server unreachable, keeping local session')
           this.isAuthenticated = true
         } else {
-          // Unknown error — don't silently trust stale auth
-          import('@/composables/useLogger').then(({ getLogger }) => getLogger().then(l => l.warn(`Auth check failed with unexpected error, clearing session: ${msg}`))).catch(() => {})
+          // Token rejected or other error — clear auth
+          console.warn('[Auth] checkAuth failed, clearing session:', msg)
           this.clearAuthState()
           this.clearPersistedState()
           return false
@@ -212,6 +207,7 @@ export const useAuthStore = defineStore('auth', {
     clearAuthState() {
       this.user = null
       this.token = null
+      this.oauthToken = null
       this.isAuthenticated = false
       this.error = null
     },
@@ -222,6 +218,7 @@ export const useAuthStore = defineStore('auth', {
       const authState = {
         user: this.user,
         token: this.token,
+        oauthToken: this.oauthToken,
         isAuthenticated: this.isAuthenticated,
       }
 
@@ -253,10 +250,12 @@ export const useAuthStore = defineStore('auth', {
     _applyAuthState(authState: {
       user: AuthUserData | null
       token: string | null
+      oauthToken?: string | null
       isAuthenticated: boolean
     }, { setAuthenticated = true } = {}) {
       this.user = authState.user
       this.token = authState.token
+      this.oauthToken = authState.oauthToken || null
       if (setAuthenticated) {
         this.isAuthenticated = authState.isAuthenticated
       }

@@ -142,7 +142,7 @@ export const useApi = () => {
         if (!options.skipErrorHandling && response.status === 401) {
           if (!isAuthEndpoint(endpoint)) {
             if (import.meta.env.DEV) {
-              // In dev mode the local API can't always validate OAuth tokens — return empty
+              // In dev mode the local API may not be running — return empty
               return {} as T
             }
             await handleTokenExpired()

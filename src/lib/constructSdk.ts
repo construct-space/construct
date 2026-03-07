@@ -24,6 +24,7 @@ export {
 } from '@/stores/pinned'
 export { usePreferencesStore } from '@/stores/preferences'
 export { useProjectStore } from '@/stores/project'
+export { useDocumentsStore } from '@/stores/documents'
 export { useSettingsStore } from '@/stores/settings'
 export { useTranslationsStore } from '@/stores/translations'
 

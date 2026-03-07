@@ -3,6 +3,7 @@ import { useRouter } from 'vue-router'
 import { useSpaceMarketplace } from './useSpaceMarketplace'
 import { useConstructAuth } from './useConstructAuth'
 import { isTauriEnv } from '@/utils/tauri'
+import { info } from '@tauri-apps/plugin-log'
 
 export function useDeepLink() {
   if (!isTauriEnv()) return
@@ -25,12 +26,12 @@ export function useDeepLink() {
   }
 
   async function handleUrl(url: string) {
-    console.log('[DeepLink] Received URL:', url)
+    info(`[DeepLink] Received URL: ${url}`)
     const parsed = new URL(url)
     const segments = parsed.pathname.replace(/^\/+/, '').split('/')
     const action = parsed.host
     const protocol = parsed.protocol
-    console.log('[DeepLink] Parsed — protocol:', protocol, 'action:', action, 'segments:', segments)
+    info(`[DeepLink] Parsed — protocol: ${protocol}, action: ${action}, segments: ${segments.join('/')}`)
 
     // OAuth callback: construct://oauth/callback?code=xxx&state=xxx
     if (protocol === 'construct:' && action === 'oauth' && segments[0] === 'callback') {
