@@ -153,13 +153,6 @@ onMounted(async () => {
   window.addEventListener('beforeunload', handleBeforeUnload)
   document.addEventListener('visibilitychange', handleVisibilityChange)
 
-  // Tauri: enable system clipboard shortcuts (Cmd+C/V/X/A/Z)
-  // Tauri v2 with overlay titlebar can miss native menu accelerators,
-  // so we handle them via document.execCommand as a fallback.
-  if (isTauri.value) {
-    document.addEventListener('keydown', handleSystemShortcuts)
-  }
-
   // Release builds should not expose the WebView's default browser menu
   // (Back / Reload / Inspect Element) over app surfaces.
   if (isTauri.value && import.meta.env.PROD) {
@@ -187,70 +180,9 @@ onMounted(async () => {
 onUnmounted(() => {
   window.removeEventListener('beforeunload', handleBeforeUnload)
   document.removeEventListener('visibilitychange', handleVisibilityChange)
-  document.removeEventListener('keydown', handleSystemShortcuts)
   document.removeEventListener('contextmenu', handleReleaseContextMenu, true)
   unlisten?.()
 })
-
-/**
- * Handle system clipboard/edit shortcuts in Tauri.
- * On macOS, Tauri v2 with overlay titlebar can swallow native menu
- * accelerators — this ensures Cmd+C/V/X/A/Z always work in the webview.
- *
- * Uses Clipboard API for paste (execCommand('paste') is blocked by browsers).
- * Uses writeText for copy/cut when selection exists.
- */
-function handleSystemShortcuts(e: KeyboardEvent) {
-  if (!(e.metaKey || e.ctrlKey)) return
-
-  // Skip if already handled natively (input/textarea/contenteditable)
-  const target = e.target as HTMLElement
-  const isEditable = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
-
-  switch (e.key.toLowerCase()) {
-    case 'c': {
-      const selection = window.getSelection()?.toString()
-      if (selection) {
-        navigator.clipboard.writeText(selection).catch(() => document.execCommand('copy'))
-      }
-      break
-    }
-    case 'x': {
-      const selection = window.getSelection()?.toString()
-      if (selection) {
-        navigator.clipboard.writeText(selection).catch(() => document.execCommand('cut'))
-        if (isEditable) document.execCommand('delete')
-      }
-      break
-    }
-    case 'v': {
-      // Let the browser handle paste natively — don't intercept.
-      // Calling navigator.clipboard.readText() programmatically triggers
-      // Safari/WebKit's "Paste" permission popup. Native Cmd+V just works.
-      break
-    }
-    case 'a': {
-      if (isEditable) {
-        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
-          ;(target as HTMLInputElement).select()
-        } else {
-          document.execCommand('selectAll')
-        }
-      } else {
-        document.execCommand('selectAll')
-      }
-      break
-    }
-    case 'z': {
-      if (e.shiftKey) {
-        document.execCommand('redo')
-      } else {
-        document.execCommand('undo')
-      }
-      break
-    }
-  }
-}
 </script>
 
 <template>
