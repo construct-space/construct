@@ -79,21 +79,13 @@ export interface SpaceManifest {
 /** In-memory cache of loaded space bundles */
 const loadedSpaces = new Map<string, LoadedSpace>()
 
-/** Whether the space host globals have been initialized */
-let spaceHostReady = false
-
-/** Ensure space host is initialized (lazy — only when first space loads) */
+/** Ensure space host globals are available (initialized eagerly in main.ts) */
 async function ensureSpaceHost(): Promise<void> {
-  if (spaceHostReady) {
-    // Keep legacy SDK alias available for older space bundles.
-    if (window.__CONSTRUCT__?.['@construct/sdk'] && !window.__CONSTRUCT__['@construct-space/sdk']) {
-      window.__CONSTRUCT__['@construct-space/sdk'] = window.__CONSTRUCT__['@construct/sdk']
-    }
-    return
+  if (!window.__CONSTRUCT__) {
+    // Fallback: if somehow called before main.ts initialization
+    const { initSpaceHost } = await import('@/lib/spaceHost')
+    initSpaceHost()
   }
-  const { initSpaceHost } = await import('@/lib/spaceHost')
-  initSpaceHost()
-  spaceHostReady = true
 }
 
 /** Compute SHA-256 hex digest of a string */

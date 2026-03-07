@@ -170,6 +170,7 @@ export { default as Tooltip } from '@/components/ui/Tooltip.vue'
 
 // === Common Components ===
 export { default as ConfirmationModal } from '@/components/common/ConfirmationModal.vue'
+export { default as PropRow } from '@/components/ui/PropRow.vue'
 export { default as SplitPane } from '@/components/panels/SplitPane.vue'
 
 // === Space Context Bus ===
@@ -191,6 +192,7 @@ export {
   useTelemetry,
   trackFeature,
   isTelemetryEnabled,
+  setTelemetryConsent,
   TELEMETRY_FEATURE_KEYS,
 } from '@/composables/useTelemetry'
 

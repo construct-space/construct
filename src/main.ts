@@ -4,8 +4,10 @@ import { router } from './router'
 import App from './App.vue'
 import './assets/css/main.css'
 
-// Space host (shared deps for IIFE bundles) is lazy-initialized
-// in SpaceLoader.ts the first time a space is loaded.
+// Initialize space host globals early so window.__CONSTRUCT__ is
+// available before any space IIFE bundles are loaded/evaluated.
+import { initSpaceHost } from './lib/spaceHost'
+initSpaceHost()
 
 const app = createApp(App)
 app.use(createPinia())
