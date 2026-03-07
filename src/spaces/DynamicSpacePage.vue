@@ -137,10 +137,10 @@ async function load() {
 let unwatchFn: (() => void) | null = null
 
 async function setupDevWatcher() {
-  if (!import.meta.env.DEV) return
   // Clean up previous watcher
   unwatchFn?.()
   const { loadSpaces } = useSpaces()
+  // watchSpace returns null if no dev session is active for this space
   unwatchFn = await watchSpace(props.spaceName, async (reloaded) => {
     applyLoaded(reloaded)
     // Refresh spaces list so sidebar/toolbar pick up manifest changes

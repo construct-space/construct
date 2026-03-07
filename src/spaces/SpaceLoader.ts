@@ -300,23 +300,33 @@ export async function reloadSpace(spaceId: string): Promise<LoadedSpace | null> 
 }
 
 /**
- * Watch a space's bundle for changes (dev mode only).
+ * Watch a space's bundle for changes and hot-reload when rebuilt.
  * Polls the manifest's build.builtAt timestamp to detect rebuilds.
- * Only active when VITE_SPACE_DEV_DIR is set (i.e. `construct space dev` is running).
- * Returns an unwatch function.
+ *
+ * Works in both dev and production:
+ * - Dev mode (VITE_SPACE_DEV_DIR set): always watches
+ * - Production: watches if ~/.construct/spaces/{id}/.dev marker exists
+ *   (created by `construct dev`, signals active development)
+ *
+ * Returns an unwatch function, or null if watching isn't needed.
  */
 export async function watchSpace(
   spaceId: string,
   onReload: (space: LoadedSpace | null) => void
 ): Promise<(() => void) | null> {
-  // Only poll when actively developing a space (construct space dev sets this)
-  if (!devOverrideDir) return null
-
   try {
-    const { readTextFile } = await import('@tauri-apps/plugin-fs')
+    const { readTextFile, exists } = await import('@tauri-apps/plugin-fs')
     const { homeDir } = await import('@tauri-apps/api/path')
     const home = await homeDir()
-    const manifestPath = `${home}${getSpacesDir()}/${spaceId}/manifest.json`
+    const spaceDir = `${home}${getSpacesDir()}/${spaceId}`
+    const manifestPath = `${spaceDir}/manifest.json`
+    const devMarkerPath = `${spaceDir}/.dev`
+
+    // In production, only watch if .dev marker exists (construct dev is running)
+    if (!devOverrideDir && !import.meta.env.DEV) {
+      if (!(await exists(devMarkerPath))) return null
+      console.log(`[SpaceLoader] Dev marker found for "${spaceId}" — enabling hot-reload`)
+    }
 
     // Read initial builtAt timestamp
     let lastBuiltAt = ''
@@ -329,6 +339,15 @@ export async function watchSpace(
     const poll = async () => {
       if (stopped) return
       try {
+        // Stop polling if .dev marker is removed (construct dev stopped)
+        if (!devOverrideDir && !import.meta.env.DEV) {
+          if (!(await exists(devMarkerPath))) {
+            console.log(`[SpaceLoader] Dev marker removed for "${spaceId}" — stopping watcher`)
+            stopped = true
+            return
+          }
+        }
+
         const json = JSON.parse(await readTextFile(manifestPath))
         const builtAt = json.build?.builtAt || ''
         if (builtAt && builtAt !== lastBuiltAt) {
@@ -338,12 +357,12 @@ export async function watchSpace(
           onReload(reloaded)
         }
       } catch { /* file may be mid-write */ }
-      if (!stopped) setTimeout(poll, 3000)
+      if (!stopped) setTimeout(poll, 2000)
     }
 
     // Start polling
-    setTimeout(poll, 3000)
-    console.log(`[SpaceLoader] Watching "${spaceId}" for changes (polling)`)
+    setTimeout(poll, 2000)
+    console.log(`[SpaceLoader] Watching "${spaceId}" for changes (polling every 2s)`)
     return () => { stopped = true }
   } catch (err) {
     console.warn('[SpaceLoader] Could not set up file watcher:', err)

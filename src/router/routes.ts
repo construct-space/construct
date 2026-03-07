@@ -145,6 +145,23 @@ export const routes: RouteRecordRaw[] = [
     ],
   },
 
+  // Space preview — opened in a separate Tauri window for dev testing
+  {
+    path: '/preview/:spaceName',
+    component: () => import('@/pages/SpacePreviewPage.vue'),
+    props: (route) => ({
+      spaceName: route.params.spaceName,
+    }),
+  },
+  {
+    path: '/preview/:spaceName/:subPage',
+    component: () => import('@/pages/SpacePreviewPage.vue'),
+    props: (route) => ({
+      spaceName: route.params.spaceName,
+      subPage: route.params.subPage,
+    }),
+  },
+
   // Catch-all
   {
     path: '/:pathMatch(.*)*',

@@ -124,6 +124,7 @@ export {
 } from '@/composables/useTranslation'
 export { useUpdater } from '@/composables/useUpdater'
 export { useUserModule } from '@/composables/useUserModule'
+export { useSpacePreview } from '@/composables/useSpacePreview'
 export {
   CONTEXT_SOURCE_SPACE_QUERY_KEY,
   CONTEXT_TARGET_QUERY_KEY,
