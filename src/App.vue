@@ -224,27 +224,9 @@ function handleSystemShortcuts(e: KeyboardEvent) {
       break
     }
     case 'v': {
-      if (isEditable) {
-        e.preventDefault()
-        navigator.clipboard.readText().then(text => {
-          if (!text) return
-          // Insert text at cursor for input/textarea
-          if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
-            const input = target as HTMLInputElement | HTMLTextAreaElement
-            const start = input.selectionStart ?? 0
-            const end = input.selectionEnd ?? 0
-            const before = input.value.slice(0, start)
-            const after = input.value.slice(end)
-            input.value = before + text + after
-            const pos = start + text.length
-            input.setSelectionRange(pos, pos)
-            input.dispatchEvent(new Event('input', { bubbles: true }))
-          } else {
-            // contenteditable
-            document.execCommand('insertText', false, text)
-          }
-        }).catch(() => document.execCommand('paste'))
-      }
+      // Let the browser handle paste natively — don't intercept.
+      // Calling navigator.clipboard.readText() programmatically triggers
+      // Safari/WebKit's "Paste" permission popup. Native Cmd+V just works.
       break
     }
     case 'a': {
