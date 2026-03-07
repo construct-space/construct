@@ -118,13 +118,18 @@ function isSpaceDisabled(spaceId: string): boolean {
 async function load() {
   loading.value = true
   error.value = null
+  console.log(`[DynamicSpacePage] Loading "${props.spaceName}" page="${currentPagePath.value || '(index)'}"`)
   try {
     if (isSpaceDisabled(props.spaceName)) {
+      console.warn(`[DynamicSpacePage] "${props.spaceName}" is disabled`)
       error.value = `Space "${props.spaceName}" is disabled. Enable it in Settings > Spaces.`
       return
     }
     const loaded = await loadSpace(props.spaceName)
     applyLoaded(loaded)
+    if (loaded) {
+      console.log(`[DynamicSpacePage] "${props.spaceName}" ready — rendering page="${currentPagePath.value || '(index)'}"`)
+    }
   } catch (err) {
     error.value = `Failed to load space "${props.spaceName}": ${err}`
     console.error('[DynamicSpacePage]', err)

@@ -109,13 +109,17 @@ const devOverrideDir = import.meta.env.VITE_SPACE_DEV_DIR || ''
 export async function loadSpace(spaceId: string): Promise<LoadedSpace | null> {
   // Return from cache
   if (loadedSpaces.has(spaceId)) {
+    console.log(`[SpaceLoader] "${spaceId}" → cache hit`)
     return loadedSpaces.get(spaceId)!
   }
+
+  const t0 = performance.now()
 
   // Core spaces ship with the app — no disk/IIFE needed
   const coreSpace = getCoreSpace(spaceId)
   if (coreSpace) {
     loadedSpaces.set(spaceId, coreSpace)
+    console.log(`[SpaceLoader] "${spaceId}" → core space (${(performance.now() - t0).toFixed(1)}ms)`)
     return coreSpace
   }
 
@@ -124,6 +128,7 @@ export async function loadSpace(spaceId: string): Promise<LoadedSpace | null> {
     const devSpace = await loadSpaceFromDir(spaceId, devOverrideDir)
     if (devSpace) {
       loadedSpaces.set(spaceId, devSpace)
+      console.log(`[SpaceLoader] "${spaceId}" → dev override, ${Object.keys(devSpace.pages).length} pages (${(performance.now() - t0).toFixed(1)}ms)`)
       return devSpace
     }
   }
@@ -132,9 +137,11 @@ export async function loadSpace(spaceId: string): Promise<LoadedSpace | null> {
   const prodSpace = await loadSpaceFromDisk(spaceId)
   if (prodSpace) {
     loadedSpaces.set(spaceId, prodSpace)
+    console.log(`[SpaceLoader] "${spaceId}" → loaded v${prodSpace.manifest.version}, ${Object.keys(prodSpace.pages).length} pages, css:${prodSpace.cssInjected} (${(performance.now() - t0).toFixed(1)}ms)`)
     return prodSpace
   }
 
+  console.warn(`[SpaceLoader] "${spaceId}" → not found`)
   return null
 }
 
@@ -214,15 +221,19 @@ async function loadSpaceFromDir(spaceId: string, baseDir: string): Promise<Loade
     // Verify brain files if referenced in manifest
     if (manifest.agent) {
       const agentPath = `${spaceDir}/${manifest.agent}`
-      if (!(await exists(agentPath))) {
-        console.warn(`[SpaceLoader] Space "${spaceId}" references agent "${manifest.agent}" but file not found`)
+      if (await exists(agentPath)) {
+        console.log(`[SpaceLoader] "${spaceId}" brain agent: ${manifest.agent} ✓`)
+      } else {
+        console.warn(`[SpaceLoader] "${spaceId}" brain agent: ${manifest.agent} ✗ (file not found)`)
       }
     }
     if (manifest.skills?.length) {
       for (const skill of manifest.skills) {
         const skillPath = `${spaceDir}/${skill}`
-        if (!(await exists(skillPath))) {
-          console.warn(`[SpaceLoader] Space "${spaceId}" references skill "${skill}" but file not found`)
+        if (await exists(skillPath)) {
+          console.log(`[SpaceLoader] "${spaceId}" skill: ${skill} ✓`)
+        } else {
+          console.warn(`[SpaceLoader] "${spaceId}" skill: ${skill} ✗ (file not found)`)
         }
       }
     }

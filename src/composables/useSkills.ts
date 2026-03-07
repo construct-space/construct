@@ -147,6 +147,7 @@ export function useSkills() {
         payload: {},
       })
       skills.value = result.skills || []
+      console.log(`[useSkills] Loaded ${skills.value.length} skills:`, skills.value.map(s => s.id || s.name).join(', '))
     } catch (e) {
       error.value = e instanceof Error ? e.message : String(e)
       console.error('[useSkills] listSkills failed:', e)
