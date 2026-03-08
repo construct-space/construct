@@ -3,8 +3,8 @@ import {
   buildProjectSpaceSubItems,
   isProjectRoutePath,
   parseProjectRouteContext,
-  routeParamString,
 } from '../sidebarProjectNav'
+import { routeParamString } from '../projectRoutes'
 
 describe('routeParamString', () => {
   it('reads string and array params safely', () => {
