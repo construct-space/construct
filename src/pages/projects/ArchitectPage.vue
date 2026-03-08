@@ -149,16 +149,33 @@ const isConstructSpace = computed(() => {
 })
 
 // Detect framework from plan decisions
+// The AI may use "frontend", "platform", or "framework" as the decision key
 const detectedTemplate = computed(() => {
   if (!plan.value || isConstructSpace.value) return null
-  const frontend = plan.value.decisions?.frontend
+  const d = plan.value.decisions
+  const frontend = d?.frontend || d?.platform || d?.framework
   return typeof frontend === 'string' ? mapFrontendToTemplate(frontend) : null
 })
 
 const detectedBackendTemplate = computed(() => {
   if (!plan.value || isConstructSpace.value) return null
-  const backend = plan.value.decisions?.backend
+  const d = plan.value.decisions
+  const backend = d?.backend || d?.server || d?.api
   return typeof backend === 'string' ? mapBackendToTemplate(backend) : null
+})
+
+// Raw decision values for display when no template match is found
+const rawFrontendName = computed(() => {
+  if (!plan.value || isConstructSpace.value) return null
+  const d = plan.value.decisions
+  const v = d?.frontend || d?.platform || d?.framework
+  return typeof v === 'string' ? v : null
+})
+const rawBackendName = computed(() => {
+  if (!plan.value || isConstructSpace.value) return null
+  const d = plan.value.decisions
+  const v = d?.backend || d?.server || d?.api
+  return typeof v === 'string' ? v : null
 })
 
 // Check if git is in selected spaces
@@ -1137,6 +1154,8 @@ onUnmounted(() => {
                       :is-construct-space="isConstructSpace"
                       :detected-template="detectedTemplate"
                       :detected-backend-template="detectedBackendTemplate"
+                      :raw-frontend-name="rawFrontendName"
+                      :raw-backend-name="rawBackendName"
                       @create="createProjectDirectly"
                       @back="showProjectConfig = false"
                       @browse="browseProjectDir"

@@ -15,17 +15,13 @@ export interface SpaceLike {
   pages?: SpacePageLike[]
 }
 
+import { routeParamString } from '@/utils/projectRoutes'
+
 export interface SidebarSubItem {
   id: string
   label: string
   icon: string
   route: string
-}
-
-export const routeParamString = (value: unknown): string => {
-  if (typeof value === 'string') return value
-  if (Array.isArray(value) && typeof value[0] === 'string') return value[0]
-  return ''
 }
 
 export const parseProjectRouteContext = (params: {

@@ -12,6 +12,8 @@
 
 import { useSpaces } from '@/composables/useSpaces'
 import { usePinnedStore } from '@/stores/pinned'
+import { useAuthStore } from '@/stores/auth'
+import { useProjectStore } from '@/stores/project'
 import { getSpace as getSpaceConfig } from '@/config/spaces'
 import { BUILTIN_SPACE_IDS } from '@/spaces/builtin'
 import {

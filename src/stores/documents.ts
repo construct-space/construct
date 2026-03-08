@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 
-export type DocumentType = 'prd' | 'readme' | 'architecture' | 'roadmap' | 'setup' | 'custom'
+// Note: DocType is also exported from @/utils/documentsGenerator (without 'custom').
+// To avoid auto-import conflicts, this store uses a local alias.
+type DocType = 'prd' | 'readme' | 'architecture' | 'roadmap' | 'setup' | 'custom'
 
 export interface Document {
   id: number
@@ -8,7 +10,7 @@ export interface Document {
   updated_at: string
   title: string
   content: string
-  type: DocumentType
+  type: DocType
   plan_json?: string
   project_id?: number
   company_id?: number
@@ -21,7 +23,7 @@ export interface DocumentListItem {
   created_at: string
   updated_at: string
   title: string
-  type: DocumentType
+  type: DocType
   project_id?: number
   company_id?: number
 }
@@ -29,7 +31,7 @@ export interface DocumentListItem {
 export interface CreateDocumentRequest {
   title: string
   content?: string
-  type?: DocumentType
+  type?: DocType
   plan_json?: string
   project_id?: number
 }
@@ -55,7 +57,7 @@ export const useDocumentsStore = defineStore('documents', {
         (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
       )
     },
-    getByType: (state) => (type: DocumentType) => {
+    getByType: (state) => (type: DocType) => {
       return state.documents.filter(d => d.type === type)
     },
     prds: (state) => {

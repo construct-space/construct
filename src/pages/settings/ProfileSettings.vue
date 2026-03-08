@@ -2,6 +2,7 @@
 import FormField from '@/components/ui/FormField.vue'
 import Input from '@/components/ui/Input.vue'
 import Button from '@/components/ui/Button.vue'
+import { useAuthStore } from '@/stores/auth'
 import { useApi } from '@/composables/useApi'
 
 const authStore = useAuthStore()

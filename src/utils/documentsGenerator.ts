@@ -2,6 +2,7 @@
  * Documents Generator
  * Generates project documentation from Architect plan
  */
+export type DocumentType = 'prd' | 'readme' | 'architecture' | 'roadmap' | 'setup'
 
 export interface ArchitectPlan {
   name: string
@@ -31,7 +32,6 @@ export interface ArchitectPlan {
   }
 }
 
-export type DocumentType = 'prd' | 'readme' | 'architecture' | 'roadmap' | 'setup'
 
 export interface DocumentOption {
   type: DocumentType

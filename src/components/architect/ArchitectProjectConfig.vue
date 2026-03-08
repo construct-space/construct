@@ -12,6 +12,8 @@ defineProps<{
   isConstructSpace: boolean
   detectedTemplate: TemplateConfig | null
   detectedBackendTemplate: TemplateConfig | null
+  rawFrontendName: string | null
+  rawBackendName: string | null
 }>()
 
 const emit = defineEmits<{
@@ -21,6 +23,28 @@ const emit = defineEmits<{
   back: []
   browse: []
 }>()
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
+function formatTechName(raw: string): string {
+  const cleaned = raw.replace(/^custom-/, '').replace(/-/g, ' ')
+  return capitalize(cleaned)
+}
+
+const MOBILE_TECHS = ['flutter', 'react-native', 'react native', 'expo', 'swift', 'swiftui', 'kotlin', 'ionic', 'capacitor']
+const FULLSTACK_TECHS = ['nuxt', 'next', 'nextjs', 'next.js', 'nuxt.js', 'laravel', 'rails', 'ruby on rails', 'django', 'redwood', 'redwoodjs', 't3']
+
+function detectCategory(raw: string | null, template: { category?: string } | null): string {
+  if (template?.category === 'mobile') return 'App'
+  if (template?.category === 'fullstack') return 'Fullstack'
+  if (!raw) return 'Frontend'
+  const key = raw.trim().toLowerCase()
+  if (MOBILE_TECHS.some(t => key.includes(t))) return 'App'
+  if (FULLSTACK_TECHS.some(t => key.includes(t))) return 'Fullstack'
+  return 'Frontend'
+}
 </script>
 
 <template>
@@ -84,31 +108,45 @@ const emit = defineEmits<{
       <!-- Framework scaffold -->
       <div class="space-y-2">
         <label class="text-[11px] text-app-muted/60 uppercase tracking-widest font-medium">Scaffold</label>
-        <!-- Frontend -->
-        <div class="flex items-center gap-3 px-3.5 py-3 rounded-lg bg-white/4">
+
+        <!-- Construct Space -->
+        <div v-if="isConstructSpace" class="flex items-center gap-3 px-3.5 py-3 rounded-lg bg-white/4">
           <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-white/8">
-            <Icon
-              :name="isConstructSpace ? (plan?.spaceIcon || 'i-lucide-puzzle') : (detectedTemplate?.icon || 'i-lucide-file-code')"
-              class="size-4 text-app-muted"
-            />
+            <Icon :name="plan?.spaceIcon || 'i-lucide-puzzle'" class="size-4 text-app-muted" />
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-app">Space: {{ plan?.spaceId }}</p>
+            <p class="text-xs text-app-muted/60 mt-0.5">Creates space-{{ plan?.spaceId }}/ with Vue 3 IIFE bundle</p>
+          </div>
+        </div>
+
+        <!-- Frontend / Platform -->
+        <div v-if="!isConstructSpace" class="flex items-center gap-3 px-3.5 py-3 rounded-lg bg-white/4">
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-white/8">
+            <Icon :name="detectedTemplate?.icon || 'i-lucide-smartphone'" class="size-4 text-app-muted" />
           </div>
           <div class="flex-1 min-w-0">
             <p class="text-sm font-medium text-app">
-              {{ isConstructSpace ? `Space: ${plan?.spaceId}` : detectedTemplate ? `Frontend: ${detectedTemplate.name}` : 'Static frontend' }}
+              {{ detectCategory(rawFrontendName, detectedTemplate) }}: {{ detectedTemplate ? detectedTemplate.name : rawFrontendName ? formatTechName(rawFrontendName) : 'Static HTML' }}
             </p>
             <p class="text-xs text-app-muted/60 mt-0.5">
-              {{ isConstructSpace ? `Creates space-${plan?.spaceId}/ with Vue 3 IIFE bundle` : `code/frontend/ — ${detectedTemplate?.description || 'index.html, style.css, script.js'}` }}
+              {{ detectedTemplate?.description || (rawFrontendName ? `Scaffold ${formatTechName(rawFrontendName)} project` : 'index.html, style.css, script.js') }}
             </p>
           </div>
         </div>
+
         <!-- Backend -->
-        <div v-if="detectedBackendTemplate && !isConstructSpace" class="flex items-center gap-3 px-3.5 py-3 rounded-lg bg-white/4">
+        <div v-if="!isConstructSpace && (detectedBackendTemplate || rawBackendName)" class="flex items-center gap-3 px-3.5 py-3 rounded-lg bg-white/4">
           <div class="w-8 h-8 rounded-lg flex items-center justify-center bg-white/8">
-            <Icon :name="detectedBackendTemplate.icon || 'i-lucide-server'" class="size-4 text-app-muted" />
+            <Icon :name="detectedBackendTemplate?.icon || 'i-lucide-server'" class="size-4 text-app-muted" />
           </div>
           <div class="flex-1 min-w-0">
-            <p class="text-sm font-medium text-app">Backend: {{ detectedBackendTemplate.name }}</p>
-            <p class="text-xs text-app-muted/60 mt-0.5">code/backend/ — {{ detectedBackendTemplate.description }}</p>
+            <p class="text-sm font-medium text-app">
+              Backend: {{ detectedBackendTemplate ? detectedBackendTemplate.name : rawBackendName ? formatTechName(rawBackendName) : '' }}
+            </p>
+            <p class="text-xs text-app-muted/60 mt-0.5">
+              {{ detectedBackendTemplate?.description || (rawBackendName ? `Scaffold ${formatTechName(rawBackendName)} backend` : '') }}
+            </p>
           </div>
         </div>
       </div>

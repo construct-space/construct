@@ -7,11 +7,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
+use tauri::menu::{Menu, MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
-use tauri::menu::{Menu, MenuBuilder, MenuItemBuilder, SubmenuBuilder, PredefinedMenuItem};
 use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_shell::ShellExt;
-
 
 // Message ID counter
 static MESSAGE_ID: AtomicU64 = AtomicU64::new(0);
@@ -82,7 +81,10 @@ async fn lsp_start_server(
         return Ok(true);
     }
 
-    eprintln!("[LSP] Starting server for {}: {} {:?}", language_id, server_command, server_args);
+    eprintln!(
+        "[LSP] Starting server for {}: {} {:?}",
+        language_id, server_command, server_args
+    );
 
     // Spawn the language server process
     let mut child = Command::new(&server_command)
@@ -91,6 +93,7 @@ async fn lsp_start_server(
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
+        .env("PATH", get_user_shell_path())
         .spawn()
         .map_err(|e| format!("Failed to spawn LSP server: {}", e))?;
 
@@ -101,11 +104,14 @@ async fn lsp_start_server(
     let stdin_writer = BufWriter::new(stdin);
 
     // Store the server
-    lsp_state.servers.insert(language_id.clone(), LspServer {
-        process: child,
-        language_id: language_id.clone(),
-        stdin: Some(stdin_writer),
-    });
+    lsp_state.servers.insert(
+        language_id.clone(),
+        LspServer {
+            process: child,
+            language_id: language_id.clone(),
+            stdin: Some(stdin_writer),
+        },
+    );
 
     // Spawn thread to read stdout and emit events
     let app_clone = app.clone();
@@ -151,11 +157,19 @@ async fn lsp_start_server(
                     Ok(_) => {
                         if let Ok(json_str) = String::from_utf8(body) {
                             if let Ok(msg) = serde_json::from_str::<LspMessage>(&json_str) {
-                                eprintln!("[LSP {}] Received: {} (id: {:?})", lang_id,
-                                    msg.method.as_deref().unwrap_or("response"), msg.id);
+                                eprintln!(
+                                    "[LSP {}] Received: {} (id: {:?})",
+                                    lang_id,
+                                    msg.method.as_deref().unwrap_or("response"),
+                                    msg.id
+                                );
                                 let _ = app_clone.emit(&format!("lsp-message-{}", lang_id), msg);
                             } else {
-                                eprintln!("[LSP {}] Failed to parse JSON: {}", lang_id, &json_str[..json_str.len().min(200)]);
+                                eprintln!(
+                                    "[LSP {}] Failed to parse JSON: {}",
+                                    lang_id,
+                                    &json_str[..json_str.len().min(200)]
+                                );
                             }
                         }
                     }
@@ -195,16 +209,19 @@ fn lsp_send_message(
 ) -> Result<(), String> {
     let mut lsp_state = state.lock().map_err(|_| "Lock error")?;
 
-    let server = lsp_state.servers.get_mut(&language_id)
+    let server = lsp_state
+        .servers
+        .get_mut(&language_id)
         .ok_or_else(|| format!("No LSP server for {}", language_id))?;
 
-    let stdin = server.stdin.as_mut()
-        .ok_or("Server stdin not available")?;
+    let stdin = server.stdin.as_mut().ok_or("Server stdin not available")?;
 
     let json = serde_json::to_string(&message).map_err(|e| e.to_string())?;
     let content = format!("Content-Length: {}\r\n\r\n{}", json.len(), json);
 
-    stdin.write_all(content.as_bytes()).map_err(|e| format!("Write error: {}", e))?;
+    stdin
+        .write_all(content.as_bytes())
+        .map_err(|e| format!("Write error: {}", e))?;
     stdin.flush().map_err(|e| format!("Flush error: {}", e))?;
 
     Ok(())
@@ -250,7 +267,9 @@ fn lsp_stop_all(state: tauri::State<'_, SharedLspState>) -> Result<(), String> {
 fn lsp_list_servers(state: tauri::State<'_, SharedLspState>) -> Result<Vec<LspServerInfo>, String> {
     let lsp_state = state.lock().map_err(|_| "Lock error")?;
 
-    let servers: Vec<LspServerInfo> = lsp_state.servers.keys()
+    let servers: Vec<LspServerInfo> = lsp_state
+        .servers
+        .keys()
         .map(|lang_id| LspServerInfo {
             language_id: lang_id.clone(),
             running: true,
@@ -265,9 +284,46 @@ fn lsp_list_servers(state: tauri::State<'_, SharedLspState>) -> Result<Vec<LspSe
 fn lsp_check_command(command: String) -> bool {
     Command::new("which")
         .arg(&command)
+        .env("PATH", get_user_shell_path())
         .output()
         .map(|output| output.status.success())
         .unwrap_or(false)
+}
+
+// Resolve the user's shell PATH by running a login shell.
+// macOS GUI apps don't inherit .zshrc/.bashrc PATH, so we need to fetch it.
+fn get_user_shell_path() -> String {
+    use std::sync::OnceLock;
+    static CACHED_PATH: OnceLock<String> = OnceLock::new();
+
+    CACHED_PATH
+        .get_or_init(|| {
+            let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+            // Use -i (interactive) so .zshrc/.bashrc are sourced — that's where
+            // users put PATH modifications (flutter, go, cargo, etc.)
+            // TERM=dumb prevents prompt escape sequences in output
+            if let Ok(output) = Command::new(&shell)
+                .args(["-i", "-c", "echo $PATH"])
+                .env("TERM", "dumb")
+                .output()
+            {
+                // Grab last non-empty line (interactive shells may print prompt/motd before it)
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                if let Some(path) = stdout.lines().rev().find(|l| !l.trim().is_empty()) {
+                    let path = path.trim().to_string();
+                    if !path.is_empty() && path.contains('/') {
+                        eprintln!(
+                            "[Shell] Resolved user PATH from interactive shell ({} entries)",
+                            path.matches(':').count() + 1
+                        );
+                        return path;
+                    }
+                }
+            }
+            eprintln!("[Shell] Using fallback process PATH");
+            std::env::var("PATH").unwrap_or_default()
+        })
+        .clone()
 }
 
 // Run a shell command in a specified directory (blocking - waits for completion)
@@ -280,6 +336,7 @@ async fn run_shell_command(
     let output = Command::new(&command)
         .args(&args)
         .current_dir(&cwd)
+        .env("PATH", get_user_shell_path())
         .output()
         .map_err(|e| format!("Failed to execute command: {}", e))?;
 
@@ -329,7 +386,10 @@ async fn spawn_shell_command(
     args: Vec<String>,
     cwd: String,
 ) -> Result<serde_json::Value, String> {
-    eprintln!("[Shell] Spawning: {} {:?} in {} (id: {})", command, args, cwd, process_id);
+    eprintln!(
+        "[Shell] Spawning: {} {:?} in {} (id: {})",
+        command, args, cwd, process_id
+    );
 
     let mut child = Command::new(&command)
         .args(&args)
@@ -337,9 +397,11 @@ async fn spawn_shell_command(
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
+        // Inject user's shell PATH so tools like flutter, go, cargo are found
+        .env("PATH", get_user_shell_path())
         // Environment variables to ensure proper output without PTY
         .env("TERM", "dumb")
-        .env("CI", "true")  // Flutter respects CI mode for cleaner output
+        .env("CI", "true") // Flutter respects CI mode for cleaner output
         .env("FLUTTER_SUPPRESS_ANALYTICS", "true")
         .spawn()
         .map_err(|e| format!("Failed to spawn command: {}", e))?;
@@ -378,22 +440,28 @@ async fn spawn_shell_command(
                         line_buffer = line_buffer[newline_pos + 1..].to_string();
 
                         if !line.is_empty() {
-                            let _ = app_stdout.emit("process-output", ProcessOutput {
-                                process_id: pid_stdout.clone(),
-                                stream: "stdout".to_string(),
-                                data: line,
-                            });
+                            let _ = app_stdout.emit(
+                                "process-output",
+                                ProcessOutput {
+                                    process_id: pid_stdout.clone(),
+                                    stream: "stdout".to_string(),
+                                    data: line,
+                                },
+                            );
                         }
                     }
 
                     // Also emit partial lines after a small delay (for real-time feel)
                     if !line_buffer.is_empty() && line_buffer.len() > 80 {
                         let partial = std::mem::take(&mut line_buffer);
-                        let _ = app_stdout.emit("process-output", ProcessOutput {
-                            process_id: pid_stdout.clone(),
-                            stream: "stdout".to_string(),
-                            data: partial,
-                        });
+                        let _ = app_stdout.emit(
+                            "process-output",
+                            ProcessOutput {
+                                process_id: pid_stdout.clone(),
+                                stream: "stdout".to_string(),
+                                data: partial,
+                            },
+                        );
                     }
                 }
                 Err(_) => break,
@@ -402,11 +470,14 @@ async fn spawn_shell_command(
 
         // Emit any remaining content
         if !line_buffer.is_empty() {
-            let _ = app_stdout.emit("process-output", ProcessOutput {
-                process_id: pid_stdout.clone(),
-                stream: "stdout".to_string(),
-                data: line_buffer,
-            });
+            let _ = app_stdout.emit(
+                "process-output",
+                ProcessOutput {
+                    process_id: pid_stdout.clone(),
+                    stream: "stdout".to_string(),
+                    data: line_buffer,
+                },
+            );
         }
     });
 
@@ -432,22 +503,28 @@ async fn spawn_shell_command(
                         line_buffer = line_buffer[newline_pos + 1..].to_string();
 
                         if !line.is_empty() {
-                            let _ = app_stderr.emit("process-output", ProcessOutput {
-                                process_id: pid_stderr.clone(),
-                                stream: "stderr".to_string(),
-                                data: line,
-                            });
+                            let _ = app_stderr.emit(
+                                "process-output",
+                                ProcessOutput {
+                                    process_id: pid_stderr.clone(),
+                                    stream: "stderr".to_string(),
+                                    data: line,
+                                },
+                            );
                         }
                     }
 
                     // Also emit partial lines for long content
                     if !line_buffer.is_empty() && line_buffer.len() > 80 {
                         let partial = std::mem::take(&mut line_buffer);
-                        let _ = app_stderr.emit("process-output", ProcessOutput {
-                            process_id: pid_stderr.clone(),
-                            stream: "stderr".to_string(),
-                            data: partial,
-                        });
+                        let _ = app_stderr.emit(
+                            "process-output",
+                            ProcessOutput {
+                                process_id: pid_stderr.clone(),
+                                stream: "stderr".to_string(),
+                                data: partial,
+                            },
+                        );
                     }
                 }
                 Err(_) => break,
@@ -456,11 +533,14 @@ async fn spawn_shell_command(
 
         // Emit any remaining content
         if !line_buffer.is_empty() {
-            let _ = app_stderr.emit("process-output", ProcessOutput {
-                process_id: pid_stderr.clone(),
-                stream: "stderr".to_string(),
-                data: line_buffer,
-            });
+            let _ = app_stderr.emit(
+                "process-output",
+                ProcessOutput {
+                    process_id: pid_stderr.clone(),
+                    stream: "stderr".to_string(),
+                    data: line_buffer,
+                },
+            );
         }
     });
 
@@ -485,11 +565,14 @@ async fn spawn_shell_command(
                         let success = status.success();
                         eprintln!("[Shell] Process {} exited with code: {:?}", pid_exit, code);
 
-                        let _ = app_exit.emit("process-exit", ProcessExit {
-                            process_id: pid_exit.clone(),
-                            code,
-                            success,
-                        });
+                        let _ = app_exit.emit(
+                            "process-exit",
+                            ProcessExit {
+                                process_id: pid_exit.clone(),
+                                code,
+                                success,
+                            },
+                        );
 
                         proc_state.processes.remove(&pid_exit);
                         break;
@@ -530,7 +613,7 @@ fn kill_shell_process(
                 let _ = child.wait(); // Clean up zombie process
                 Ok(true)
             }
-            Err(e) => Err(format!("Failed to kill process: {}", e))
+            Err(e) => Err(format!("Failed to kill process: {}", e)),
         }
     } else {
         Ok(false)
@@ -544,12 +627,18 @@ fn send_process_input(
     process_id: String,
     input: String,
 ) -> Result<bool, String> {
-    eprintln!("[Shell] Sending input '{}' to process: {}", input, process_id);
+    eprintln!(
+        "[Shell] Sending input '{}' to process: {}",
+        input, process_id
+    );
 
     let mut proc_state = state.lock().map_err(|_| "Lock error")?;
 
     // Debug: list available processes
-    eprintln!("[Shell] Available processes: {:?}", proc_state.processes.keys().collect::<Vec<_>>());
+    eprintln!(
+        "[Shell] Available processes: {:?}",
+        proc_state.processes.keys().collect::<Vec<_>>()
+    );
 
     if let Some(child) = proc_state.processes.get_mut(&process_id) {
         if let Some(stdin) = child.stdin.as_mut() {
@@ -561,7 +650,9 @@ fn send_process_input(
                 format!("{}\n", input)
             };
             eprintln!("[Shell] Writing to stdin: {:?}", input_with_newline);
-            stdin.write_all(input_with_newline.as_bytes()).map_err(|e| format!("Write error: {}", e))?;
+            stdin
+                .write_all(input_with_newline.as_bytes())
+                .map_err(|e| format!("Write error: {}", e))?;
             stdin.flush().map_err(|e| format!("Flush error: {}", e))?;
             eprintln!("[Shell] Input sent successfully");
             return Ok(true);
@@ -588,7 +679,7 @@ fn list_shell_processes(
 
 // ==================== PTY MANAGEMENT ====================
 
-use portable_pty::{native_pty_system, CommandBuilder, PtySize, PtyPair};
+use portable_pty::{native_pty_system, CommandBuilder, PtyPair, PtySize};
 
 // PTY session state
 struct PtySession {
@@ -635,7 +726,10 @@ async fn pty_spawn(
     cols: u16,
     rows: u16,
 ) -> Result<bool, String> {
-    eprintln!("[PTY] Spawning session {} with shell {} in {}", session_id, shell, cwd);
+    eprintln!(
+        "[PTY] Spawning session {} with shell {} in {}",
+        session_id, shell, cwd
+    );
 
     let pty_system = native_pty_system();
 
@@ -666,27 +760,29 @@ async fn pty_spawn(
     cmd.env("LS_COLORS", "di=1;36:ln=1;35:so=1;32:pi=1;33:ex=1;31:bd=34;46:cd=34;43:su=30;41:sg=30;46:tw=30;42:ow=30;43");
 
     // Spawn the shell in the PTY
-    let mut child = pair.slave
+    let mut child = pair
+        .slave
         .spawn_command(cmd)
         .map_err(|e| format!("Failed to spawn command: {}", e))?;
 
     // Get writer for sending input
-    let writer = pair.master
+    let writer = pair
+        .master
         .take_writer()
         .map_err(|e| format!("Failed to get PTY writer: {}", e))?;
 
     // Get reader for receiving output
-    let mut reader = pair.master
+    let mut reader = pair
+        .master
         .try_clone_reader()
         .map_err(|e| format!("Failed to get PTY reader: {}", e))?;
 
     // Store session
     {
         let mut pty_state = state.lock().map_err(|_| "Lock error")?;
-        pty_state.sessions.insert(session_id.clone(), PtySession {
-            pair,
-            writer,
-        });
+        pty_state
+            .sessions
+            .insert(session_id.clone(), PtySession { pair, writer });
     }
 
     // Spawn thread to read PTY output and emit events
@@ -704,10 +800,13 @@ async fn pty_spawn(
                 Ok(n) => {
                     // Convert to string, handling invalid UTF-8
                     let data = String::from_utf8_lossy(&buf[..n]).to_string();
-                    let _ = app_clone.emit("pty-output", PtyOutput {
-                        session_id: session_id_clone.clone(),
-                        data,
-                    });
+                    let _ = app_clone.emit(
+                        "pty-output",
+                        PtyOutput {
+                            session_id: session_id_clone.clone(),
+                            data,
+                        },
+                    );
                 }
                 Err(e) => {
                     eprintln!("[PTY {}] Read error: {}", session_id_clone, e);
@@ -726,18 +825,28 @@ async fn pty_spawn(
         let exit_status = child.wait();
         let code = match exit_status {
             Ok(status) => {
-                if status.success() { 0 } else { 1 }
+                if status.success() {
+                    0
+                } else {
+                    1
+                }
             }
             Err(_) => -1,
         };
 
-        eprintln!("[PTY {}] Process exited with code {}", session_id_exit, code);
+        eprintln!(
+            "[PTY {}] Process exited with code {}",
+            session_id_exit, code
+        );
 
         // Emit exit event
-        let _ = app_exit.emit("pty-exit", PtyExit {
-            session_id: session_id_exit.clone(),
-            code,
-        });
+        let _ = app_exit.emit(
+            "pty-exit",
+            PtyExit {
+                session_id: session_id_exit.clone(),
+                code,
+            },
+        );
 
         // Clean up session
         if let Ok(mut pty_state) = state_clone.lock() {
@@ -758,13 +867,19 @@ fn pty_write(
 ) -> Result<(), String> {
     let mut pty_state = state.lock().map_err(|_| "Lock error")?;
 
-    let session = pty_state.sessions.get_mut(&session_id)
+    let session = pty_state
+        .sessions
+        .get_mut(&session_id)
         .ok_or_else(|| format!("Session {} not found", session_id))?;
 
-    session.writer.write_all(data.as_bytes())
+    session
+        .writer
+        .write_all(data.as_bytes())
         .map_err(|e| format!("Write error: {}", e))?;
 
-    session.writer.flush()
+    session
+        .writer
+        .flush()
         .map_err(|e| format!("Flush error: {}", e))?;
 
     Ok(())
@@ -780,15 +895,21 @@ fn pty_resize(
 ) -> Result<(), String> {
     let pty_state = state.lock().map_err(|_| "Lock error")?;
 
-    let session = pty_state.sessions.get(&session_id)
+    let session = pty_state
+        .sessions
+        .get(&session_id)
         .ok_or_else(|| format!("Session {} not found", session_id))?;
 
-    session.pair.master.resize(PtySize {
-        rows,
-        cols,
-        pixel_width: 0,
-        pixel_height: 0,
-    }).map_err(|e| format!("Resize error: {}", e))?;
+    session
+        .pair
+        .master
+        .resize(PtySize {
+            rows,
+            cols,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .map_err(|e| format!("Resize error: {}", e))?;
 
     eprintln!("[PTY {}] Resized to {}x{}", session_id, cols, rows);
     Ok(())
@@ -796,10 +917,7 @@ fn pty_resize(
 
 // Kill a PTY session
 #[tauri::command]
-fn pty_kill(
-    state: tauri::State<'_, SharedPtyState>,
-    session_id: String,
-) -> Result<(), String> {
+fn pty_kill(state: tauri::State<'_, SharedPtyState>, session_id: String) -> Result<(), String> {
     let mut pty_state = state.lock().map_err(|_| "Lock error")?;
 
     if pty_state.sessions.remove(&session_id).is_some() {
@@ -811,9 +929,7 @@ fn pty_kill(
 
 // List active PTY sessions
 #[tauri::command]
-fn pty_list(
-    state: tauri::State<'_, SharedPtyState>,
-) -> Result<Vec<String>, String> {
+fn pty_list(state: tauri::State<'_, SharedPtyState>) -> Result<Vec<String>, String> {
     let pty_state = state.lock().map_err(|_| "Lock error")?;
     Ok(pty_state.sessions.keys().cloned().collect())
 }
@@ -824,7 +940,10 @@ fn pty_list(
 #[tauri::command]
 async fn lsp_install_server(language_id: String) -> Result<String, String> {
     let (install_cmd, args): (&str, Vec<&str>) = match language_id.as_str() {
-        "typescript" | "javascript" => ("npm", vec!["install", "-g", "typescript-language-server", "typescript"]),
+        "typescript" | "javascript" => (
+            "npm",
+            vec!["install", "-g", "typescript-language-server", "typescript"],
+        ),
         "vue" => ("npm", vec!["install", "-g", "@vue/language-server"]),
         "json" => ("npm", vec!["install", "-g", "vscode-langservers-extracted"]),
         "css" | "html" => ("npm", vec!["install", "-g", "vscode-langservers-extracted"]),
@@ -832,12 +951,17 @@ async fn lsp_install_server(language_id: String) -> Result<String, String> {
         "go" => ("go", vec!["install", "golang.org/x/tools/gopls@latest"]),
         "rust" => {
             // rust-analyzer is usually installed via rustup
-            return Err("Install rust-analyzer via: rustup component add rust-analyzer".to_string());
+            return Err(
+                "Install rust-analyzer via: rustup component add rust-analyzer".to_string(),
+            );
         }
         _ => return Err(format!("No install command for language: {}", language_id)),
     };
 
-    eprintln!("[LSP Install] Installing {} server: {} {:?}", language_id, install_cmd, args);
+    eprintln!(
+        "[LSP Install] Installing {} server: {} {:?}",
+        language_id, install_cmd, args
+    );
 
     let output = Command::new(install_cmd)
         .args(&args)
@@ -890,27 +1014,32 @@ async fn browser_create_tab(
     // Parse URL, default to google if empty
     let nav_url = if url.is_empty() {
         "https://www.google.com".to_string()
-    } else if !url.starts_with("http://") && !url.starts_with("https://") && !url.starts_with("about:") {
+    } else if !url.starts_with("http://")
+        && !url.starts_with("https://")
+        && !url.starts_with("about:")
+    {
         format!("https://{}", url)
     } else {
         url.clone()
     };
 
     // Get main window for parenting
-    let main_window = app.get_webview_window("main")
+    let main_window = app
+        .get_webview_window("main")
         .ok_or_else(|| "Main window not found".to_string())?;
 
     // Create the webview URL
-    let webview_url = WebviewUrl::External(nav_url.parse().map_err(|e| format!("Invalid URL: {}", e))?);
+    let webview_url =
+        WebviewUrl::External(nav_url.parse().map_err(|e| format!("Invalid URL: {}", e))?);
 
     // Create frameless child window - start hidden, frontend will position it
     let _window = WebviewWindowBuilder::new(&app, &window_label, webview_url)
         .title("Browser Tab")
-        .decorations(false)  // No window decorations (frameless)
+        .decorations(false) // No window decorations (frameless)
         .transparent(false)
-        .resizable(false)    // Controlled by main window resize
-        .skip_taskbar(true)  // Don't show in taskbar
-        .visible(false)      // Start hidden until positioned
+        .resizable(false) // Controlled by main window resize
+        .skip_taskbar(true) // Don't show in taskbar
+        .visible(false) // Start hidden until positioned
         .inner_size(800.0, 600.0)
         .parent(&main_window)
         .map_err(|e| format!("Failed to set parent: {}", e))?
@@ -946,7 +1075,9 @@ async fn browser_close_tab(
 
     if let Some(label) = window_label {
         if let Some(window) = app.get_webview_window(&label) {
-            window.close().map_err(|e| format!("Failed to close window: {}", e))?;
+            window
+                .close()
+                .map_err(|e| format!("Failed to close window: {}", e))?;
         }
     }
 
@@ -968,18 +1099,24 @@ async fn browser_navigate(
     };
 
     let label = window_label.ok_or_else(|| format!("Tab {} not found", tab_id))?;
-    let window = app.get_webview_window(&label)
+    let window = app
+        .get_webview_window(&label)
         .ok_or_else(|| format!("Window {} not found", label))?;
 
     // Parse URL
-    let nav_url = if !url.starts_with("http://") && !url.starts_with("https://") && !url.starts_with("about:") {
+    let nav_url = if !url.starts_with("http://")
+        && !url.starts_with("https://")
+        && !url.starts_with("about:")
+    {
         format!("https://{}", url)
     } else {
         url
     };
 
     let parsed_url: tauri::Url = nav_url.parse().map_err(|e| format!("Invalid URL: {}", e))?;
-    window.navigate(parsed_url).map_err(|e| format!("Navigation failed: {}", e))?;
+    window
+        .navigate(parsed_url)
+        .map_err(|e| format!("Navigation failed: {}", e))?;
 
     eprintln!("[Browser] Tab {} navigating to: {}", tab_id, nav_url);
     Ok(())
@@ -999,12 +1136,15 @@ async fn browser_set_tab_visible(
     };
 
     let label = window_label.ok_or_else(|| format!("Tab {} not found", tab_id))?;
-    let window = app.get_webview_window(&label)
+    let window = app
+        .get_webview_window(&label)
         .ok_or_else(|| format!("Window {} not found", label))?;
 
     if visible {
         window.show().map_err(|e| format!("Show failed: {}", e))?;
-        window.set_focus().map_err(|e| format!("Focus failed: {}", e))?;
+        window
+            .set_focus()
+            .map_err(|e| format!("Focus failed: {}", e))?;
     } else {
         window.hide().map_err(|e| format!("Hide failed: {}", e))?;
     }
@@ -1025,11 +1165,14 @@ async fn browser_reload(
     };
 
     let label = window_label.ok_or_else(|| format!("Tab {} not found", tab_id))?;
-    let window = app.get_webview_window(&label)
+    let window = app
+        .get_webview_window(&label)
         .ok_or_else(|| format!("Window {} not found", label))?;
 
     // Execute reload via JavaScript
-    window.eval("location.reload()").map_err(|e| format!("Reload failed: {}", e))?;
+    window
+        .eval("location.reload()")
+        .map_err(|e| format!("Reload failed: {}", e))?;
 
     eprintln!("[Browser] Reloading tab {}", tab_id);
     Ok(())
@@ -1048,10 +1191,14 @@ async fn browser_get_url(
     };
 
     let label = window_label.ok_or_else(|| format!("Tab {} not found", tab_id))?;
-    let window = app.get_webview_window(&label)
+    let window = app
+        .get_webview_window(&label)
         .ok_or_else(|| format!("Window {} not found", label))?;
 
-    window.url().map(|u| u.to_string()).map_err(|e| format!("Failed to get URL: {}", e))
+    window
+        .url()
+        .map(|u| u.to_string())
+        .map_err(|e| format!("Failed to get URL: {}", e))
 }
 
 // Toggle developer tools for a tab
@@ -1064,7 +1211,10 @@ async fn browser_toggle_devtools(
 ) -> Result<(), String> {
     // Devtools toggle not available in this Tauri build configuration
     // In production builds, devtools are typically disabled
-    eprintln!("[Browser] Devtools toggle requested for tab {} (not available in this build)", tab_id);
+    eprintln!(
+        "[Browser] Devtools toggle requested for tab {} (not available in this build)",
+        tab_id
+    );
     Ok(())
 }
 
@@ -1100,12 +1250,18 @@ async fn browser_open_standalone(
     width: f64,
     height: f64,
 ) -> Result<String, String> {
-    let window_id = format!("standalone-{}", std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis());
+    let window_id = format!(
+        "standalone-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis()
+    );
 
-    eprintln!("[Browser] Opening standalone window: {} ({}x{})", url, width, height);
+    eprintln!(
+        "[Browser] Opening standalone window: {} ({}x{})",
+        url, width, height
+    );
 
     // Parse URL
     let nav_url = if url.is_empty() {
@@ -1116,18 +1272,19 @@ async fn browser_open_standalone(
         url.clone()
     };
 
-    let webview_url = WebviewUrl::External(nav_url.parse().map_err(|e| format!("Invalid URL: {}", e))?);
+    let webview_url =
+        WebviewUrl::External(nav_url.parse().map_err(|e| format!("Invalid URL: {}", e))?);
 
     // Create standalone window with decorations
     let _window = WebviewWindowBuilder::new(&app, &window_id, webview_url)
         .title(&title)
-        .decorations(true)       // Window decorations (title bar, close button)
+        .decorations(true) // Window decorations (title bar, close button)
         .transparent(false)
-        .resizable(true)         // Allow resizing
-        .skip_taskbar(false)     // Show in taskbar
-        .visible(true)           // Show immediately
+        .resizable(true) // Allow resizing
+        .skip_taskbar(false) // Show in taskbar
+        .visible(true) // Show immediately
         .inner_size(width, height)
-        .center()                // Center on screen
+        .center() // Center on screen
         .build()
         .map_err(|e| format!("Failed to create window: {}", e))?;
 
@@ -1148,11 +1305,14 @@ async fn browser_go_back(
     };
 
     let label = window_label.ok_or_else(|| format!("Tab {} not found", tab_id))?;
-    let window = app.get_webview_window(&label)
+    let window = app
+        .get_webview_window(&label)
         .ok_or_else(|| format!("Window {} not found", label))?;
 
     // Use JavaScript to go back
-    window.eval("history.back()").map_err(|e| format!("Back failed: {}", e))?;
+    window
+        .eval("history.back()")
+        .map_err(|e| format!("Back failed: {}", e))?;
 
     eprintln!("[Browser] Tab {} going back", tab_id);
     Ok(())
@@ -1171,11 +1331,14 @@ async fn browser_go_forward(
     };
 
     let label = window_label.ok_or_else(|| format!("Tab {} not found", tab_id))?;
-    let window = app.get_webview_window(&label)
+    let window = app
+        .get_webview_window(&label)
         .ok_or_else(|| format!("Window {} not found", label))?;
 
     // Use JavaScript to go forward
-    window.eval("history.forward()").map_err(|e| format!("Forward failed: {}", e))?;
+    window
+        .eval("history.forward()")
+        .map_err(|e| format!("Forward failed: {}", e))?;
 
     eprintln!("[Browser] Tab {} going forward", tab_id);
     Ok(())
@@ -1198,14 +1361,17 @@ async fn browser_set_tab_bounds(
     };
 
     let label = window_label.ok_or_else(|| format!("Tab {} not found", tab_id))?;
-    let window = app.get_webview_window(&label)
+    let window = app
+        .get_webview_window(&label)
         .ok_or_else(|| format!("Window {} not found", label))?;
 
     // Update position and size
     use tauri::{LogicalPosition, LogicalSize};
-    window.set_position(LogicalPosition::new(x, y))
+    window
+        .set_position(LogicalPosition::new(x, y))
         .map_err(|e| format!("Failed to set position: {}", e))?;
-    window.set_size(LogicalSize::new(width, height))
+    window
+        .set_size(LogicalSize::new(width, height))
         .map_err(|e| format!("Failed to set size: {}", e))?;
 
     Ok(())
@@ -1243,8 +1409,8 @@ type SharedOAuthState = Arc<Mutex<OAuthState>>;
 
 // Generate PKCE code verifier and challenge
 fn generate_pkce() -> (String, String) {
-    use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
-    use sha2::{Sha256, Digest};
+    use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+    use sha2::{Digest, Sha256};
 
     // Generate 32 random bytes for verifier
     let mut verifier_bytes = [0u8; 32];
@@ -1262,7 +1428,7 @@ fn generate_pkce() -> (String, String) {
 
 // Generate random state for OAuth
 fn generate_state() -> String {
-    use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+    use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
     let mut state_bytes = [0u8; 32];
     getrandom::getrandom(&mut state_bytes).unwrap_or_default();
     URL_SAFE_NO_PAD.encode(state_bytes)
@@ -1295,7 +1461,8 @@ async fn oauth_start(
         default_scopes.join("+")
     } else {
         // URL-encode colons in custom scopes
-        scopes.iter()
+        scopes
+            .iter()
             .map(|s| s.replace(":", "%3A"))
             .collect::<Vec<_>>()
             .join("+")
@@ -1329,9 +1496,7 @@ async fn oauth_start(
     // This avoids the webview popup blocking issues
     #[cfg(target_os = "macos")]
     {
-        let _ = std::process::Command::new("open")
-            .arg(&auth_url)
-            .spawn();
+        let _ = std::process::Command::new("open").arg(&auth_url).spawn();
     }
     #[cfg(target_os = "linux")]
     {
@@ -1385,7 +1550,8 @@ async fn oauth_exchange(
     let pending = {
         let oauth = oauth_state.lock().map_err(|_| "Lock error")?;
         oauth.pending_auth.clone()
-    }.ok_or("No pending OAuth flow")?;
+    }
+    .ok_or("No pending OAuth flow")?;
 
     // Note: We don't validate state here because the user may copy just the code
     // The code contains embedded state validation via PKCE
@@ -1395,14 +1561,19 @@ async fn oauth_exchange(
     // The code format is: actual_code#state (from callback URL)
     let (actual_code, code_state) = if code.contains('#') {
         let parts: Vec<&str> = code.splitn(2, '#').collect();
-        (parts[0].to_string(), Some(parts.get(1).map(|s| s.to_string()).unwrap_or_default()))
+        (
+            parts[0].to_string(),
+            Some(parts.get(1).map(|s| s.to_string()).unwrap_or_default()),
+        )
     } else {
         (code.clone(), None)
     };
 
-    eprintln!("[OAuth] Code split: actual_code={}, has_state={}",
+    eprintln!(
+        "[OAuth] Code split: actual_code={}, has_state={}",
         &actual_code[..20.min(actual_code.len())],
-        code_state.is_some());
+        code_state.is_some()
+    );
 
     // Build the token request body
     let mut token_body = serde_json::json!({
@@ -1442,13 +1613,17 @@ async fn oauth_exchange(
             if status.is_success() {
                 match response.json::<OAuthTokenResponse>().await {
                     Ok(token_response) => {
-                        if token_response.error.is_none() && !token_response.access_token.is_empty() {
+                        if token_response.error.is_none() && !token_response.access_token.is_empty()
+                        {
                             eprintln!("[OAuth] Console endpoint succeeded!");
                             let mut oauth = oauth_state.lock().map_err(|_| "Lock error")?;
                             oauth.pending_auth = None;
                             return Ok(token_response);
                         }
-                        eprintln!("[OAuth] Console got error in response: {:?}", token_response.error);
+                        eprintln!(
+                            "[OAuth] Console got error in response: {:?}",
+                            token_response.error
+                        );
                     }
                     Err(e) => eprintln!("[OAuth] Console parse error: {}", e),
                 }
@@ -1479,13 +1654,17 @@ async fn oauth_exchange(
             if status.is_success() {
                 match response.json::<OAuthTokenResponse>().await {
                     Ok(token_response) => {
-                        if token_response.error.is_none() && !token_response.access_token.is_empty() {
+                        if token_response.error.is_none() && !token_response.access_token.is_empty()
+                        {
                             eprintln!("[OAuth] Claude.ai endpoint succeeded!");
                             let mut oauth = oauth_state.lock().map_err(|_| "Lock error")?;
                             oauth.pending_auth = None;
                             return Ok(token_response);
                         }
-                        eprintln!("[OAuth] Claude.ai got error in response: {:?}", token_response.error);
+                        eprintln!(
+                            "[OAuth] Claude.ai got error in response: {:?}",
+                            token_response.error
+                        );
                     }
                     Err(e) => eprintln!("[OAuth] Claude.ai parse error: {}", e),
                 }
@@ -1506,11 +1685,11 @@ async fn oauth_exchange(
     let exchange_window = WebviewWindowBuilder::new(
         &app,
         &window_label,
-        WebviewUrl::External("https://claude.ai".parse().unwrap())
+        WebviewUrl::External("https://claude.ai".parse().unwrap()),
     )
     .title("Authenticating...")
     .inner_size(400.0, 300.0)
-    .position(-2000.0, -2000.0)  // Off-screen so user doesn't see it
+    .position(-2000.0, -2000.0) // Off-screen so user doesn't see it
     .build()
     .map_err(|e| format!("Failed to create exchange window: {}", e))?;
 
@@ -1549,7 +1728,11 @@ async fn oauth_exchange(
         pending.redirect_uri,
         pending.code_verifier,
         // Add state if present
-        if let Some(ref s) = code_state { format!("body.state = '{}';", s) } else { String::new() }
+        if let Some(ref s) = code_state {
+            format!("body.state = '{}';", s)
+        } else {
+            String::new()
+        }
     );
 
     eprintln!("[OAuth] Executing token exchange fetch...");
@@ -1581,7 +1764,8 @@ async fn oauth_exchange(
                     .map_err(|e| format!("Failed to parse token response: {}", e))?;
 
                 if token_response.error.is_some() {
-                    return Err(format!("OAuth error: {} - {}",
+                    return Err(format!(
+                        "OAuth error: {} - {}",
                         token_response.error.unwrap_or_default(),
                         token_response.error_description.unwrap_or_default()
                     ));
@@ -1612,7 +1796,12 @@ fn oauth_read_keychain() -> Result<OAuthTokenResponse, String> {
 
     // Use macOS security command to read from keychain
     let output = Command::new("security")
-        .args(&["find-generic-password", "-s", "Claude Code-credentials", "-w"])
+        .args(&[
+            "find-generic-password",
+            "-s",
+            "Claude Code-credentials",
+            "-w",
+        ])
         .output()
         .map_err(|e| format!("Failed to read keychain: {}", e))?;
 
@@ -1620,8 +1809,8 @@ fn oauth_read_keychain() -> Result<OAuthTokenResponse, String> {
         return Err("Claude Code credentials not found in keychain. Please authenticate with Claude Code first.".to_string());
     }
 
-    let json_str = String::from_utf8(output.stdout)
-        .map_err(|e| format!("Invalid keychain data: {}", e))?;
+    let json_str =
+        String::from_utf8(output.stdout).map_err(|e| format!("Invalid keychain data: {}", e))?;
 
     // Parse the Claude Code credential format
     #[derive(Deserialize)]
@@ -1643,7 +1832,8 @@ fn oauth_read_keychain() -> Result<OAuthTokenResponse, String> {
     let creds: ClaudeCodeCredentials = serde_json::from_str(&json_str)
         .map_err(|e| format!("Failed to parse credentials: {}", e))?;
 
-    let oauth = creds.claude_ai_oauth
+    let oauth = creds
+        .claude_ai_oauth
         .ok_or("No Claude AI OAuth credentials found")?;
 
     // Check if token is expired
@@ -1654,7 +1844,10 @@ fn oauth_read_keychain() -> Result<OAuthTokenResponse, String> {
             .unwrap_or(0);
 
         if expires_at < now {
-            return Err("Claude Code token is expired. Please re-authenticate with Claude Code.".to_string());
+            return Err(
+                "Claude Code token is expired. Please re-authenticate with Claude Code."
+                    .to_string(),
+            );
         }
     }
 
@@ -1684,7 +1877,7 @@ fn lsp_detect_languages(root_path: String) -> Vec<String> {
     let config_indicators = [
         ("go.mod", "go"),
         ("Cargo.toml", "rust"),
-        ("package.json", "typescript"),  // Assume TS for JS projects
+        ("package.json", "typescript"), // Assume TS for JS projects
         ("tsconfig.json", "typescript"),
         ("pyproject.toml", "python"),
         ("requirements.txt", "python"),
@@ -1700,7 +1893,9 @@ fn lsp_detect_languages(root_path: String) -> Vec<String> {
 
     // Scan for file extensions (limit depth for performance)
     fn scan_dir(dir: &std::path::Path, languages: &mut HashSet<String>, depth: u32) {
-        if depth > 3 { return; }
+        if depth > 3 {
+            return;
+        }
 
         let entries = match fs::read_dir(dir) {
             Ok(e) => e,
@@ -1712,8 +1907,13 @@ fn lsp_detect_languages(root_path: String) -> Vec<String> {
             let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
             // Skip common non-source directories
-            if name.starts_with('.') || name == "node_modules" || name == "vendor"
-                || name == "target" || name == "dist" || name == "build" {
+            if name.starts_with('.')
+                || name == "node_modules"
+                || name == "vendor"
+                || name == "target"
+                || name == "dist"
+                || name == "build"
+            {
                 continue;
             }
 
@@ -1721,15 +1921,33 @@ fn lsp_detect_languages(root_path: String) -> Vec<String> {
                 scan_dir(&path, languages, depth + 1);
             } else if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
                 match ext {
-                    "go" => { languages.insert("go".to_string()); }
-                    "rs" => { languages.insert("rust".to_string()); }
-                    "ts" | "tsx" => { languages.insert("typescript".to_string()); }
-                    "js" | "jsx" | "mjs" => { languages.insert("typescript".to_string()); }
-                    "vue" => { languages.insert("vue".to_string()); }
-                    "py" => { languages.insert("python".to_string()); }
-                    "json" => { languages.insert("json".to_string()); }
-                    "css" | "scss" | "less" => { languages.insert("css".to_string()); }
-                    "html" | "htm" => { languages.insert("html".to_string()); }
+                    "go" => {
+                        languages.insert("go".to_string());
+                    }
+                    "rs" => {
+                        languages.insert("rust".to_string());
+                    }
+                    "ts" | "tsx" => {
+                        languages.insert("typescript".to_string());
+                    }
+                    "js" | "jsx" | "mjs" => {
+                        languages.insert("typescript".to_string());
+                    }
+                    "vue" => {
+                        languages.insert("vue".to_string());
+                    }
+                    "py" => {
+                        languages.insert("python".to_string());
+                    }
+                    "json" => {
+                        languages.insert("json".to_string());
+                    }
+                    "css" | "scss" | "less" => {
+                        languages.insert("css".to_string());
+                    }
+                    "html" | "htm" => {
+                        languages.insert("html".to_string());
+                    }
                     _ => {}
                 }
             }
@@ -1773,14 +1991,20 @@ async fn start_context_service(
         .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
         .is_err()
     {
-        eprintln!("[brain] start_context_service: another spawn in progress, waiting for address...");
+        eprintln!(
+            "[brain] start_context_service: another spawn in progress, waiting for address..."
+        );
         for i in 0..150 {
             // Check if the spawning call finished (flag cleared) and stored an address
             if let Ok(ctx) = state.lock() {
                 if let Some(addr) = ctx.address.clone() {
                     // Address stored — verify it's reachable before returning
                     if TcpStream::connect(&addr).is_ok() {
-                        eprintln!("[brain] start_context_service: reusing address {} after {}ms wait", addr, i * 100);
+                        eprintln!(
+                            "[brain] start_context_service: reusing address {} after {}ms wait",
+                            addr,
+                            i * 100
+                        );
                         return Ok(addr);
                     }
                 }
@@ -1792,7 +2016,10 @@ async fn start_context_service(
                 if let Ok(ctx) = state.lock() {
                     if let Some(addr) = ctx.address.clone() {
                         if TcpStream::connect(&addr).is_ok() {
-                            eprintln!("[brain] start_context_service: reusing address {} (flag cleared)", addr);
+                            eprintln!(
+                                "[brain] start_context_service: reusing address {} (flag cleared)",
+                                addr
+                            );
                             return Ok(addr);
                         }
                     }
@@ -1807,7 +2034,9 @@ async fn start_context_service(
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
             .is_err()
         {
-            return Err("Context service start already in progress (timed out waiting)".to_string());
+            return Err(
+                "Context service start already in progress (timed out waiting)".to_string(),
+            );
         }
         // Fall through to spawn logic below
         eprintln!("[brain] start_context_service: acquired spawner lock after wait");
@@ -1821,12 +2050,18 @@ async fn start_context_service(
 
     if let Some(addr) = existing_addr {
         if TcpStream::connect(&addr).is_ok() {
-            eprintln!("[brain] start_context_service: reusing existing address {}", addr);
+            eprintln!(
+                "[brain] start_context_service: reusing existing address {}",
+                addr
+            );
             CONTEXT_STARTING.store(false, Ordering::SeqCst);
             return Ok(addr);
         }
         // Stale address (old sidecar died): clear and fall through to spawn a new one.
-        eprintln!("[brain] start_context_service: existing address {} unreachable, spawning new sidecar", addr);
+        eprintln!(
+            "[brain] start_context_service: existing address {} unreachable, spawning new sidecar",
+            addr
+        );
         let mut ctx = state.lock().map_err(|_| "Lock error".to_string())?;
         ctx.socket = None;
         ctx.address = None;
@@ -1835,20 +2070,15 @@ async fn start_context_service(
 
     eprintln!("[brain] start_context_service: spawning new sidecar process");
 
-    let sidecar = app
-        .shell()
-        .sidecar("construct-brain")
-        .map_err(|e| {
-            CONTEXT_STARTING.store(false, Ordering::SeqCst);
-            format!("Failed to create sidecar: {}", e)
-        })?;
+    let sidecar = app.shell().sidecar("construct-brain").map_err(|e| {
+        CONTEXT_STARTING.store(false, Ordering::SeqCst);
+        format!("Failed to create sidecar: {}", e)
+    })?;
 
-    let (mut rx, child) = sidecar
-        .spawn()
-        .map_err(|e| {
-            CONTEXT_STARTING.store(false, Ordering::SeqCst);
-            format!("Failed to spawn sidecar: {}", e)
-        })?;
+    let (mut rx, child) = sidecar.spawn().map_err(|e| {
+        CONTEXT_STARTING.store(false, Ordering::SeqCst);
+        format!("Failed to spawn sidecar: {}", e)
+    })?;
 
     // Keep child handle alive to prevent sidecar process from being dropped.
     {
@@ -1868,7 +2098,10 @@ async fn start_context_service(
                 let line_str = String::from_utf8_lossy(&line);
                 if let Some(addr) = line_str.strip_prefix("CONTEXT_ADDR=") {
                     let address = addr.trim().to_string();
-                    eprintln!("[brain] start_context_service: sidecar ready at {}", address);
+                    eprintln!(
+                        "[brain] start_context_service: sidecar ready at {}",
+                        address
+                    );
                     // Store address immediately so subsequent start calls can reuse it.
                     if let Ok(mut ctx) = state.lock() {
                         ctx.address = Some(address.clone());
@@ -1891,7 +2124,10 @@ async fn start_context_service(
                 return Err(format!("Sidecar error: {}", err));
             }
             CommandEvent::Terminated(status) => {
-                eprintln!("[brain] start_context_service: sidecar terminated: {:?}", status);
+                eprintln!(
+                    "[brain] start_context_service: sidecar terminated: {:?}",
+                    status
+                );
                 if let Ok(mut ctx) = state.lock() {
                     ctx.child = None;
                     ctx.address = None;
@@ -1994,7 +2230,10 @@ fn send_request_internal(
         match reader.read_line(&mut line) {
             Ok(0) => return Err("Connection closed".to_string()),
             Ok(_) => {}
-            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock || e.kind() == std::io::ErrorKind::TimedOut => {
+            Err(e)
+                if e.kind() == std::io::ErrorKind::WouldBlock
+                    || e.kind() == std::io::ErrorKind::TimedOut =>
+            {
                 return Err(format!("Request timeout after {:?}", timeout));
             }
             Err(e) => return Err(format!("Read failed: {}", e)),
@@ -2011,7 +2250,9 @@ fn send_request_internal(
             if response.success.unwrap_or(false) {
                 return Ok(response.data.unwrap_or(serde_json::Value::Null));
             } else {
-                return Err(response.error.unwrap_or_else(|| "Unknown error".to_string()));
+                return Err(response
+                    .error
+                    .unwrap_or_else(|| "Unknown error".to_string()));
             }
         }
     }
@@ -2053,7 +2294,10 @@ fn send_context_request(
                     }
                     Err(reconnect_err) => {
                         ctx.socket = None;
-                        Err(format!("Connection lost and reconnect failed: {}", reconnect_err))
+                        Err(format!(
+                            "Connection lost and reconnect failed: {}",
+                            reconnect_err
+                        ))
                     }
                 }
             } else {
@@ -2118,7 +2362,9 @@ fn list_models(state: tauri::State<'_, SharedContextState>) -> Result<serde_json
 }
 
 #[tauri::command]
-fn list_providers(state: tauri::State<'_, SharedContextState>) -> Result<serde_json::Value, String> {
+fn list_providers(
+    state: tauri::State<'_, SharedContextState>,
+) -> Result<serde_json::Value, String> {
     send_context_request(state, "ai.providers".to_string(), None)
 }
 
@@ -2172,8 +2418,8 @@ async fn chat_stream(
     model: String,
     messages: Vec<serde_json::Value>,
     token: Option<String>,
-    agent_id: Option<String>,              // Agent ID from registry (e.g. "design")
-    space: Option<String>,                 // Space name (e.g. "architect", "code", "design")
+    agent_id: Option<String>, // Agent ID from registry (e.g. "design")
+    space: Option<String>,    // Space name (e.g. "architect", "code", "design")
     local_data: Option<serde_json::Value>, // Frontend-provided local data (designs, canvas state, etc.)
     max_iterations: Option<i32>,           // Override max agentic loop iterations
 ) -> Result<(), String> {
@@ -2207,13 +2453,16 @@ async fn chat_stream(
             }
             Err(e) => {
                 eprintln!("[chat_stream thread] Connection failed: {}", e);
-                let _ = app_clone.emit("chat-stream-chunk", StreamChunk {
-                    content: String::new(),
-                    done: true,
-                    error: Some(format!("Connection failed: {}", e)),
-                    message_type: None,
-                    route: None,
-                });
+                let _ = app_clone.emit(
+                    "chat-stream-chunk",
+                    StreamChunk {
+                        content: String::new(),
+                        done: true,
+                        error: Some(format!("Connection failed: {}", e)),
+                        message_type: None,
+                        route: None,
+                    },
+                );
                 return;
             }
         };
@@ -2241,13 +2490,16 @@ async fn chat_stream(
         let request_json = match serde_json::to_string(&request) {
             Ok(json) => json,
             Err(e) => {
-                let _ = app_clone.emit("chat-stream-chunk", StreamChunk {
-                    content: String::new(),
-                    done: true,
-                    error: Some(format!("Serialize failed: {}", e)),
-                    message_type: None,
-                    route: None,
-                });
+                let _ = app_clone.emit(
+                    "chat-stream-chunk",
+                    StreamChunk {
+                        content: String::new(),
+                        done: true,
+                        error: Some(format!("Serialize failed: {}", e)),
+                        message_type: None,
+                        route: None,
+                    },
+                );
                 return;
             }
         };
@@ -2255,13 +2507,16 @@ async fn chat_stream(
         eprintln!("[chat_stream thread] Sending request: {}", request_json);
         if let Err(e) = socket.write_all(format!("{}\n", request_json).as_bytes()) {
             eprintln!("[chat_stream thread] Write failed: {}", e);
-            let _ = app_clone.emit("chat-stream-chunk", StreamChunk {
-                content: String::new(),
-                done: true,
-                error: Some(format!("Write failed: {}", e)),
-                message_type: None,
-                route: None,
-            });
+            let _ = app_clone.emit(
+                "chat-stream-chunk",
+                StreamChunk {
+                    content: String::new(),
+                    done: true,
+                    error: Some(format!("Write failed: {}", e)),
+                    message_type: None,
+                    route: None,
+                },
+            );
             return;
         }
         eprintln!("[chat_stream thread] Request sent, waiting for responses...");
@@ -2274,34 +2529,46 @@ async fn chat_stream(
             line.clear();
             match reader.read_line(&mut line) {
                 Ok(0) => {
-                    let _ = app_clone.emit("chat-stream-chunk", StreamChunk {
-                        content: String::new(),
-                        done: true,
-                        error: Some("Connection closed".to_string()),
-                        message_type: None,
-                        route: None,
-                    });
+                    let _ = app_clone.emit(
+                        "chat-stream-chunk",
+                        StreamChunk {
+                            content: String::new(),
+                            done: true,
+                            error: Some("Connection closed".to_string()),
+                            message_type: None,
+                            route: None,
+                        },
+                    );
                     break;
                 }
                 Ok(_) => {}
-                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock || e.kind() == std::io::ErrorKind::TimedOut => {
-                    let _ = app_clone.emit("chat-stream-chunk", StreamChunk {
-                        content: String::new(),
-                        done: true,
-                        error: Some("Request timeout".to_string()),
-                        message_type: None,
-                        route: None,
-                    });
+                Err(e)
+                    if e.kind() == std::io::ErrorKind::WouldBlock
+                        || e.kind() == std::io::ErrorKind::TimedOut =>
+                {
+                    let _ = app_clone.emit(
+                        "chat-stream-chunk",
+                        StreamChunk {
+                            content: String::new(),
+                            done: true,
+                            error: Some("Request timeout".to_string()),
+                            message_type: None,
+                            route: None,
+                        },
+                    );
                     break;
                 }
                 Err(e) => {
-                    let _ = app_clone.emit("chat-stream-chunk", StreamChunk {
-                        content: String::new(),
-                        done: true,
-                        error: Some(format!("Read failed: {}", e)),
-                        message_type: None,
-                        route: None,
-                    });
+                    let _ = app_clone.emit(
+                        "chat-stream-chunk",
+                        StreamChunk {
+                            content: String::new(),
+                            done: true,
+                            error: Some(format!("Read failed: {}", e)),
+                            message_type: None,
+                            route: None,
+                        },
+                    );
                     break;
                 }
             }
@@ -2316,32 +2583,39 @@ async fn chat_stream(
             if let Ok(response) = serde_json::from_str::<serde_json::Value>(&line) {
                 // Check if this is a stream message for our request
                 if response.get("id").and_then(|v| v.as_str()) == Some(&id) {
-                    let content = response.get("content")
+                    let content = response
+                        .get("content")
                         .and_then(|v| v.as_str())
                         .unwrap_or("")
                         .to_string();
-                    let done = response.get("done")
+                    let done = response
+                        .get("done")
                         .and_then(|v| v.as_bool())
                         .unwrap_or(false);
-                    let error = response.get("error")
+                    let error = response
+                        .get("error")
                         .and_then(|v| v.as_str())
                         .map(|s| s.to_string());
-                    let message_type = response.get("type")
+                    let message_type = response
+                        .get("type")
                         .and_then(|v| v.as_str())
                         .map(|s| s.to_string());
 
                     // Parse route info if present (sent in first chunk when auto-routed)
-                    let route = response.get("route").and_then(|r| {
-                        serde_json::from_value::<ModelRoute>(r.clone()).ok()
-                    });
+                    let route = response
+                        .get("route")
+                        .and_then(|r| serde_json::from_value::<ModelRoute>(r.clone()).ok());
 
-                    let _ = app_clone.emit("chat-stream-chunk", StreamChunk {
-                        content,
-                        done,
-                        error: error.clone(),
-                        message_type,
-                        route,
-                    });
+                    let _ = app_clone.emit(
+                        "chat-stream-chunk",
+                        StreamChunk {
+                            content,
+                            done,
+                            error: error.clone(),
+                            message_type,
+                            route,
+                        },
+                    );
 
                     if done || error.is_some() {
                         break;
@@ -2366,7 +2640,10 @@ async fn vision_analyze(
 ) -> Result<(), String> {
     use std::thread;
 
-    eprintln!("[vision_analyze] Called with model: {}, detail_level: {}", model, detail_level);
+    eprintln!(
+        "[vision_analyze] Called with model: {}, detail_level: {}",
+        model, detail_level
+    );
 
     let state_clone = {
         let ctx = state.lock().map_err(|_| "Lock error".to_string())?;
@@ -2384,13 +2661,16 @@ async fn vision_analyze(
         let mut socket = match TcpStream::connect(&address) {
             Ok(s) => s,
             Err(e) => {
-                let _ = app_clone.emit("vision-stream-chunk", StreamChunk {
-                    content: String::new(),
-                    done: true,
-                    error: Some(format!("Connection failed: {}", e)),
-                    message_type: None,
-                    route: None,
-                });
+                let _ = app_clone.emit(
+                    "vision-stream-chunk",
+                    StreamChunk {
+                        content: String::new(),
+                        done: true,
+                        error: Some(format!("Connection failed: {}", e)),
+                        message_type: None,
+                        route: None,
+                    },
+                );
                 return;
             }
         };
@@ -2414,26 +2694,35 @@ async fn vision_analyze(
         let request_json = match serde_json::to_string(&request) {
             Ok(json) => json,
             Err(e) => {
-                let _ = app_clone.emit("vision-stream-chunk", StreamChunk {
-                    content: String::new(),
-                    done: true,
-                    error: Some(format!("Serialize failed: {}", e)),
-                    message_type: None,
-                    route: None,
-                });
+                let _ = app_clone.emit(
+                    "vision-stream-chunk",
+                    StreamChunk {
+                        content: String::new(),
+                        done: true,
+                        error: Some(format!("Serialize failed: {}", e)),
+                        message_type: None,
+                        route: None,
+                    },
+                );
                 return;
             }
         };
 
-        eprintln!("[vision_analyze] Sending request (image_url len: {})", image_url.len());
+        eprintln!(
+            "[vision_analyze] Sending request (image_url len: {})",
+            image_url.len()
+        );
         if let Err(e) = socket.write_all(format!("{}\n", request_json).as_bytes()) {
-            let _ = app_clone.emit("vision-stream-chunk", StreamChunk {
-                content: String::new(),
-                done: true,
-                error: Some(format!("Write failed: {}", e)),
-                message_type: None,
-                route: None,
-            });
+            let _ = app_clone.emit(
+                "vision-stream-chunk",
+                StreamChunk {
+                    content: String::new(),
+                    done: true,
+                    error: Some(format!("Write failed: {}", e)),
+                    message_type: None,
+                    route: None,
+                },
+            );
             return;
         }
 
@@ -2444,34 +2733,46 @@ async fn vision_analyze(
             line.clear();
             match reader.read_line(&mut line) {
                 Ok(0) => {
-                    let _ = app_clone.emit("vision-stream-chunk", StreamChunk {
-                        content: String::new(),
-                        done: true,
-                        error: Some("Connection closed".to_string()),
-                        message_type: None,
-                        route: None,
-                    });
+                    let _ = app_clone.emit(
+                        "vision-stream-chunk",
+                        StreamChunk {
+                            content: String::new(),
+                            done: true,
+                            error: Some("Connection closed".to_string()),
+                            message_type: None,
+                            route: None,
+                        },
+                    );
                     break;
                 }
                 Ok(_) => {}
-                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock || e.kind() == std::io::ErrorKind::TimedOut => {
-                    let _ = app_clone.emit("vision-stream-chunk", StreamChunk {
-                        content: String::new(),
-                        done: true,
-                        error: Some("Request timeout".to_string()),
-                        message_type: None,
-                        route: None,
-                    });
+                Err(e)
+                    if e.kind() == std::io::ErrorKind::WouldBlock
+                        || e.kind() == std::io::ErrorKind::TimedOut =>
+                {
+                    let _ = app_clone.emit(
+                        "vision-stream-chunk",
+                        StreamChunk {
+                            content: String::new(),
+                            done: true,
+                            error: Some("Request timeout".to_string()),
+                            message_type: None,
+                            route: None,
+                        },
+                    );
                     break;
                 }
                 Err(e) => {
-                    let _ = app_clone.emit("vision-stream-chunk", StreamChunk {
-                        content: String::new(),
-                        done: true,
-                        error: Some(format!("Read failed: {}", e)),
-                        message_type: None,
-                        route: None,
-                    });
+                    let _ = app_clone.emit(
+                        "vision-stream-chunk",
+                        StreamChunk {
+                            content: String::new(),
+                            done: true,
+                            error: Some(format!("Read failed: {}", e)),
+                            message_type: None,
+                            route: None,
+                        },
+                    );
                     break;
                 }
             }
@@ -2482,24 +2783,30 @@ async fn vision_analyze(
 
             if let Ok(response) = serde_json::from_str::<serde_json::Value>(&line) {
                 if response.get("id").and_then(|v| v.as_str()) == Some(&id) {
-                    let content = response.get("content")
+                    let content = response
+                        .get("content")
                         .and_then(|v| v.as_str())
                         .unwrap_or("")
                         .to_string();
-                    let done = response.get("done")
+                    let done = response
+                        .get("done")
                         .and_then(|v| v.as_bool())
                         .unwrap_or(false);
-                    let error = response.get("error")
+                    let error = response
+                        .get("error")
                         .and_then(|v| v.as_str())
                         .map(|s| s.to_string());
 
-                    let _ = app_clone.emit("vision-stream-chunk", StreamChunk {
-                        content,
-                        done,
-                        error: error.clone(),
-                        message_type: None,
-                        route: None,
-                    });
+                    let _ = app_clone.emit(
+                        "vision-stream-chunk",
+                        StreamChunk {
+                            content,
+                            done,
+                            error: error.clone(),
+                            message_type: None,
+                            route: None,
+                        },
+                    );
 
                     if done || error.is_some() {
                         break;
@@ -2535,11 +2842,27 @@ fn build_app_menu(app: &tauri::AppHandle, space: &str) -> Result<Menu<tauri::Wry
 
     // File menu
     let file_menu = SubmenuBuilder::new(app, "File")
-        .item(&MenuItemBuilder::with_id("new_project", "New Project").accelerator("CmdOrCtrl+N").build(app)?)
-        .item(&MenuItemBuilder::with_id("open_project", "Open Project...").accelerator("CmdOrCtrl+O").build(app)?)
+        .item(
+            &MenuItemBuilder::with_id("new_project", "New Project")
+                .accelerator("CmdOrCtrl+N")
+                .build(app)?,
+        )
+        .item(
+            &MenuItemBuilder::with_id("open_project", "Open Project...")
+                .accelerator("CmdOrCtrl+O")
+                .build(app)?,
+        )
         .separator()
-        .item(&MenuItemBuilder::with_id("save", "Save").accelerator("CmdOrCtrl+S").build(app)?)
-        .item(&MenuItemBuilder::with_id("save_as", "Save As...").accelerator("CmdOrCtrl+Shift+S").build(app)?)
+        .item(
+            &MenuItemBuilder::with_id("save", "Save")
+                .accelerator("CmdOrCtrl+S")
+                .build(app)?,
+        )
+        .item(
+            &MenuItemBuilder::with_id("save_as", "Save As...")
+                .accelerator("CmdOrCtrl+Shift+S")
+                .build(app)?,
+        )
         .separator()
         .item(&PredefinedMenuItem::close_window(app, None)?)
         .build()?;
@@ -2557,8 +2880,16 @@ fn build_app_menu(app: &tauri::AppHandle, space: &str) -> Result<Menu<tauri::Wry
 
     // View menu - common items
     let mut view_menu_builder = SubmenuBuilder::new(app, "View")
-        .item(&MenuItemBuilder::with_id("toggle_sidebar", "Toggle Sidebar").accelerator("CmdOrCtrl+B").build(app)?)
-        .item(&MenuItemBuilder::with_id("toggle_assistant", "Toggle Assistant").accelerator("CmdOrCtrl+\\").build(app)?)
+        .item(
+            &MenuItemBuilder::with_id("toggle_sidebar", "Toggle Sidebar")
+                .accelerator("CmdOrCtrl+B")
+                .build(app)?,
+        )
+        .item(
+            &MenuItemBuilder::with_id("toggle_assistant", "Toggle Assistant")
+                .accelerator("CmdOrCtrl+\\")
+                .build(app)?,
+        )
         .separator()
         .item(&PredefinedMenuItem::fullscreen(app, None)?);
 
@@ -2567,15 +2898,35 @@ fn build_app_menu(app: &tauri::AppHandle, space: &str) -> Result<Menu<tauri::Wry
         "code" => {
             view_menu_builder = view_menu_builder
                 .separator()
-                .item(&MenuItemBuilder::with_id("toggle_terminal", "Toggle Terminal").accelerator("CmdOrCtrl+`").build(app)?)
-                .item(&MenuItemBuilder::with_id("toggle_problems", "Toggle Problems").accelerator("CmdOrCtrl+Shift+M").build(app)?);
+                .item(
+                    &MenuItemBuilder::with_id("toggle_terminal", "Toggle Terminal")
+                        .accelerator("CmdOrCtrl+`")
+                        .build(app)?,
+                )
+                .item(
+                    &MenuItemBuilder::with_id("toggle_problems", "Toggle Problems")
+                        .accelerator("CmdOrCtrl+Shift+M")
+                        .build(app)?,
+                );
         }
         "ui" => {
             view_menu_builder = view_menu_builder
                 .separator()
-                .item(&MenuItemBuilder::with_id("zoom_in", "Zoom In").accelerator("CmdOrCtrl+=").build(app)?)
-                .item(&MenuItemBuilder::with_id("zoom_out", "Zoom Out").accelerator("CmdOrCtrl+-").build(app)?)
-                .item(&MenuItemBuilder::with_id("zoom_fit", "Zoom to Fit").accelerator("CmdOrCtrl+0").build(app)?);
+                .item(
+                    &MenuItemBuilder::with_id("zoom_in", "Zoom In")
+                        .accelerator("CmdOrCtrl+=")
+                        .build(app)?,
+                )
+                .item(
+                    &MenuItemBuilder::with_id("zoom_out", "Zoom Out")
+                        .accelerator("CmdOrCtrl+-")
+                        .build(app)?,
+                )
+                .item(
+                    &MenuItemBuilder::with_id("zoom_fit", "Zoom to Fit")
+                        .accelerator("CmdOrCtrl+0")
+                        .build(app)?,
+                );
         }
         "kanban" => {
             view_menu_builder = view_menu_builder
@@ -2590,32 +2941,82 @@ fn build_app_menu(app: &tauri::AppHandle, space: &str) -> Result<Menu<tauri::Wry
 
     // Space-specific menu
     let space_menu = match space {
-        "code" => Some(SubmenuBuilder::new(app, "Code")
-            .item(&MenuItemBuilder::with_id("go_to_file", "Go to File...").accelerator("CmdOrCtrl+P").build(app)?)
-            .item(&MenuItemBuilder::with_id("go_to_symbol", "Go to Symbol...").accelerator("CmdOrCtrl+Shift+O").build(app)?)
-            .separator()
-            .item(&MenuItemBuilder::with_id("find_in_files", "Find in Files...").accelerator("CmdOrCtrl+Shift+F").build(app)?)
-            .item(&MenuItemBuilder::with_id("replace_in_files", "Replace in Files...").accelerator("CmdOrCtrl+Shift+H").build(app)?)
-            .separator()
-            .item(&MenuItemBuilder::with_id("format_document", "Format Document").accelerator("CmdOrCtrl+Shift+I").build(app)?)
-            .build()?),
-        "ui" => Some(SubmenuBuilder::new(app, "Design")
-            .item(&MenuItemBuilder::with_id("add_frame", "Add Frame").accelerator("F").build(app)?)
-            .item(&MenuItemBuilder::with_id("add_text", "Add Text").accelerator("T").build(app)?)
-            .item(&MenuItemBuilder::with_id("add_rectangle", "Add Rectangle").accelerator("R").build(app)?)
-            .separator()
-            .item(&MenuItemBuilder::with_id("align_left", "Align Left").build(app)?)
-            .item(&MenuItemBuilder::with_id("align_center", "Align Center").build(app)?)
-            .item(&MenuItemBuilder::with_id("align_right", "Align Right").build(app)?)
-            .separator()
-            .item(&MenuItemBuilder::with_id("export_selection", "Export Selection...").accelerator("CmdOrCtrl+Shift+E").build(app)?)
-            .build()?),
-        "kanban" => Some(SubmenuBuilder::new(app, "Board")
-            .item(&MenuItemBuilder::with_id("new_column", "New Column").build(app)?)
-            .item(&MenuItemBuilder::with_id("new_card", "New Card").accelerator("CmdOrCtrl+Enter").build(app)?)
-            .separator()
-            .item(&MenuItemBuilder::with_id("filter_cards", "Filter Cards...").accelerator("CmdOrCtrl+F").build(app)?)
-            .build()?),
+        "code" => Some(
+            SubmenuBuilder::new(app, "Code")
+                .item(
+                    &MenuItemBuilder::with_id("go_to_file", "Go to File...")
+                        .accelerator("CmdOrCtrl+P")
+                        .build(app)?,
+                )
+                .item(
+                    &MenuItemBuilder::with_id("go_to_symbol", "Go to Symbol...")
+                        .accelerator("CmdOrCtrl+Shift+O")
+                        .build(app)?,
+                )
+                .separator()
+                .item(
+                    &MenuItemBuilder::with_id("find_in_files", "Find in Files...")
+                        .accelerator("CmdOrCtrl+Shift+F")
+                        .build(app)?,
+                )
+                .item(
+                    &MenuItemBuilder::with_id("replace_in_files", "Replace in Files...")
+                        .accelerator("CmdOrCtrl+Shift+H")
+                        .build(app)?,
+                )
+                .separator()
+                .item(
+                    &MenuItemBuilder::with_id("format_document", "Format Document")
+                        .accelerator("CmdOrCtrl+Shift+I")
+                        .build(app)?,
+                )
+                .build()?,
+        ),
+        "ui" => Some(
+            SubmenuBuilder::new(app, "Design")
+                .item(
+                    &MenuItemBuilder::with_id("add_frame", "Add Frame")
+                        .accelerator("F")
+                        .build(app)?,
+                )
+                .item(
+                    &MenuItemBuilder::with_id("add_text", "Add Text")
+                        .accelerator("T")
+                        .build(app)?,
+                )
+                .item(
+                    &MenuItemBuilder::with_id("add_rectangle", "Add Rectangle")
+                        .accelerator("R")
+                        .build(app)?,
+                )
+                .separator()
+                .item(&MenuItemBuilder::with_id("align_left", "Align Left").build(app)?)
+                .item(&MenuItemBuilder::with_id("align_center", "Align Center").build(app)?)
+                .item(&MenuItemBuilder::with_id("align_right", "Align Right").build(app)?)
+                .separator()
+                .item(
+                    &MenuItemBuilder::with_id("export_selection", "Export Selection...")
+                        .accelerator("CmdOrCtrl+Shift+E")
+                        .build(app)?,
+                )
+                .build()?,
+        ),
+        "kanban" => Some(
+            SubmenuBuilder::new(app, "Board")
+                .item(&MenuItemBuilder::with_id("new_column", "New Column").build(app)?)
+                .item(
+                    &MenuItemBuilder::with_id("new_card", "New Card")
+                        .accelerator("CmdOrCtrl+Enter")
+                        .build(app)?,
+                )
+                .separator()
+                .item(
+                    &MenuItemBuilder::with_id("filter_cards", "Filter Cards...")
+                        .accelerator("CmdOrCtrl+F")
+                        .build(app)?,
+                )
+                .build()?,
+        ),
         _ => None,
     };
 
@@ -2624,15 +3025,27 @@ fn build_app_menu(app: &tauri::AppHandle, space: &str) -> Result<Menu<tauri::Wry
         .item(&PredefinedMenuItem::minimize(app, None)?)
         .item(&PredefinedMenuItem::maximize(app, None)?)
         .separator()
-        .item(&MenuItemBuilder::with_id("projects", "Projects").accelerator("CmdOrCtrl+1").build(app)?)
+        .item(
+            &MenuItemBuilder::with_id("projects", "Projects")
+                .accelerator("CmdOrCtrl+1")
+                .build(app)?,
+        )
         .separator()
-        .item(&MenuItemBuilder::with_id("settings", "Settings...").accelerator("CmdOrCtrl+,").build(app)?)
+        .item(
+            &MenuItemBuilder::with_id("settings", "Settings...")
+                .accelerator("CmdOrCtrl+,")
+                .build(app)?,
+        )
         .build()?;
 
     // Help menu
     let help_menu = SubmenuBuilder::new(app, "Help")
         .item(&MenuItemBuilder::with_id("documentation", "Documentation").build(app)?)
-        .item(&MenuItemBuilder::with_id("keyboard_shortcuts", "Keyboard Shortcuts").accelerator("CmdOrCtrl+Shift+/").build(app)?)
+        .item(
+            &MenuItemBuilder::with_id("keyboard_shortcuts", "Keyboard Shortcuts")
+                .accelerator("CmdOrCtrl+Shift+/")
+                .build(app)?,
+        )
         .separator()
         .item(&MenuItemBuilder::with_id("report_issue", "Report Issue...").build(app)?)
         .item(&MenuItemBuilder::with_id("check_updates_help", "Check for Updates...").build(app)?)
@@ -2649,17 +3062,18 @@ fn build_app_menu(app: &tauri::AppHandle, space: &str) -> Result<Menu<tauri::Wry
         menu_builder = menu_builder.item(&space_submenu);
     }
 
-    menu_builder
-        .item(&window_menu)
-        .item(&help_menu)
-        .build()
+    menu_builder.item(&window_menu).item(&help_menu).build()
 }
 
 #[tauri::command]
 fn set_app_menu(app: tauri::AppHandle, space: String) -> Result<(), String> {
     // Use write! instead of eprintln! to avoid panic when stderr is unavailable
     // (common in bundled .app where stderr may be closed)
-    let _ = write!(std::io::stderr(), "[Menu] Setting menu for space: {}\n", space);
+    let _ = write!(
+        std::io::stderr(),
+        "[Menu] Setting menu for space: {}\n",
+        space
+    );
 
     match build_app_menu(&app, &space) {
         Ok(menu) => {
@@ -2702,7 +3116,9 @@ fn set_traffic_lights_visible(window: tauri::WebviewWindow, visible: bool) -> Re
         if let Some(close_button) = ns_window.standardWindowButton(NSWindowButton::CloseButton) {
             close_button.setHidden(!visible);
         }
-        if let Some(miniaturize_button) = ns_window.standardWindowButton(NSWindowButton::MiniaturizeButton) {
+        if let Some(miniaturize_button) =
+            ns_window.standardWindowButton(NSWindowButton::MiniaturizeButton)
+        {
             miniaturize_button.setHidden(!visible);
         }
         if let Some(zoom_button) = ns_window.standardWindowButton(NSWindowButton::ZoomButton) {
@@ -2732,7 +3148,11 @@ fn check_accessibility_permission(prompt: bool) -> bool {
         // This triggers the macOS system prompt to grant accessibility access
         unsafe {
             extern "C" {
-                fn CFStringCreateWithCString(alloc: *const c_void, c_str: *const u8, encoding: u32) -> *const c_void;
+                fn CFStringCreateWithCString(
+                    alloc: *const c_void,
+                    c_str: *const u8,
+                    encoding: u32,
+                ) -> *const c_void;
                 fn CFDictionaryCreate(
                     allocator: *const c_void,
                     keys: *const *const c_void,
@@ -2833,18 +3253,24 @@ fn open_system_color_picker(initial_hex: Option<String>) -> Result<Option<String
         return Ok(None);
     }
 
-    let stdout = String::from_utf8(output.stdout)
-        .map_err(|e| format!("Invalid picker response: {}", e))?;
+    let stdout =
+        String::from_utf8(output.stdout).map_err(|e| format!("Invalid picker response: {}", e))?;
     let parts: Vec<&str> = stdout.trim().split(',').collect();
     if parts.len() < 3 {
         return Err("Unexpected color picker response".to_string());
     }
 
-    let r16 = parts[0].trim().parse::<u16>()
+    let r16 = parts[0]
+        .trim()
+        .parse::<u16>()
         .map_err(|_| "Invalid red channel from color picker".to_string())?;
-    let g16 = parts[1].trim().parse::<u16>()
+    let g16 = parts[1]
+        .trim()
+        .parse::<u16>()
         .map_err(|_| "Invalid green channel from color picker".to_string())?;
-    let b16 = parts[2].trim().parse::<u16>()
+    let b16 = parts[2]
+        .trim()
+        .parse::<u16>()
         .map_err(|_| "Invalid blue channel from color picker".to_string())?;
 
     Ok(Some(rgb16_to_hex(r16, g16, b16)))
@@ -2874,9 +3300,7 @@ pub fn run() {
         tabs: HashMap::new(),
     }));
 
-    let oauth_state: SharedOAuthState = Arc::new(Mutex::new(OAuthState {
-        pending_auth: None,
-    }));
+    let oauth_state: SharedOAuthState = Arc::new(Mutex::new(OAuthState { pending_auth: None }));
 
     let process_state: SharedProcessState = Arc::new(Mutex::new(ProcessState {
         processes: HashMap::new(),
@@ -2903,7 +3327,10 @@ pub fn run() {
         .plugin(tauri_plugin_sql::Builder::new().build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_clipboard_manager::init())
-        .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .plugin(
             tauri_plugin_log::Builder::new()
                 .targets([
@@ -2930,8 +3357,8 @@ pub fn run() {
         .plugin(tauri_plugin_upload::init())
         .plugin(tauri_plugin_websocket::init())
         .plugin(tauri_plugin_window_state::Builder::new().build());
-        // stronghold requires a password callback — configure when needed
-        // .plugin(tauri_plugin_stronghold::Builder::new(|password| { ... }).build())
+    // stronghold requires a password callback — configure when needed
+    // .plugin(tauri_plugin_stronghold::Builder::new(|password| { ... }).build())
 
     // macOS-only plugins
     #[cfg(target_os = "macos")]
@@ -3045,13 +3472,18 @@ pub fn run() {
                     let _ = app.emit("menu:settings", ());
                 }
                 "documentation" => {
-                    let _ = app.opener().open_url("https://construct.ninja/docs", None::<&str>);
+                    let _ = app
+                        .opener()
+                        .open_url("https://construct.ninja/docs", None::<&str>);
                 }
                 "keyboard_shortcuts" => {
                     let _ = app.emit("menu:keyboard-shortcuts", ());
                 }
                 "report_issue" => {
-                    let _ = app.opener().open_url("https://github.com/construct-space/construct-releases/issues", None::<&str>);
+                    let _ = app.opener().open_url(
+                        "https://github.com/construct-space/construct-releases/issues",
+                        None::<&str>,
+                    );
                 }
                 _ => {}
             }

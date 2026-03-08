@@ -109,6 +109,17 @@ const BACKEND_TO_TEMPLATE: Record<string, string> = {
   hono: 'hono',
   elysia: 'elysia',
   phoenix: 'phoenix',
+  go: 'go',
+  golang: 'go',
+  gin: 'go',
+  fiber: 'go',
+  'custom-go': 'go',
+  'custom-email-password-go': 'go',
+  'go-chi': 'go',
+  'go-echo': 'go',
+  rust: 'rust',
+  actix: 'rust',
+  axum: 'rust',
 }
 
 export function mapBackendToTemplate(backendValue: string | undefined): TemplateConfig | null {
