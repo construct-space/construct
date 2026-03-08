@@ -12,7 +12,7 @@
  * Uses the 'architect' agent (agent_id) for model tier routing.
  */
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { useProjectStore } from '@/stores/project'
 import { useToolbar } from '@/composables/useToolbar'
 import { useToast } from '@/composables/useToast'
@@ -270,6 +270,16 @@ const answeredQuestions = computed(() => {
 })
 
 const completedCount = computed(() => answeredQuestions.value.length)
+
+// Current phase for stepper: 0=describe, 1=interview, 2=plan, 3=configure
+const currentPhase = computed(() => {
+  if (showProjectConfig.value) return 3
+  if (isDone.value) return 2
+  if (step.value > 0 || isLoading.value) return 1
+  return 0
+})
+
+const showSidebar = computed(() => isInInterview.value && answeredQuestions.value.length > 0)
 
 // Reset selection when step changes
 watch(step, () => {
@@ -993,159 +1003,146 @@ onUnmounted(() => {
 <template>
   <DashboardPanel :ui="{ body: 'p-0 sm:p-0' }">
     <template #body>
-      <div class="h-screen overflow-y-auto flex items-start lg:items-center justify-center px-6 py-8">
-        <div class="w-full max-w-4xl">
-          <div class="grid grid-cols-1 lg:grid-cols-5 gap-12 items-start">
-            <!-- LEFT: Progress (2 cols) -->
-            <div class="lg:col-span-2 space-y-6">
-              <!-- Header -->
-              <div class="text-right">
-                <p class="text-2xl">
-                  <span class="text-app-muted">ARCHITECT:</span>
-                  <span class="font-bold text-app">{{ isInsideProject ? 'FEATURE' : 'PROJECT' }}</span>
-                </p>
-                <p v-if="isInsideProject" class="text-xs text-app-muted mt-1">
-                  {{ currentProject?.name }}
-                </p>
-              </div>
-
-              <!-- Progress -->
-              <div v-if="questions.length > 0" class="text-right space-y-2">
-                <div class="flex items-center justify-end gap-3">
-                  <span class="text-sm text-app-muted uppercase tracking-wider">Progress</span>
-                  <span class="text-3xl font-bold text-app">{{ completedCount }}/{{ questions.length }}</span>
+      <div class="h-screen flex flex-col">
+        <!-- Step indicator bar -->
+        <div class="shrink-0 border-b border-app-border/50 px-8 py-3.5">
+          <div class="max-w-4xl mx-auto flex items-center gap-1">
+            <template v-for="(s, i) in [
+              { label: 'Describe', icon: 'i-lucide-pen-line' },
+              { label: 'Interview', icon: 'i-lucide-message-circle' },
+              { label: 'Plan', icon: 'i-lucide-file-text' },
+              { label: 'Create', icon: 'i-lucide-rocket' },
+            ]" :key="s.label">
+              <div
+                class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs transition-all duration-300"
+                :class="[
+                  i === currentPhase ? 'bg-app-accent/10 text-app-accent font-medium' : '',
+                  i < currentPhase ? 'text-app-muted' : '',
+                  i > currentPhase ? 'text-app-muted/30' : '',
+                ]"
+              >
+                <div
+                  class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold transition-all duration-300"
+                  :class="[
+                    i < currentPhase ? 'bg-app-accent/15 text-app-accent' : '',
+                    i === currentPhase ? 'bg-app-accent text-white' : '',
+                    i > currentPhase ? 'bg-white/6 text-app-muted/30' : '',
+                  ]"
+                >
+                  <Icon v-if="i < currentPhase" name="i-lucide-check" class="size-3" />
+                  <Icon v-else :name="s.icon" class="size-2.5" />
                 </div>
-                <div class="h-1 bg-white/10 rounded-full overflow-hidden ml-auto w-48">
+                <span class="hidden sm:inline">{{ s.label }}</span>
+              </div>
+              <div v-if="i < 3" class="w-8 h-px mx-1 transition-colors duration-300" :class="i < currentPhase ? 'bg-app-accent/20' : 'bg-white/6'" />
+            </template>
+          </div>
+        </div>
+
+        <!-- Content area -->
+        <div class="flex-1 overflow-y-auto">
+          <div class="max-w-4xl mx-auto px-8 py-10">
+            <div class="flex gap-10" :class="showSidebar ? 'items-start' : 'justify-center'">
+              <!-- Sidebar: answered questions (only during interview) -->
+              <div v-if="showSidebar" class="w-52 shrink-0 sticky top-10 space-y-4">
+                <div class="flex items-center justify-between">
+                  <p class="text-[11px] text-app-muted/50 uppercase tracking-widest font-medium">Decisions</p>
+                  <span class="text-[10px] text-app-muted/40 font-mono">{{ completedCount }}/{{ questions.length }}</span>
+                </div>
+                <!-- Progress bar -->
+                <div class="h-1 bg-white/6 rounded-full overflow-hidden">
                   <div
-                    class="h-full bg-app-accent rounded-full transition-all duration-500 ease-out"
+                    class="h-full bg-app-accent/60 rounded-full transition-all duration-500 ease-out"
                     :style="{ width: `${questions.length ? (completedCount / questions.length) * 100 : 0}%` }"
                   />
                 </div>
+                <!-- Answered list -->
+                <div class="space-y-1">
+                  <button
+                    v-for="q in answeredQuestions"
+                    :key="q.id"
+                    class="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-white/5 transition-colors text-left group"
+                    @click="goToStep(questions.indexOf(q) + 1)"
+                  >
+                    <div class="w-6 h-6 rounded-md bg-white/6 flex items-center justify-center shrink-0 group-hover:bg-app-accent/10 transition-colors">
+                      <Icon :name="q.options[0]?.icon || 'i-lucide-box'" class="size-3 text-app-muted/60 group-hover:text-app-accent transition-colors" />
+                    </div>
+                    <div class="min-w-0 flex-1">
+                      <p class="text-[10px] text-app-muted/40 uppercase tracking-wider leading-none">{{ q.id }}</p>
+                      <p class="text-xs font-medium text-app truncate mt-0.5">{{ getAnswerLabel(q.id) }}</p>
+                    </div>
+                  </button>
+                </div>
               </div>
 
-              <!-- Answered questions (decisions) -->
-              <div v-if="answeredQuestions.length > 0" class="text-right space-y-2">
-                <div class="flex items-center justify-end gap-1 mb-3">
-                  <span class="font-bold text-app">{{ isInsideProject ? 'FEATURE' : 'TECH' }}</span>
-                  <span class="text-app-muted">{{ isInsideProject ? 'PLAN' : 'STACK' }}</span>
-                </div>
-                <button
-                  v-for="q in answeredQuestions"
-                  :key="q.id"
-                  class="w-full flex items-center justify-end gap-3 group"
-                  @click="goToStep(questions.indexOf(q) + 1)"
-                >
-                  <div class="text-right">
-                    <p class="text-xs text-app-muted uppercase tracking-wider">{{ q.id }}</p>
-                    <p class="font-medium text-app text-sm">{{ getAnswerLabel(q.id) }}</p>
+              <!-- Main step content -->
+              <div class="flex-1 max-w-xl" :class="!showSidebar && 'mx-auto'">
+                <Transition name="step" mode="out-in">
+                  <div :key="`${step}-${isDone}-${showProjectConfig}`">
+                    <ArchitectDescribeStep
+                      v-if="step === 0 && !isLoading"
+                      v-model:description="description"
+                      :is-inside-project="isInsideProject"
+                      :project-name="currentProject?.name"
+                      :error-message="errorMessage"
+                      @submit="submitDescription"
+                      @quick-start="quickStart"
+                      @dismiss-error="errorMessage = ''"
+                    />
+
+                    <ArchitectLoadingStep
+                      v-else-if="isLoading"
+                      :is-generating-questions="isGeneratingQuestions"
+                      :elapsed-seconds="elapsedSeconds"
+                      :loading-steps="loadingSteps"
+                      :loading-phase="loadingPhase"
+                      @cancel="cancelRequest"
+                    />
+
+                    <ArchitectInterviewStep
+                      v-else-if="isInInterview && currentQuestion"
+                      :question="currentQuestion"
+                      :step="step"
+                      :total-steps="questions.length"
+                      :selected-values="currentQuestion.type === 'multi' ? selectedMulti : (answers[currentQuestion.id] ? [answers[currentQuestion.id] as string] : [])"
+                      :show-other-input="showOtherInput"
+                      :other-input-value="otherInputValue"
+                      @select="selectOption"
+                      @confirm="confirmSelection"
+                      @confirm-other="confirmOther"
+                      @back="goBack"
+                      @update:show-other-input="showOtherInput = $event"
+                      @update:other-input-value="otherInputValue = $event"
+                    />
+
+                    <ArchitectPlanSummary
+                      v-else-if="isDone && plan && !showProjectConfig"
+                      :plan="plan"
+                      :is-inside-project="isInsideProject"
+                      :is-kicking="isKicking"
+                      @create-project="showConfigStep"
+                      @save-feature="saveFeaturePlan"
+                      @edit-choices="goToStep(1)"
+                    />
+
+                    <ArchitectProjectConfig
+                      v-else-if="isDone && plan && showProjectConfig"
+                      v-model:project-path="projectPath"
+                      v-model:init-git="initGit"
+                      :plan="plan"
+                      :is-kicking="isKicking"
+                      :kickoff-progress="kickoffProgress"
+                      :progress-message="progressMessage"
+                      :is-construct-space="isConstructSpace"
+                      :detected-template="detectedTemplate"
+                      :detected-backend-template="detectedBackendTemplate"
+                      @create="createProjectDirectly"
+                      @back="showProjectConfig = false"
+                      @browse="browseProjectDir"
+                    />
                   </div>
-                  <div class="w-8 h-8 rounded-md bg-white/50 dark:bg-white/10 flex items-center justify-center">
-                    <Icon :name="q.options[0]?.icon || 'i-lucide-box'" class="size-4 text-app-muted group-hover:text-app-accent transition-colors" />
-                  </div>
-                </button>
+                </Transition>
               </div>
-
-              <!-- Action button (left side) -->
-              <div v-if="isDone && !showProjectConfig" class="text-right pt-4">
-                <button
-                  v-if="!isInsideProject"
-                  class="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-white/50 dark:bg-white/10 text-app hover:bg-app-accent hover:text-white transition-colors"
-                  :class="isKicking ? 'opacity-60 pointer-events-none' : ''"
-                  @click="showConfigStep"
-                >
-                  <Icon name="i-lucide-rocket" class="size-4" />
-                  <span class="font-medium">{{ isKicking ? 'CREATING...' : 'CREATE PROJECT' }}</span>
-                </button>
-                <button
-                  v-else
-                  class="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-white/50 dark:bg-white/10 text-app hover:bg-app-accent hover:text-white transition-colors"
-                  @click="saveFeaturePlan"
-                >
-                  <Icon name="i-lucide-save" class="size-4" />
-                  <span class="font-medium">SAVE FEATURE</span>
-                </button>
-              </div>
-
-              <!-- Kickoff progress (left side) -->
-              <div v-if="isKicking" class="text-right pt-4 space-y-2">
-                <div class="flex items-center justify-end gap-2">
-                  <div class="architect-spinner" style="width: 14px; height: 14px;" />
-                  <span class="text-xs text-app-muted uppercase tracking-wider">Creating</span>
-                </div>
-                <div class="h-1 bg-white/10 rounded-full overflow-hidden ml-auto w-48">
-                  <div class="h-full bg-app-accent rounded-full transition-all duration-500 ease-out" :style="{ width: `${kickoffProgress}%` }" />
-                </div>
-                <p class="text-xs text-app-muted">{{ progressMessage }}</p>
-              </div>
-            </div>
-
-            <!-- RIGHT: Current Step (3 cols) -->
-            <div class="lg:col-span-3">
-              <Transition name="step" mode="out-in">
-                <div :key="`${step}-${isDone}-${showProjectConfig}`" class="space-y-6">
-                  <ArchitectDescribeStep
-                    v-if="step === 0 && !isLoading"
-                    v-model:description="description"
-                    :is-inside-project="isInsideProject"
-                    :project-name="currentProject?.name"
-                    :error-message="errorMessage"
-                    @submit="submitDescription"
-                    @quick-start="quickStart"
-                    @dismiss-error="errorMessage = ''"
-                  />
-
-                  <ArchitectLoadingStep
-                    v-else-if="isLoading"
-                    :is-generating-questions="isGeneratingQuestions"
-                    :elapsed-seconds="elapsedSeconds"
-                    :loading-steps="loadingSteps"
-                    :loading-phase="loadingPhase"
-                    @cancel="cancelRequest"
-                  />
-
-                  <ArchitectInterviewStep
-                    v-else-if="isInInterview && currentQuestion"
-                    :question="currentQuestion"
-                    :step="step"
-                    :total-steps="questions.length"
-                    :selected-values="currentQuestion.type === 'multi' ? selectedMulti : (answers[currentQuestion.id] ? [answers[currentQuestion.id] as string] : [])"
-                    :show-other-input="showOtherInput"
-                    :other-input-value="otherInputValue"
-                    @select="selectOption"
-                    @confirm="confirmSelection"
-                    @confirm-other="confirmOther"
-                    @back="goBack"
-                    @update:show-other-input="showOtherInput = $event"
-                    @update:other-input-value="otherInputValue = $event"
-                  />
-
-                  <ArchitectPlanSummary
-                    v-else-if="isDone && plan && !showProjectConfig"
-                    :plan="plan"
-                    :is-inside-project="isInsideProject"
-                    :is-kicking="isKicking"
-                    @create-project="showConfigStep"
-                    @save-feature="saveFeaturePlan"
-                    @edit-choices="goToStep(1)"
-                  />
-
-                  <ArchitectProjectConfig
-                    v-else-if="isDone && plan && showProjectConfig"
-                    v-model:project-path="projectPath"
-                    v-model:init-git="initGit"
-                    :plan="plan"
-                    :is-kicking="isKicking"
-                    :kickoff-progress="kickoffProgress"
-                    :progress-message="progressMessage"
-                    :is-construct-space="isConstructSpace"
-                    :detected-template="detectedTemplate"
-                    :detected-backend-template="detectedBackendTemplate"
-                    @create="createProjectDirectly"
-                    @back="showProjectConfig = false"
-                    @browse="browseProjectDir"
-                  />
-                </div>
-              </Transition>
             </div>
           </div>
         </div>
@@ -1157,39 +1154,14 @@ onUnmounted(() => {
 <style scoped>
 .step-enter-active,
 .step-leave-active {
-  transition: all 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .step-enter-from {
   opacity: 0;
-  transform: translateX(16px);
+  transform: translateY(8px);
 }
 .step-leave-to {
   opacity: 0;
-  transform: translateX(-16px);
-}
-
-/* Spinner: rotating ring */
-.architect-spinner {
-  width: 20px;
-  height: 20px;
-  border: 2px solid transparent;
-  border-top-color: var(--app-accent);
-  border-right-color: var(--app-accent);
-  border-radius: 50%;
-  animation: architect-spin 0.8s linear infinite;
-}
-
-@keyframes architect-spin {
-  to { transform: rotate(360deg); }
-}
-
-/* Pulsing dot */
-.architect-dot-pulse {
-  animation: architect-pulse 1.5s ease-in-out infinite;
-}
-
-@keyframes architect-pulse {
-  0%, 100% { opacity: 0.4; transform: scale(0.8); }
-  50% { opacity: 1; transform: scale(1.2); }
+  transform: translateY(-8px);
 }
 </style>

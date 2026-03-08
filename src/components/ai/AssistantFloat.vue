@@ -141,12 +141,13 @@ const scheduleExplorerRefresh = () => {
 function buildLocalData(): Record<string, unknown> {
   const localData: Record<string, unknown> = {}
 
-  // Include current project context
+  // Include current project context (local projects — no API auth needed)
   const project = projectStore.currentProject
   if (project) {
     localData.project_id = project.id
     localData.project_name = project.name
-
+    localData.project_path = project.path
+    if (project.description) localData.project_description = project.description
   }
 
   // Include current code folder path if available
@@ -2025,8 +2026,8 @@ const componentLabel = computed(() => {
 // Extract current space from route (project-scoped and direct space routes)
 const currentSpace = computed(() => {
   const path = route.path
-  // Project-scoped: /app/projects/:id/:spaceName
-  const projectMatch = path.match(/\/app\/projects\/\d+\/(\w+)/)
+  // Project-scoped: /app/projects/:projectId/:spaceName (projectId can be string slug or number)
+  const projectMatch = path.match(/\/app\/projects\/[^/]+\/(\w+)/)
   if (projectMatch?.[1]) {
     return projectMatch[1].charAt(0).toUpperCase() + projectMatch[1].slice(1)
   }
@@ -2964,19 +2965,23 @@ function buildSystemPrompt(references?: ParsedReferences, docContents?: string):
   // Resolve current space once for reuse below
   const space = currentSpace.value?.toLowerCase()
 
-  // Add project context from store
+  // Add project context from store (projects are LOCAL — no API/auth needed)
   const project = projectStore.currentProject
   if (project) {
-    parts.push(`\n\n## Current Project Context`)
+    parts.push(`\n\n## Current Project Context (Local)`)
     parts.push(`- Project: "${project.name}"`)
+    parts.push(`- Local path: ${project.path}`)
     if (project.description) {
       parts.push(`- Description: ${project.description}`)
     }
     if (project.spaces && project.spaces.length > 0) {
       parts.push(`- Enabled spaces: ${project.spaces.join(', ')}`)
     }
-    // Owner not available in personal/local mode (LocalProject has no owner field)
-
+    parts.push(`- IMPORTANT: Projects are LOCAL (on-disk). The following tools do NOT work without cloud auth and must be AVOIDED:
+  - resolve_project_name, search_project_knowledge, index_project (no cloud DB)
+  - Instead, use: read_file, list_files, file_search, write_file for file operations
+  - Use run_command for simple single commands (no pipes, no chaining, no find — use list_files instead)
+  - The project path above is the root directory — use it directly with file tools.`)
   }
 
   // Add route-based context (which space/page the user is in)
@@ -2988,10 +2993,10 @@ function buildSystemPrompt(references?: ParsedReferences, docContents?: string):
   }
 
   // Extract current space from route
-  const spaceMatch = path.match(/\/app\/projects\/\d+\/(\w+)/)
+  const spaceMatch = path.match(/\/app\/projects\/[^/]+\/(\w+)/)
   if (spaceMatch && spaceMatch[1]) {
-    const currentSpace = spaceMatch[1]
-    parts.push(`\nUser is currently in the "${currentSpace}" space.`)
+    const currentSpaceName = spaceMatch[1]
+    parts.push(`\nUser is currently in the "${currentSpaceName}" space.`)
   }
 
   // Add component context if available
@@ -3210,32 +3215,32 @@ Generate code that recreates this layout using appropriate frontend components.`
 
 // Get context description based on current route
 function getRouteContext(path: string): string | null {
-  // Project-specific pages
-  if (path.match(/\/app\/projects\/(\d+)\/code/)) {
+  // Project-specific pages (projectId can be string slug or number)
+  if (path.match(/\/app\/projects\/[^/]+\/code/)) {
     return 'The user is in the Code Editor for a project. Help with coding, debugging, file management, and implementation questions.'
   }
-  if (path.match(/\/app\/projects\/(\d+)\/design/)) {
+  if (path.match(/\/app\/projects\/[^/]+\/design/)) {
     return 'The user is in the Design Studio for a project. Help with UI/UX design, styling, component layouts, and visual design questions.'
   }
-  if (path.match(/\/app\/projects\/(\d+)\/git/)) {
+  if (path.match(/\/app\/projects\/[^/]+\/git/)) {
     return 'The user is viewing Git/version control for a project. Help with commits, branches, merging, pull requests, and version control workflows.'
   }
-  if (path.match(/\/app\/projects\/(\d+)\/ai/)) {
+  if (path.match(/\/app\/projects\/[^/]+\/ai/)) {
     return 'The user is in the AI Space for a project. Help with AI features, prompts, model configuration, and AI-assisted development.'
   }
-  if (path.match(/\/app\/projects\/(\d+)\/notes/)) {
+  if (path.match(/\/app\/projects\/[^/]+\/notes/)) {
     return 'The user is in the Notes/Documentation section for a project. Help with documentation, markdown, README files, and technical writing.'
   }
-  if (path.match(/\/app\/projects\/(\d+)\/kanban/)) {
+  if (path.match(/\/app\/projects\/[^/]+\/kanban/)) {
     return 'The user is viewing the Kanban board for a project. Help with task management, sprint planning, workflow organization, and project tracking.'
   }
-  if (path.match(/\/app\/projects\/(\d+)\/deploy/)) {
+  if (path.match(/\/app\/projects\/[^/]+\/deploy/)) {
     return 'The user is in the Deployment section for a project. Help with deployment configuration, CI/CD, hosting, and production releases.'
   }
-  if (path.match(/\/app\/projects\/(\d+)\/settings/)) {
+  if (path.match(/\/app\/projects\/[^/]+\/settings/)) {
     return 'The user is in Project Settings. Help with project configuration, environment variables, integrations, and project management.'
   }
-  if (path.match(/\/app\/projects\/(\d+)/)) {
+  if (path.match(/\/app\/projects\/[^/]+/)) {
     return 'The user is viewing a Project overview. Help with project information, recent activity, and project navigation.'
   }
 

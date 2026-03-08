@@ -13,61 +13,81 @@ const emit = defineEmits<{
   dismissError: []
 }>()
 
+const isMac = typeof globalThis.navigator !== 'undefined' && /Mac/.test(globalThis.navigator.platform)
 const quickStartOptionsProject = ['Authentication', 'Dashboard', 'API Endpoints', 'File Upload', 'Notifications', 'Search']
 const quickStartOptionsNew = ['Dashboard', 'E-commerce', 'Chat App', 'Blog', 'Todo App', 'SaaS']
 </script>
 
 <template>
-  <div>
-    <p class="text-sm text-app-muted tracking-wider">DESCRIBE YOUR</p>
-    <h1 class="text-4xl font-bold text-app mt-1">
-      {{ isInsideProject ? 'Feature' : 'Project' }}
-    </h1>
-    <p v-if="isInsideProject" class="text-sm text-app-muted mt-2">
-      Adding to <span class="font-medium text-app">{{ projectName }}</span>
-    </p>
-  </div>
-
-  <!-- Inline error -->
-  <div v-if="errorMessage" class="flex items-start gap-3 p-3 rounded-md bg-red-500/10 border border-red-500/20">
-    <Icon name="i-lucide-alert-circle" class="size-4 text-red-400 shrink-0 mt-0.5" />
-    <div class="flex-1 min-w-0">
-      <p class="text-sm text-red-400">{{ errorMessage }}</p>
-      <button class="text-xs text-red-400/60 hover:text-red-400 mt-1 transition-colors" @click="emit('dismissError')">
-        Dismiss
-      </button>
+  <div class="space-y-8">
+    <!-- Hero -->
+    <div class="space-y-3">
+      <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-app-accent/8 text-app-accent text-xs font-medium">
+        <Icon name="i-lucide-sparkles" class="size-3" />
+        AI-Powered Planning
+      </div>
+      <h1 class="text-3xl font-bold text-app tracking-tight">
+        {{ isInsideProject ? 'Describe your feature' : 'What are you building?' }}
+      </h1>
+      <p v-if="isInsideProject" class="text-sm text-app-muted">
+        Adding to <span class="font-medium text-app">{{ projectName }}</span>
+      </p>
+      <p v-else class="text-sm text-app-muted">
+        Describe your idea and the architect will plan the project for you.
+      </p>
     </div>
-  </div>
 
-  <div class="space-y-4">
-    <Textarea
-      :model-value="description"
-      :placeholder="isInsideProject ? 'I want to add...' : 'I want to build...'"
-      :rows="4"
-      autofocus
-      @update:model-value="emit('update:description', $event)"
-      @keydown.meta.enter="emit('submit')"
-      @keydown.ctrl.enter="emit('submit')"
-    />
-    <Button :disabled="!description.trim()" @click="emit('submit')">
-      <template #leading>
-        <Icon name="i-lucide-arrow-right" class="size-4" />
-      </template>
-      Continue
-    </Button>
-  </div>
+    <!-- Error -->
+    <div v-if="errorMessage" class="flex items-start gap-3 px-4 py-3 rounded-lg bg-red-500/8 border border-red-500/15">
+      <Icon name="i-lucide-alert-circle" class="size-4 text-red-400 shrink-0 mt-0.5" />
+      <div class="flex-1 min-w-0">
+        <p class="text-sm text-red-400">{{ errorMessage }}</p>
+        <button class="text-xs text-red-400/60 hover:text-red-400 mt-1 transition-colors" @click="emit('dismissError')">
+          Dismiss
+        </button>
+      </div>
+    </div>
 
-  <div class="space-y-2">
-    <p class="text-xs text-app-muted uppercase tracking-wider">Quick Start</p>
-    <div class="flex flex-wrap gap-2">
-      <button
-        v-for="text in isInsideProject ? quickStartOptionsProject : quickStartOptionsNew"
-        :key="text"
-        class="px-3 py-1.5 text-xs text-app-muted hover:text-app rounded-md bg-white/50 dark:bg-white/10 hover:bg-white dark:hover:bg-white/20 transition-colors"
-        @click="emit('quickStart', text)"
-      >
-        {{ text }}
-      </button>
+    <!-- Input area -->
+    <div class="space-y-3">
+      <div class="relative">
+        <Textarea
+          :model-value="description"
+          :placeholder="isInsideProject ? 'I want to add a real-time notification system that...' : 'I want to build a project management tool that...'"
+          :rows="5"
+          autofocus
+          class="!rounded-xl !text-sm"
+          @update:model-value="emit('update:description', $event)"
+          @keydown.meta.enter="emit('submit')"
+          @keydown.ctrl.enter="emit('submit')"
+        />
+      </div>
+      <div class="flex items-center justify-between">
+        <p class="text-[11px] text-app-muted/50">
+          <kbd class="px-1 py-0.5 rounded bg-white/8 text-[10px] font-mono">{{ isMac ? 'Cmd' : 'Ctrl' }}+Enter</kbd> to continue
+        </p>
+        <Button :disabled="!description.trim()" size="sm" @click="emit('submit')">
+          <template #leading>
+            <Icon name="i-lucide-arrow-right" class="size-3.5" />
+          </template>
+          Continue
+        </Button>
+      </div>
+    </div>
+
+    <!-- Quick starts -->
+    <div class="space-y-3">
+      <p class="text-[11px] text-app-muted/60 uppercase tracking-widest font-medium">Quick start</p>
+      <div class="flex flex-wrap gap-1.5">
+        <button
+          v-for="text in isInsideProject ? quickStartOptionsProject : quickStartOptionsNew"
+          :key="text"
+          class="px-3 py-1.5 text-xs text-app-muted rounded-lg border border-app-border hover:border-app-accent/30 hover:text-app hover:bg-app-accent/5 transition-all duration-150"
+          @click="emit('quickStart', text)"
+        >
+          {{ text }}
+        </button>
+      </div>
     </div>
   </div>
 </template>
