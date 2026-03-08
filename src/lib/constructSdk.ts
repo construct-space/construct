@@ -128,6 +128,7 @@ export {
 export { useUpdater } from '@/composables/useUpdater'
 export { useUserModule } from '@/composables/useUserModule'
 export { useSpacePreview } from '@/composables/useSpacePreview'
+export { useConstructWindow } from '@/composables/useConstructWindow'
 export {
   CONTEXT_SOURCE_SPACE_QUERY_KEY,
   CONTEXT_TARGET_QUERY_KEY,
