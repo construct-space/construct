@@ -38,6 +38,7 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
+      '@construct/sdk': resolve(__dirname, 'src/lib/constructSdk.ts'),
       '~': resolve(__dirname, 'src'),
       '@': resolve(__dirname, 'src'),
     },

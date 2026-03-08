@@ -35,7 +35,7 @@ export function useArchitect() {
 
   // Conversations
   const conversations = ref<Conversation[]>([])
-  const currentConversationId = ref<number | null>(null)
+  const currentConversationId = ref<string | null>(null)
   const loadingConversations = ref(false)
 
   // Providers
@@ -265,8 +265,8 @@ For single tasks or quick actions, you can proceed autonomously.`
   /**
    * Load a specific conversation
    */
-  async function loadConversation(id: number) {
-    currentConversationId.value = id
+  async function loadConversation(id: string | number) {
+    currentConversationId.value = String(id)
     messages.value = []
     selectedOptions.value = {}
 
@@ -282,7 +282,7 @@ For single tasks or quick actions, you can proceed autonomously.`
 
     const result = await conversationsStore.getMessages(id)
     if (result.success && result.data) {
-      messages.value = result.data.map(m => ({
+      messages.value = result.data.map((m: { role: string; content: string }) => ({
         role: m.role as 'user' | 'assistant',
         content: m.content
       }))
@@ -301,12 +301,12 @@ For single tasks or quick actions, you can proceed autonomously.`
   /**
    * Delete conversation
    */
-  async function deleteConversation(id: number) {
+  async function deleteConversation(id: string | number) {
     try {
       const result = await conversationsStore.deleteConversation(id)
       if (result.success) {
-        conversations.value = conversations.value.filter(c => c.id !== id)
-        if (currentConversationId.value === id) startNewConversation()
+        conversations.value = conversations.value.filter(c => c.id !== String(id))
+        if (currentConversationId.value === String(id)) startNewConversation()
       }
     } catch {
       toast.add({ title: 'Error', description: 'Failed to delete', color: 'error' })
@@ -327,7 +327,7 @@ For single tasks or quick actions, you can proceed autonomously.`
     if (!currentConversationId.value) {
       try {
         const result = await conversationsStore.createConversation({
-          name: message.slice(0, 50),
+          title: message.slice(0, 50),
           model: selectedModel.value
         })
         if (result.success && result.data) {

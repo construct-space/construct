@@ -56,6 +56,9 @@ export {
   useContextService,
   useContextMode,
   useComponentContext,
+  type Tool,
+  type ToolCall,
+  type ToolResult,
 } from '@/composables/useContextService'
 export { useCredits } from '@/composables/useCredits'
 export { useDateFormat } from '@/composables/useDateFormat'
@@ -196,6 +199,9 @@ export {
   setTelemetryConsent,
   TELEMETRY_FEATURE_KEYS,
 } from '@/composables/useTelemetry'
+
+// === Types ===
+export type { DesignNode, DesignPage } from '@/types/design'
 
 // === Utilities ===
 export { appConfig } from '@/utils/config'

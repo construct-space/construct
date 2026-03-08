@@ -20,6 +20,7 @@ import { useContextService } from '@/composables/useContextService'
 import { useAIModel } from '@/composables/useAIModel'
 import type { InterviewQuestion } from '@/utils/architect-knowledge'
 import type { ArchitectPlan, DocumentType } from '@/utils/documentsGenerator'
+import type { SpaceType } from '@/types/project'
 import { useArchitectKickoff, mapFrontendToTemplate, mapBackendToTemplate } from '@/composables/useArchitectKickoff'
 import ArchitectDescribeStep from '@/components/architect/ArchitectDescribeStep.vue'
 import ArchitectLoadingStep from '@/components/architect/ArchitectLoadingStep.vue'
@@ -602,12 +603,12 @@ function normalizeSpaceForKickoff(space: string): string {
   return key
 }
 
-function getSelectedSpacesForKickoff(currentPlan: ArchitectPlan): string[] {
+function getSelectedSpacesForKickoff(currentPlan: ArchitectPlan): SpaceType[] {
   const raw = currentPlan.decisions?.spaces
   const values = Array.isArray(raw)
-    ? raw.map(v => normalizeSpaceForKickoff(String(v))).filter(Boolean)
+    ? raw.map(v => normalizeSpaceForKickoff(String(v))).filter(Boolean) as SpaceType[]
     : []
-  return values.length > 0 ? Array.from(new Set(values)) : ['code']
+  return values.length > 0 ? Array.from(new Set(values)) as SpaceType[] : ['code']
 }
 
 function getSelectedDocsForKickoff(_currentPlan: ArchitectPlan): DocumentType[] {

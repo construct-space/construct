@@ -4,6 +4,7 @@
  * including local directory scaffolding, git init, and design file creation.
  */
 
+import type { SpaceType } from '@/types/project'
 import type { ArchitectPlan, DocumentType, DocumentOption } from '@/utils/documentsGenerator'
 import { generateDocument, getDocumentFilename, DOCUMENT_OPTIONS } from '@/utils/documentsGenerator'
 import { templates, sanitizeProjectName, buildCreateCommand } from '@/utils/templates.config'
@@ -22,7 +23,7 @@ export interface SuggestedTask {
 export interface KickoffOptions {
   name: string
   description: string
-  spaces: string[]
+  spaces: SpaceType[]
   tasks: SuggestedTask[]
   documents: DocumentType[]
   localPath?: string

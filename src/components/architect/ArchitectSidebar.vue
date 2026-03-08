@@ -6,13 +6,13 @@ import type { Conversation } from '~/stores/conversations'
 
 defineProps<{
   conversations: Conversation[]
-  currentId: number | null
+  currentId: string | null
   loading: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'new'): void
-  (e: 'select' | 'delete', id: number): void
+  (e: 'select' | 'delete', id: string): void
 }>()
 </script>
 

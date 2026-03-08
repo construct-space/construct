@@ -306,13 +306,14 @@ export const useLocalDesigns = () => {
   }
 
   // Create new design in SQLite
-  const createDesign = async (projectId: number | null, name?: string): Promise<UIDesign> => {
+  const createDesign = async (projectId: string | number | null, name?: string): Promise<UIDesign> => {
     const localId = generateLocalId()
     const designName = name || `Design ${designs.value.length + 1}`
+    const numericProjectId = typeof projectId === 'string' ? null : projectId
 
     const result = await sendDesignRequest<{ id: number; localId: string }>('designs.save', {
       localId,
-      projectId,
+      projectId: numericProjectId,
       name: designName,
       nodes: [],
       pages: [],
@@ -328,7 +329,7 @@ export const useLocalDesigns = () => {
     const design: UIDesign = {
       id: result.id,
       localId: result.localId,
-      projectId,
+      projectId: numericProjectId,
       name: designName,
       nodes: [],
       pages: [],

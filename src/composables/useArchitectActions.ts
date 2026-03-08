@@ -37,7 +37,7 @@ export function useArchitectActions() {
    */
   async function createKanbanTasks(tasks: TaskItem[], options?: {
     requireApproval?: boolean
-    projectId?: number
+    projectId?: string | number
   }): Promise<ActionResult> {
     const projectId = options?.projectId || projectStore.currentProject?.id
     if (!projectId) {
@@ -68,7 +68,7 @@ export function useArchitectActions() {
   /**
    * Execute task creation
    */
-  async function executeCreateTasks(tasks: TaskItem[], projectId: number): Promise<ActionResult> {
+  async function executeCreateTasks(tasks: TaskItem[], projectId: string | number): Promise<ActionResult> {
     const results: { success: boolean; task?: unknown; error?: string }[] = []
 
     for (const task of tasks) {
@@ -210,7 +210,7 @@ export function useArchitectActions() {
    * Execute design file creation
    */
   async function executeCreateDesign(
-    projectId: number,
+    projectId: string | number,
     name: string,
     template?: 'blank' | 'wireframe' | 'dashboard'
   ): Promise<ActionResult> {

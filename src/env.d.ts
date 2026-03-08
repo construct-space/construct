@@ -13,3 +13,4 @@ declare function defineShortcuts(shortcuts: any): void
 declare function extractShortcuts(items: any): any
 declare function useState<T>(key: string, init?: () => T): import('vue').Ref<T>
 declare function generateLocalId(): string
+declare const __APP_VERSION__: string

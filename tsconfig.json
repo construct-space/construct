@@ -12,6 +12,7 @@
     "skipLibCheck": true,
     "noEmit": true,
     "paths": {
+      "@construct/sdk": ["./src/lib/constructSdk.ts"],
       "~/*": ["./src/*"],
       "@/*": ["./src/*"]
     },

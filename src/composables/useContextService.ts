@@ -55,7 +55,7 @@ export interface Tool {
     description: string
     parameters: {
       type: string
-      properties: Record<string, { type: string; description: string; enum?: string[] }>
+      properties: Record<string, { type: string; description?: string; enum?: string[]; items?: Record<string, unknown>; properties?: Record<string, unknown> }>
       required?: string[]
     }
   }
