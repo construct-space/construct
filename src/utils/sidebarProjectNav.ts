@@ -15,6 +15,7 @@ export interface SpaceLike {
   pages?: SpacePageLike[]
 }
 
+export { routeParamString } from '@/utils/projectRoutes'
 import { routeParamString } from '@/utils/projectRoutes'
 
 export interface SidebarSubItem {

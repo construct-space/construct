@@ -1,3 +1,5 @@
+import { resolve } from 'path'
+
 export default {
   test: {
     environment: 'node',
@@ -7,5 +9,11 @@ export default {
       'src/**/__tests__/**/*.test.ts',
       'src/**/__tests__/**/*.spec.ts',
     ],
+  },
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, 'src'),
+      '~': resolve(__dirname, 'src'),
+    },
   },
 }

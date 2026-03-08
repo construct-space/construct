@@ -26,18 +26,20 @@ export const routeParamString = (value: unknown): string => {
 }
 
 export const getProjectRouteKey = (project: ProjectRouteCandidate): string => {
-  // Prefer path-based slug (matches directory name)
-  const pathSegment = (project.path || '').split('/').filter(Boolean).pop() || ''
-  const fromPath = normalizeRouteId(pathSegment)
-  if (fromPath) return fromPath
-
+  // 1. Prefer explicit id (strip ext- prefix)
   if (project.id !== undefined && project.id !== null && String(project.id).trim()) {
     const fromId = normalizeRouteId(String(project.id))
     if (fromId) return fromId
   }
 
+  // 2. Fall back to slugified name
   const fromName = slugifyProjectToken(project.name || '')
   if (fromName) return fromName
+
+  // 3. Fall back to path segment (directory name)
+  const pathSegment = (project.path || '').split('/').filter(Boolean).pop() || ''
+  const fromPath = normalizeRouteId(pathSegment)
+  if (fromPath) return fromPath
 
   return 'project'
 }
