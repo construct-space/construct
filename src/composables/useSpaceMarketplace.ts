@@ -239,6 +239,10 @@ export function useSpaceMarketplace() {
    * Install a space — downloads tarball from registry and extracts to ~/.construct/spaces/.
    */
   async function install(spaceId: string): Promise<boolean> {
+    if (NATIVE_SPACE_IDS.has(spaceId)) {
+      console.log(`[Marketplace] Skipping install of native space: ${spaceId}`)
+      return true
+    }
     error.value = null
 
     try {
@@ -464,8 +468,8 @@ export async function autoInstallRecommended(): Promise<void> {
       registrySpaces = ghData?.spaces || []
     }
 
-    // Filter recommended and install
-    const recommended = registrySpaces.filter(s => s.recommended)
+    // Filter recommended and install (skip native host pages)
+    const recommended = registrySpaces.filter(s => s.recommended && !NATIVE_SPACE_IDS.has(s.id))
     if (recommended.length === 0) {
       console.log('[Marketplace] No recommended spaces found in registry')
       localStorage.setItem(FIRST_LAUNCH_KEY, 'true')
@@ -490,55 +494,17 @@ export async function autoInstallRecommended(): Promise<void> {
   }
 }
 
+/** Spaces that are now native host pages — never install as dynamic spaces */
+export const NATIVE_SPACE_IDS = new Set(['architect', 'projects'])
+
 /**
  * Ensure essential spaces are always installed.
- *
- * Runs every launch. Checks if architect + projects exist on disk.
- * If missing, installs them from the registry. Unlike autoInstallRecommended,
- * this is not gated by a first-launch flag — essential spaces are always restored.
+ * Currently no essential spaces remain (architect + projects are native).
  */
-export const ESSENTIAL_SPACE_IDS = ['architect', 'projects']
+export const ESSENTIAL_SPACE_IDS: string[] = []
 
 export async function ensureEssentialSpaces(): Promise<void> {
-  try {
-    const { exists } = await import('@tauri-apps/plugin-fs')
-    const { homeDir } = await import('@tauri-apps/api/path')
-
-    const home = await homeDir()
-    const spacesDir = `${home}/.construct/spaces`
-
-    // Find which essential spaces are missing from disk
-    const missing: string[] = []
-    for (const id of ESSENTIAL_SPACE_IDS) {
-      const manifestPath = `${spacesDir}/${id}/manifest.json`
-      if (!(await exists(manifestPath))) {
-        missing.push(id)
-      }
-    }
-
-    if (missing.length === 0) return
-
-    console.log(`[Marketplace] Essential spaces missing: ${missing.join(', ')} — installing...`)
-
-    const marketplace = useSpaceMarketplace()
-    for (const id of missing) {
-      try {
-        const success = await marketplace.install(id)
-        if (success) {
-          console.log(`[Marketplace] Essential space installed: ${id}`)
-        } else {
-          console.warn(`[Marketplace] Failed to install essential space: ${id}`)
-        }
-      } catch (err) {
-        console.warn(`[Marketplace] Failed to install essential space ${id}:`, err)
-      }
-    }
-
-    // Notify sidebar to refresh
-    window.dispatchEvent(new CustomEvent('construct:spaces-changed'))
-  } catch (err) {
-    console.error('[Marketplace] ensureEssentialSpaces failed:', err)
-  }
+  // No essential spaces to ensure — architect + projects are native host pages
 }
 
 /** Compare semver strings — returns true if `remote` is newer than `local` */

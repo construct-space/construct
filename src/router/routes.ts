@@ -19,19 +19,19 @@ export const routes: RouteRecordRaw[] = [
   {
     path: '/login',
     name: 'login',
-    component: () => import('@/pages/LoginPage.vue'),
+    component: () => import('@/pages/auth/LoginPage.vue'),
     meta: { guest: true },
   },
   {
     path: '/register',
     name: 'register',
-    component: () => import('@/pages/RegisterPage.vue'),
+    component: () => import('@/pages/auth/RegisterPage.vue'),
     meta: { guest: true },
   },
   {
     path: '/oauth/callback',
     name: 'oauth-callback',
-    component: () => import('@/pages/OAuthCallbackPage.vue'),
+    component: () => import('@/pages/auth/OAuthCallbackPage.vue'),
     meta: { guest: true },
   },
   {
@@ -87,39 +87,71 @@ export const routes: RouteRecordRaw[] = [
         ],
       },
 
-      // ===== Project-scoped space routes =====
-      // /app/projects/:projectId/:spaceName — space within a project
-      // Must come BEFORE the :spaceName catch-all so Vue Router matches literal "projects" first.
+      // ===== Projects (native host pages) =====
+      // /app/projects — project list
       {
-        path: 'projects/:projectId/:spaceName',
-        component: () => import('@/layouts/SpaceLayout.vue'),
+        path: 'projects',
+        name: 'projects',
+        component: () => import('@/pages/projects/ProjectsPage.vue'),
+      },
+
+      // /app/projects/:projectId — project detail + project-scoped spaces
+      {
+        path: 'projects/:projectId',
+        component: () => import('@/layouts/ProjectLayout.vue'),
         meta: { projectScoped: true },
         children: [
+          // /app/projects/:projectId — project overview
           {
             path: '',
-            component: () => import('@/spaces/DynamicSpacePage.vue'),
-            props: (route) => ({
-              spaceName: route.params.spaceName,
-              projectId: route.params.projectId,
-            }),
+            name: 'project-detail',
+            component: () => import('@/pages/projects/ProjectDetailPage.vue'),
           },
+          // /app/projects/:projectId/architect — native architect (feature mode)
           {
-            path: ':subPage',
-            component: () => import('@/spaces/DynamicSpacePage.vue'),
-            props: (route) => ({
-              spaceName: route.params.spaceName,
-              subPage: route.params.subPage,
-              projectId: route.params.projectId,
-            }),
+            path: 'architect',
+            name: 'project-architect',
+            component: () => import('@/pages/projects/ArchitectPage.vue'),
+          },
+          // /app/projects/:projectId/:spaceName — space within project
+          {
+            path: ':spaceName',
+            component: () => import('@/layouts/SpaceLayout.vue'),
+            children: [
+              {
+                path: '',
+                component: () => import('@/spaces/DynamicSpacePage.vue'),
+                props: (route) => ({
+                  spaceName: route.params.spaceName,
+                  projectId: route.params.projectId,
+                }),
+              },
+              {
+                path: ':subPage',
+                component: () => import('@/spaces/DynamicSpacePage.vue'),
+                props: (route) => ({
+                  spaceName: route.params.spaceName,
+                  subPage: route.params.subPage,
+                  projectId: route.params.projectId,
+                }),
+              },
+            ],
           },
         ],
       },
 
-      // ===== Dynamic space routes (company-scoped) =====
-      // ALL spaces (including code, design, architect) go through DynamicSpacePage.
-      // SpaceLoader handles dev (Vite import) vs prod (IIFE bundle) loading.
+      // ===== Architect (native host page) =====
+      // /app/architect — company-scoped architect (new project mode)
+      {
+        path: 'architect',
+        name: 'architect',
+        component: () => import('@/pages/projects/ArchitectPage.vue'),
+      },
 
-      // Space index page: /app/:spaceName
+      // ===== Dynamic space routes (company-scoped) =====
+      // Remaining spaces (code, design, kanban, etc.) go through DynamicSpacePage.
+      // SpaceLoader handles dev (Vite import) vs prod (IIFE bundle) loading.
+      // NOTE: "projects" and "architect" are native pages above, so :spaceName won't catch them.
       {
         path: ':spaceName',
         component: () => import('@/layouts/SpaceLayout.vue'),
@@ -131,7 +163,6 @@ export const routes: RouteRecordRaw[] = [
               spaceName: route.params.spaceName,
             }),
           },
-          // Space sub-page: /app/:spaceName/:subPage
           {
             path: ':subPage',
             component: () => import('@/spaces/DynamicSpacePage.vue'),

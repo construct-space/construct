@@ -275,8 +275,9 @@ export function useProjectDirectory() {
       }
 
       // If useDirectPath, use basePath directly as project folder
-      // Otherwise, create a subfolder with the project name
-      const projectPath = useDirectPath ? root : `${root}/${name}`
+      // Otherwise, create a subfolder with a sanitized directory name
+      const dirName = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+      const projectPath = useDirectPath ? root : `${root}/${dirName}`
       console.log('Creating project at:', projectPath)
 
       // Use shell commands to create directories (bypasses fs:scope restrictions)
@@ -685,7 +686,22 @@ EOFCONFIG`], projectPath)
     console.log('[ensureProjectStructure] Ensuring structure at:', targetPath)
 
     try {
-      // Create all directories
+      // Check if directory already has content (non-empty)
+      const lsResult = await runShellCommand('ls', ['-A', targetPath], '/')
+      const dirExists = lsResult.success && lsResult.output.trim().length > 0
+
+      if (dirExists) {
+        // Directory is not empty — only ensure .construct config dir, skip space folders
+        console.log('[ensureProjectStructure] Directory not empty, skipping space folders')
+        const mkdirResult = await runShellCommand('mkdir', ['-p', `${targetPath}/.construct`], '/')
+        if (!mkdirResult.success) {
+          console.error('[ensureProjectStructure] Failed to create .construct dir:', mkdirResult.output)
+          return false
+        }
+        return true
+      }
+
+      // Empty or new directory — create full structure
       const allDirs = [
         targetPath,
         `${targetPath}/.construct`,

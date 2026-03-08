@@ -5,7 +5,7 @@
  * this composable installs them from the marketplace registry.
  */
 
-import { useSpaceMarketplace } from '@/composables/useSpaceMarketplace'
+import { useSpaceMarketplace, NATIVE_SPACE_IDS } from '@/composables/useSpaceMarketplace'
 import { useToast } from '@/composables/useToast'
 import { useSpaces } from '@/composables/useSpaces'
 
@@ -17,8 +17,8 @@ export function useSpaceAutoInstall() {
   const { loadSpaces } = useSpaces()
 
   async function installMissing(missingIds: string[]): Promise<void> {
-    // Deduplicate with in-progress installs
-    const toInstall = missingIds.filter(id => !installing.has(id))
+    // Deduplicate with in-progress installs, skip native host pages
+    const toInstall = missingIds.filter(id => !installing.has(id) && !NATIVE_SPACE_IDS.has(id))
     if (toInstall.length === 0) return
 
     for (const id of toInstall) {

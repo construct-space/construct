@@ -340,29 +340,7 @@ async function getReferencedDocsContext(refs: DocReference[]): Promise<string> {
   for (const ref of refs) {
     const query = ref.title.toLowerCase()
 
-    // Check DB docs first
-    const dbDoc = projectDocs.value.find(d =>
-      d.title.toLowerCase().includes(query)
-    )
-    if (dbDoc) {
-      try {
-        const fullDoc = await requestSpaceData('docs', { type: 'documents.fetch', params: { id: dbDoc.id } }) as { content?: string } | undefined
-        if (fullDoc?.content) {
-          // Limit content to ~4000 chars to avoid bloating the prompt
-          const content = fullDoc.content.length > 4000
-            ? fullDoc.content.substring(0, 4000) + '\n\n... [truncated]'
-            : fullDoc.content
-          contexts.push(`### ${dbDoc.title} (${dbDoc.type})\n${content}`)
-        } else {
-          contexts.push(`### ${dbDoc.title} (${dbDoc.type})\n[Document found but content is empty]`)
-        }
-      } catch {
-        contexts.push(`### ${dbDoc.title} (${dbDoc.type})\nDocument ID: ${dbDoc.id}\n[Failed to fetch content — use get_document tool with document_id: ${dbDoc.id}]`)
-      }
-      continue
-    }
-
-    // Check local .md files
+    // Check local .md files first (primary source)
     const localDoc = localDocs.value.find(d =>
       d.title.toLowerCase().includes(query)
     )
@@ -1657,23 +1635,28 @@ const initDocsTauri = async () => {
   }
 }
 
-// Bidirectional doc sync: DB <-> local docs/ folder
-// 1. Fetch DB docs (from API)
-// 2. Scan local docs/ folder for .md files
-// 3. Local -> DB: create DB entries for local .md files not in DB
-// 4. DB -> Local: write .md files for DB docs not on disk
-async function syncProjectDocs(projectId: string | number, projectPath: string | undefined) {
-  // Step 1: Load DB docs via context bus (space-docs handler)
+// Load project docs from space handler + scan local docs/ folder
+async function syncProjectDocs(_projectId: string | number, projectPath: string | undefined) {
+  // Step 1: Try loading from space-docs handler (documents.list)
   try {
-    const docs = await requestSpaceData('docs', { type: 'documents.fetchProject', params: { projectId } })
-    if (Array.isArray(docs)) projectDocs.value = docs as DocumentListItem[]
+    const docs = await requestSpaceData('docs', { type: 'documents.list' })
+    if (Array.isArray(docs)) {
+      projectDocs.value = (docs as Array<{ title: string; type: string; filename?: string; id?: number }>).map(d => ({
+        id: d.id ?? 0,
+        title: d.title,
+        type: d.type || 'custom',
+      })) as DocumentListItem[]
+    }
   } catch (e) {
-    console.warn('[AssistantFloat] Failed to load docs from context bus:', e)
+    console.warn('[AssistantFloat] Failed to load docs from space handler:', e)
   }
 
-  if (!projectPath) return
+  if (!projectPath) {
+    console.log('[AssistantFloat] Doc sync complete: space=', projectDocs.value.length, '(no local path)')
+    return
+  }
 
-  // Initialize Tauri FS for local file operations
+  // Step 2: Scan local docs/ folder for .md files
   const hasTauri = await initDocsTauri()
   if (!hasTauri || !docsTauriFs) {
     console.debug('[AssistantFloat] Tauri FS not available for doc sync')
@@ -1682,29 +1665,25 @@ async function syncProjectDocs(projectId: string | number, projectPath: string |
 
   const docsPath = `${projectPath}/docs`
 
-  // Step 2: Ensure docs/ directory exists
   try {
     const exists = await docsTauriFs.exists(docsPath)
     if (!exists) {
-      await docsTauriFs.mkdir(docsPath, { recursive: true })
+      console.log('[AssistantFloat] Doc sync complete: space=', projectDocs.value.length, '(no docs/ dir)')
+      return
     }
-  } catch (e) {
-    console.debug('[AssistantFloat] Could not create docs directory:', e)
+  } catch {
     return
   }
 
-  // Step 3: Scan local docs/ folder for .md files
-  const scannedLocal: { title: string; path: string; type: string; filename: string }[] = []
+  const scannedLocal: { title: string; path: string; type: string }[] = []
   try {
     const entries = await docsTauriFs.readDir(docsPath)
     for (const entry of entries) {
       if (entry.name && entry.name.endsWith('.md')) {
-        const filePath = `${docsPath}/${entry.name}`
         scannedLocal.push({
           title: docFilenameToTitle(entry.name),
-          path: filePath,
+          path: `${docsPath}/${entry.name}`,
           type: guessDocType(entry.name),
-          filename: entry.name
         })
       }
     }
@@ -1712,61 +1691,17 @@ async function syncProjectDocs(projectId: string | number, projectPath: string |
     console.debug('[AssistantFloat] Could not read docs directory:', e)
   }
 
-  localDocs.value = scannedLocal.map(f => ({ title: f.title, path: f.path, type: f.type }))
+  localDocs.value = scannedLocal
 
-  // Step 4: Sync local -> DB (new local .md files that aren't in DB)
-  const dbTitles = new Set(projectDocs.value.map(d => d.title.toLowerCase()))
+  // Step 3: Merge — add local docs not already in space handler results
+  const spaceTitles = new Set(projectDocs.value.map(d => d.title.toLowerCase()))
   for (const local of scannedLocal) {
-    if (!dbTitles.has(local.title.toLowerCase())) {
-      try {
-        const content = await docsTauriFs.readTextFile(local.path)
-        await requestSpaceData('docs', {
-          type: 'documents.create',
-          params: {
-            projectId: Number(projectId),
-            data: {
-              title: local.title,
-              content,
-              type: guessDocType(local.filename),
-              project_id: Number(projectId),
-            },
-          },
-        })
-        console.log('[AssistantFloat] Synced local doc to DB:', local.title)
-      } catch (e) {
-        console.warn('[AssistantFloat] Failed to sync local doc to DB:', local.title, e)
-      }
+    if (!spaceTitles.has(local.title.toLowerCase())) {
+      projectDocs.value.push({ id: 0, title: local.title, type: local.type } as DocumentListItem)
     }
   }
 
-  // Step 5: Sync DB -> local (DB docs that don't have a local .md file)
-  const localTitles = new Set(scannedLocal.map(f => f.title.toLowerCase()))
-  for (const dbDoc of projectDocs.value) {
-    if (!localTitles.has(dbDoc.title.toLowerCase())) {
-      try {
-        const fullDoc = await requestSpaceData('docs', { type: 'documents.fetch', params: { id: dbDoc.id } }) as { content?: string } | undefined
-        if (fullDoc?.content) {
-          const filename = docTitleToFilename(dbDoc.title)
-          const filePath = `${docsPath}/${filename}`
-          await docsTauriFs.writeTextFile(filePath, fullDoc.content)
-          localDocs.value.push({ title: dbDoc.title, path: filePath, type: dbDoc.type })
-          console.log('[AssistantFloat] Synced DB doc to local:', dbDoc.title)
-        }
-      } catch (e) {
-        console.warn('[AssistantFloat] Failed to sync DB doc to local:', dbDoc.title, e)
-      }
-    }
-  }
-
-  // Refresh DB docs list after sync
-  try {
-    const refreshed = await requestSpaceData('docs', { type: 'documents.fetchProject', params: { projectId } })
-    if (Array.isArray(refreshed)) projectDocs.value = refreshed as DocumentListItem[]
-  } catch {
-    // Already loaded above, ignore refresh failure
-  }
-
-  console.log('[AssistantFloat] Doc sync complete: DB=', projectDocs.value.length, 'Local=', localDocs.value.length)
+  console.log('[AssistantFloat] Doc sync complete: space=', projectDocs.value.length, 'local=', localDocs.value.length)
 }
 
 
@@ -2990,8 +2925,12 @@ function buildMessageWithToolContext(msg: ChatMessage): string {
         // Refresh docs list so sidebar updates
         const syncProjectId = (args.project_id as number) || projectStore.currentProject?.id
         if (syncProjectId) {
-          requestSpaceData('docs', { type: 'documents.fetchProject', params: { projectId: syncProjectId } }).then((docs) => {
-            if (Array.isArray(docs)) projectDocs.value = docs as DocumentListItem[]
+          requestSpaceData('docs', { type: 'documents.reload' }).then((docs) => {
+            if (Array.isArray(docs)) {
+              projectDocs.value = (docs as Array<{ title: string; type: string; id?: number }>).map(d => ({
+                id: d.id ?? 0, title: d.title, type: d.type || 'custom',
+              })) as DocumentListItem[]
+            }
           }).catch(() => { /* ignore refresh failure */ })
         }
       } else if (tc.name === 'list_project_documents' || tc.name === 'list_project_designs' || tc.name === 'list_project_tasks') {

@@ -19,7 +19,6 @@ const { loadSpaces } = useSpaces()
 
 // Recommended spaces to offer on first run
 const recommendedSpaces = [
-  { id: 'architect', name: 'Architect', description: 'AI-powered project planning', recommended: true },
   { id: 'code', name: 'Code', description: 'Code editor with terminal & git', recommended: true },
   { id: 'design', name: 'Design', description: 'Visual design tool', recommended: true },
   { id: 'kanban', name: 'Tasks', description: 'Project management with boards' },
@@ -32,7 +31,7 @@ const recommendedSpaces = [
   { id: 'chat', name: 'Chat', description: 'Team chat with AI' },
 ]
 
-const selected = ref<Set<string>>(new Set(['architect', 'code', 'design']))
+const selected = ref<Set<string>>(new Set(['code', 'design']))
 const installing = ref(false)
 const installedIds = ref<Set<string>>(new Set())
 const currentInstall = ref('')

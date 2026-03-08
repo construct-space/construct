@@ -129,6 +129,16 @@ export const useProjectStore = defineStore('project', {
         const { useProjectDirectory } = await import('@/composables/useProjectDirectory')
         const projectDir = useProjectDirectory()
 
+        // Auto-initialize projectsRoot if not set
+        if (!this.projectsRoot) {
+          const defaultRoot = await projectDir.getDefaultProjectsRoot()
+          if (defaultRoot) {
+            await projectDir.setProjectsRoot(defaultRoot)
+            this.projectsRoot = defaultRoot
+            localStorage.setItem('construct_projects_root', defaultRoot)
+          }
+        }
+
         const projects: LocalProject[] = []
 
         // Load managed projects from projects root (if configured)
@@ -200,7 +210,7 @@ export const useProjectStore = defineStore('project', {
       }
     },
 
-    async createProject(data: { name: string; description?: string; spaces?: SpaceType[] }) {
+    async createProject(data: { name: string; description?: string; spaces?: SpaceType[]; localPath?: string }) {
       this.loading = true
       this.error = null
 
@@ -214,13 +224,21 @@ export const useProjectStore = defineStore('project', {
           if (root) {
             this.projectsRoot = normalizePath(root)
             localStorage.setItem(STORAGE_KEY_ROOT, this.projectsRoot)
-          } else {
+          } else if (!data.localPath) {
             throw new Error('No projects root directory set')
           }
         }
 
         const spaces = data.spaces || DEFAULT_SPACES
-        const createdPath = await projectDir.createProjectStructure(data.name, this.projectsRoot, spaces)
+        let createdPath: string | null
+
+        if (data.localPath) {
+          // Caller provided an explicit path — use it directly (e.g. from Architect kickoff)
+          createdPath = await projectDir.createProjectStructure(data.name, data.localPath, spaces, true)
+        } else {
+          // Derive path from projectsRoot/name
+          createdPath = await projectDir.createProjectStructure(data.name, this.projectsRoot, spaces)
+        }
 
         if (!createdPath) {
           throw new Error('Failed to create project structure')
@@ -341,6 +359,75 @@ export const useProjectStore = defineStore('project', {
       this.recentProjects = recents.slice(0, MAX_RECENTS)
 
       localStorage.setItem(STORAGE_KEY_RECENTS, JSON.stringify(this.recentProjects))
+    },
+
+    removeProject(path: string) {
+      const normalizedPath = normalizePath(path)
+
+      // Remove from external paths
+      this.externalPaths = this.externalPaths.filter(p => p !== normalizedPath)
+      localStorage.setItem(STORAGE_KEY_EXTERNALS, JSON.stringify(this.externalPaths))
+
+      // Remove from recents
+      this.recentProjects = this.recentProjects.filter(p => p.path !== normalizedPath)
+      localStorage.setItem(STORAGE_KEY_RECENTS, JSON.stringify(this.recentProjects))
+
+      // Remove from projects list
+      this.projects = this.projects.filter(p => p.path !== normalizedPath)
+
+      // Clear current if it was the removed project
+      if (this.currentProject?.path === normalizedPath) {
+        this.currentProject = null
+      }
+    },
+
+    async deleteProjectFromDisk(path: string) {
+      this.removeProject(path)
+      try {
+        const { invoke } = await import('@tauri-apps/api/core')
+        const tauriFs = await import('@tauri-apps/plugin-fs')
+        if (await tauriFs.exists(path)) {
+          // Use macOS trash command to move to Trash instead of permanent deletion
+          const result = await invoke<{ success: boolean; code: number | null; stdout: string; stderr: string }>('run_shell_command', {
+            command: 'trash',
+            args: [path],
+            cwd: '/'
+          })
+          if (!result.success) {
+            // Fallback: use Finder's "move to trash" via osascript
+            await invoke('run_shell_command', {
+              command: 'osascript',
+              args: ['-e', `tell application "Finder" to delete (POSIX file "${path}" as alias)`],
+              cwd: '/'
+            })
+          }
+        }
+      } catch (e) {
+        console.error('Failed to move project to trash:', e)
+      }
+    },
+
+    async updateProjectConfig(path: string, data: { name?: string; description?: string; spaces?: string[] }) {
+      const { useProjectDirectory } = await import('@/composables/useProjectDirectory')
+      const projectDir = useProjectDirectory()
+      const config = await projectDir.loadProjectConfig(path)
+      if (!config) return
+
+      if (data.name !== undefined) config.name = data.name
+      if (data.description !== undefined) config.description = data.description
+      if (data.spaces !== undefined) config.spaces = data.spaces
+      config.updated = new Date().toISOString()
+
+      await projectDir.saveProjectConfig(path, config)
+
+      // Update in-memory
+      const p = this.projects.find(proj => proj.path === path)
+      if (p) {
+        if (data.name !== undefined) p.name = data.name
+        if (data.description !== undefined) p.description = data.description
+        if (data.spaces !== undefined) p.spaces = data.spaces as SpaceType[]
+        p.updated_at = config.updated
+      }
     },
 
     setProjectsRoot(path: string) {
