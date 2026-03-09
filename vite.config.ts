@@ -44,13 +44,22 @@ export default defineConfig({
     },
     dedupe: ['vue'],
   },
+  // server: {
+  //   port: 3050,
+  //   strictPort: true,
+  //   proxy: {
+  //     '/api': 'http://localhost:8000',
+  //     '/health': 'http://localhost:8000',
+  //     '/media': 'http://localhost:8000',
+  //   },
+  // },
   server: {
     port: 3050,
     strictPort: true,
     proxy: {
-      '/api': 'http://localhost:8000',
-      '/health': 'http://localhost:8000',
-      '/media': 'http://localhost:8000',
+      '/api': 'https://api.construct.space',
+      '/health': 'https://api.construct.space',
+      '/media': 'https://api.construct.space',
     },
   },
   // Clear screen disabled for Tauri integration

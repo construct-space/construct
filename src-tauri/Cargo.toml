@@ -53,8 +53,8 @@ tauri-plugin-dragout = "0.1"
 tauri-plugin-nspopover = { git = "https://github.com/freethinkel/tauri-nspopover-plugin.git" }
 tauri-plugin-macos-permissions = "2"
 objc2 = "0.6"
-objc2-app-kit = { version = "0.3", features = ["NSWindow", "NSButton", "NSControl", "NSResponder", "NSView"] }
-objc2-foundation = "0.3"
+objc2-app-kit = { version = "0.3", features = ["NSWindow", "NSButton", "NSControl", "NSResponder", "NSView", "NSApplication", "NSImage", "NSRunningApplication"] }
+objc2-foundation = { version = "0.3", features = ["NSData"] }
 
 [features]
 default = ["custom-protocol"]

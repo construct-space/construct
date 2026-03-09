@@ -3197,6 +3197,47 @@ fn check_accessibility_permission(_prompt: bool) -> bool {
     true // Other platforms don't need accessibility permissions for global shortcuts
 }
 
+// Dock icon states:
+//   "default"  — normal green icon (theme color)
+//   "update"   — update available (blue dot badge)
+//   "error"    — something is wrong (red dot badge)
+//   "busy"     — processing/building (orange dot badge)
+#[cfg(target_os = "macos")]
+#[tauri::command]
+fn set_dock_icon(_app: tauri::AppHandle, state: String) -> Result<(), String> {
+    use objc2::rc::Retained;
+    use objc2::AnyThread;
+    use objc2_app_kit::NSApplication;
+    use objc2_app_kit::NSImage;
+    use objc2_foundation::NSData;
+
+    // Embed icon variants at compile time
+    let icon_bytes: &[u8] = match state.as_str() {
+        "update" => include_bytes!("../icons/dock-update.png"),
+        "error"  => include_bytes!("../icons/dock-error.png"),
+        "busy"   => include_bytes!("../icons/dock-busy.png"),
+        _        => include_bytes!("../icons/icon.png"),
+    };
+
+    unsafe {
+        let mtm = objc2::MainThreadMarker::new_unchecked();
+        let data = NSData::with_bytes(icon_bytes);
+        let image: Retained<NSImage> = NSImage::initWithData(NSImage::alloc(), &data)
+            .ok_or("Failed to create NSImage from icon data")?;
+        let ns_app = NSApplication::sharedApplication(mtm);
+        ns_app.setApplicationIconImage(Some(&image));
+    }
+
+    eprintln!("[dock] Icon state set to: {}", state);
+    Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+fn set_dock_icon(_state: String) -> Result<(), String> {
+    Ok(()) // No-op on non-macOS
+}
+
 #[cfg(target_os = "macos")]
 fn hex_to_rgb16(hex: &str) -> Option<(u16, u16, u16)> {
     let value = hex.trim().strip_prefix('#').unwrap_or(hex.trim());
@@ -3474,7 +3515,7 @@ pub fn run() {
                 "documentation" => {
                     let _ = app
                         .opener()
-                        .open_url("https://construct.ninja/docs", None::<&str>);
+                        .open_url("https://construct.space/docs", None::<&str>);
                 }
                 "keyboard_shortcuts" => {
                     let _ = app.emit("menu:keyboard-shortcuts", ());
@@ -3553,6 +3594,8 @@ pub fn run() {
             dock_set_listener_ready,
             // Accessibility
             check_accessibility_permission,
+            // Dock icon
+            set_dock_icon,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

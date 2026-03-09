@@ -17,13 +17,13 @@
  * "inline" means the values are resolved at runtime via CSS variables.
  */
 @theme inline {
-  --color-app-accent:     var(--app-accent);
-  --color-app-muted:      var(--app-muted);
-  --color-app-border:     var(--app-border);
+  --color-app-accent: var(--app-accent);
+  --color-app-muted: var(--app-muted);
+  --color-app-border: var(--app-border);
   --color-app-foreground: var(--app-foreground);
   --color-app-background: var(--app-background);
-  --color-app-canvas:     var(--app-canvas-bg);
-  --color-app-status:     var(--app-status-bg);
+  --color-app-canvas: var(--app-canvas-bg);
+  --color-app-status: var(--app-status-bg);
 }
 
 /* App-wide theme variables (set by useAppTheme composable) */
@@ -55,27 +55,66 @@
 
 /* App theme utility classes */
 @layer utilities {
+
   /* Backgrounds */
-  .bg-app         { background-color: var(--app-background); }
-  .bg-app-canvas  { background-color: var(--app-canvas-bg); }
-  .bg-app-status  { background-color: var(--app-status-bg); }
-  .bg-app-accent  { background-color: var(--app-accent); }
-  .bg-app-muted   { background-color: var(--app-muted); }
+  .bg-app {
+    background-color: var(--app-background);
+  }
+
+  .bg-app-canvas {
+    background-color: var(--app-canvas-bg);
+  }
+
+  .bg-app-status {
+    background-color: var(--app-status-bg);
+  }
+
+  .bg-app-accent {
+    background-color: var(--app-accent);
+  }
+
+  .bg-app-muted {
+    background-color: var(--app-muted);
+  }
 
   /* Semantic surface backgrounds (used across spaces) */
-  .bg-app-panel  { background-color: var(--app-status-bg); }
-  .bg-app-subtle { background-color: color-mix(in srgb, var(--app-muted) 8%, transparent); }
-  .bg-app-hover  { background-color: color-mix(in srgb, var(--app-muted) 12%, transparent); }
+  .bg-app-panel {
+    background-color: var(--app-status-bg);
+  }
+
+  .bg-app-subtle {
+    background-color: color-mix(in srgb, var(--app-muted) 8%, transparent);
+  }
+
+  .bg-app-hover {
+    background-color: color-mix(in srgb, var(--app-muted) 12%, transparent);
+  }
 
   /* Text */
-  .text-app                  { color: var(--app-foreground); }
-  .text-app-muted            { color: var(--app-muted); }
-  .text-app-accent           { color: var(--app-accent); }
-  .text-app-accent-foreground { color: var(--app-accent-foreground); }
+  .text-app {
+    color: var(--app-foreground);
+  }
+
+  .text-app-muted {
+    color: var(--app-muted);
+  }
+
+  .text-app-accent {
+    color: var(--app-accent);
+  }
+
+  .text-app-accent-foreground {
+    color: var(--app-accent-foreground);
+  }
 
   /* Borders */
-  .border-app        { border-color: var(--app-border); }
-  .border-app-border { border-color: var(--app-border); }
+  .border-app {
+    border-color: var(--app-border);
+  }
+
+  .border-app-border {
+    border-color: var(--app-border);
+  }
 }
 
 /* ==========================================
@@ -98,7 +137,7 @@ button[role="checkbox"][data-state="checked"],
 
 /* Slider - Override track and thumb colors */
 [data-radix-slider-range],
-[role="slider"] [data-orientation] > span:first-child {
+[role="slider"] [data-orientation]>span:first-child {
   background-color: var(--app-accent) !important;
 }
 

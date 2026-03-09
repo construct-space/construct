@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { setDockIcon } from '@/composables/useDockIcon'
 
 declare global {
   interface Window {
@@ -45,11 +46,13 @@ export function useUpdater() {
           date: update.date ?? '',
           body: update.body ?? '',
         }
+        setDockIcon('update')
         return updateInfo.value
       }
 
       updateAvailable.value = false
       updateInfo.value = null
+      setDockIcon('default')
       return null
     } catch (e) {
       console.error('[Updater] Check failed:', e)

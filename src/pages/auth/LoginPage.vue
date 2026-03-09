@@ -129,7 +129,7 @@ watchEffect(() => {
             </button>
 
             <p class="text-sm text-gray-500 text-center">
-              You'll be redirected to accounts.construct.ninja to sign in.
+              You'll be redirected to accounts.construct.space to sign in.
             </p>
 
             <!-- Manual code entry (shown after clicking sign in) -->

@@ -85,7 +85,7 @@ const normalizedItems = computed(() => {
           <DropdownMenuItem
             v-else
             :disabled="item.disabled"
-            class="relative flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-[var(--app-foreground)] outline-none cursor-pointer select-none data-[highlighted]:bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] data-[highlighted]:text-[var(--app-accent)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+            class="relative flex items-center gap-3 rounded-md px-3 py-2 text-sm text-[var(--app-foreground)] outline-none cursor-pointer select-none data-[highlighted]:bg-[color-mix(in_srgb,var(--app-accent)_10%,transparent)] data-[highlighted]:text-[var(--app-accent)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
             @select="(item.onSelect || item.click)?.()"
           >
             <Icon v-if="item.icon" :icon="toIconify(item.icon)" class="size-4 shrink-0 text-[var(--app-muted)]" />
