@@ -84,6 +84,41 @@ export function useConstructAuth() {
     }
   }
 
+  async function startPasskeyLogin() {
+    const state = generateState()
+    const codeVerifier = generateCodeVerifier()
+    const codeChallenge = await generateCodeChallenge(codeVerifier)
+
+    sessionStorage.setItem(OAUTH_STATE_KEY, state)
+    sessionStorage.setItem(OAUTH_VERIFIER_KEY, codeVerifier)
+    localStorage.setItem(OAUTH_STATE_KEY_PERSIST, state)
+    localStorage.setItem(OAUTH_VERIFIER_KEY_PERSIST, codeVerifier)
+
+    const redirectUri = getRedirectUri()
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      state,
+      scope: 'openid profile email',
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
+      login_hint: 'passkey',
+    })
+
+    const authorizeUrl = `${accountsUrl}/oauth/authorize?${params.toString()}`
+
+    if (isTauriEnv()) {
+      import('@tauri-apps/plugin-shell').then(({ open }) => {
+        open(authorizeUrl)
+      }).catch(() => {
+        window.open(authorizeUrl, '_blank')
+      })
+    } else {
+      window.location.href = authorizeUrl
+    }
+  }
+
   function getRegisterUrl(): string {
     return `${accountsUrl}/register`
   }
@@ -201,6 +236,7 @@ export function useConstructAuth() {
 
   return {
     startLogin,
+    startPasskeyLogin,
     getRegisterUrl,
     getForgotPasswordUrl,
     validateState,

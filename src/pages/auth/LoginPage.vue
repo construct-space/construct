@@ -3,7 +3,7 @@ import { ref, watchEffect } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useConstructAuth } from '@/composables/useConstructAuth'
-import { ExternalLink, UserPlus, ClipboardPaste } from 'lucide-vue-next'
+import { ExternalLink, UserPlus, ClipboardPaste, KeyRound } from 'lucide-vue-next'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -15,6 +15,11 @@ const codeError = ref('')
 const handleLogin = () => {
   showCodeEntry.value = true
   constructAuth.startLogin()
+}
+
+const handlePasskeyLogin = () => {
+  showCodeEntry.value = true
+  constructAuth.startPasskeyLogin()
 }
 
 async function readClipboard(): Promise<string> {
@@ -125,6 +130,15 @@ watchEffect(() => {
           >
             <ExternalLink class="size-4" />
             {{ authStore.isLoading ? 'CONNECTING...' : 'SIGN IN WITH CONSTRUCT' }}
+          </button>
+
+          <button
+            @click="handlePasskeyLogin"
+            :disabled="authStore.isLoading"
+            class="w-full py-3 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-medium hover:border-app-accent transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            <KeyRound class="size-4" />
+            SIGN IN WITH PASSKEY
           </button>
 
           <p class="text-sm text-gray-500 text-center">
