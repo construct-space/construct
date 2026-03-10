@@ -138,7 +138,7 @@ const scheduleExplorerRefresh = () => {
 }
 
 // Build local_data with project and design context for code tools
-function buildLocalData(): Record<string, unknown> {
+function buildLocalData(references?: ParsedReferences): Record<string, unknown> {
   const localData: Record<string, unknown> = {}
 
   // Include current project context (local projects — no API auth needed)
@@ -206,6 +206,17 @@ function buildLocalData(): Record<string, unknown> {
       })
     }
     localData.designs = designs
+  }
+
+  if (references) {
+    localData.references = {
+      designs: references.designs.map(ref => ref.raw),
+      docs: references.docs.map(ref => ref.title),
+      tasks: references.tasks,
+      components: references.components,
+      files: references.files,
+      code_files: references.codeFiles.map(ref => ref.filename),
+    }
   }
 
   return localData
@@ -2806,7 +2817,7 @@ async function sendMessage() {
       token: chatToken,
       agent_id: agentId,
       space: spaceContext,
-      local_data: { ...buildLocalData(), ...localDataPatch }, // Include project context and route-specific assistant context
+      local_data: { ...buildLocalData(references), ...localDataPatch }, // Include project context and route-specific assistant context
     }, handleChunk, { signal: controller.signal })
   }
   catch (error) {

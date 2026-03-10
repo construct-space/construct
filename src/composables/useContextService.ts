@@ -570,6 +570,10 @@ export function useContextService(): UseContextServiceReturn {
 
     const enriched: Record<string, unknown> = {
       ...existing,
+      project_id: existing.project_id ?? spaceData.project?.id,
+      project_name: existing.project_name ?? spaceData.project?.name,
+      project_description: existing.project_description ?? spaceData.project?.description,
+      project_path: existing.project_path ?? spaceData.project?.localPath,
       space_context: {
         activeSpace: spaceData.activeSpace,
         project: spaceData.project,

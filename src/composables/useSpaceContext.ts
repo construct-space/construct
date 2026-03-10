@@ -163,10 +163,11 @@ export function useSpaceContext() {
   const docsContext = computed((): SpaceContextDocs => {
     const summary = busDocsSummary.value
     if (!summary) {
-      return { count: 0, activeDocument: null }
+      return { count: 0, documents: [], activeDocument: null }
     }
     return {
       count: summary.count || 0,
+      documents: Array.isArray(summary.documents) ? summary.documents as SpaceContextDocs['documents'] : [],
       activeDocument: summary.activeDocument || null,
     }
   })

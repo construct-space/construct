@@ -185,6 +185,7 @@ export interface SpaceContextGit {
 
 export interface SpaceContextDocs {
   count: number
+  documents?: { title: string; type?: string; filename?: string }[]
   activeDocument: { id: number; title: string; content: string } | null
 }
 

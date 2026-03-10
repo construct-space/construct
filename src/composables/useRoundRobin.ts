@@ -161,7 +161,7 @@ export function useRoundRobin() {
               messages,
               stream: true,
               token: options?.token,
-              include_space_context: false,
+              local_data: options?.localData,
               max_iterations: 1,
             },
             (chunk: ContextStreamChunk) => {
