@@ -64,7 +64,7 @@ function registryToRemote(s: RegistrySpace): RemoteSpace {
     author: s.author ?? 'Construct Team',
     category: s.scope,
     stars: 0,
-    downloads: s.downloads ?? 0,
+    downloads: typeof s.downloads === 'number' ? s.downloads : 0,
     updated_at: s.released_at ?? '',
     recommended: s.recommended,
   }
@@ -507,28 +507,14 @@ function isNewerVersion(remote: string, local: string): boolean {
   return false
 }
 
-/** Fetch JSON via Tauri shell curl (bypasses CORS) with browser fetch fallback */
+/** Fetch JSON via standard fetch (Tauri webview supports HTTPS via http:allow-fetch) */
 async function fetchJson<T>(url: string): Promise<T | null> {
   try {
-    const { Command } = await import('@tauri-apps/plugin-shell')
-    const cmd = Command.create('curl', ['-sfL', '--max-time', '15', url])
-    const output = await cmd.execute()
-    console.log(`[Marketplace] curl ${url} → code=${output.code}, stdout=${output.stdout.length} bytes`)
-    if (output.code !== 0) {
-      console.warn(`[Marketplace] curl failed: ${output.stderr}`)
-      return null
-    }
-    return JSON.parse(output.stdout) as T
-  } catch (e) {
-    console.warn(`[Marketplace] curl error, trying fetch:`, e)
-    // Fallback to browser fetch (works when CORS allows it)
-    try {
-      const res = await fetch(url)
-      if (!res.ok) return null
-      return await res.json() as T
-    } catch {
-      return null
-    }
+    const res = await fetch(url)
+    if (!res.ok) return null
+    return await res.json() as T
+  } catch {
+    return null
   }
 }
 
@@ -542,7 +528,7 @@ async function findRegistrySpace(spaceId: string): Promise<RegistrySpace | null>
 
 /** Download a tarball and extract it to ~/.construct/spaces/{id}/ */
 async function downloadAndExtract(spaceId: string, tarballUrl: string): Promise<void> {
-  const { mkdir, exists } = await import('@tauri-apps/plugin-fs')
+  const { mkdir, exists, writeFile } = await import('@tauri-apps/plugin-fs')
   const { homeDir } = await import('@tauri-apps/api/path')
   const { Command } = await import('@tauri-apps/plugin-shell')
 
@@ -558,13 +544,14 @@ async function downloadAndExtract(spaceId: string, tarballUrl: string): Promise<
     await mkdir(spaceDir, { recursive: true })
   }
 
-  // Download tarball via curl (bypasses CORS for GitHub release redirects)
+  // Download tarball via fetch + write to disk
   const tarballPath = `${spaceDir}/space.tar.gz`
-  const dlCmd = Command.create('curl', ['-sfL', '--max-time', '60', '-o', tarballPath, tarballUrl])
-  const dlOutput = await dlCmd.execute()
-  if (dlOutput.code !== 0) {
-    throw new Error(`Failed to download: curl exit ${dlOutput.code} – ${dlOutput.stderr}`)
+  const res = await fetch(tarballUrl)
+  if (!res.ok) {
+    throw new Error(`Failed to download: HTTP ${res.status}`)
   }
+  const arrayBuf = await res.arrayBuffer()
+  await writeFile(tarballPath, new Uint8Array(arrayBuf))
 
   // Extract using tar command
   const cmd = Command.create('tar', ['-xzf', tarballPath, '-C', spaceDir])

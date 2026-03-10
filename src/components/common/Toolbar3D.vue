@@ -53,8 +53,8 @@ function handleItemClick(item: { id: string; onClick?: () => void; to?: string; 
         data-tauri-drag-region>
         <ToolbarBreadcrumb :path="frontPanel.path" />
 
-        <!-- Slot for content after breadcrumb -->
-        <div id="toolbar-after-breadcrumb-slot" class="flex items-center" />
+        <!-- Left slot (after breadcrumb) -->
+        <div id="toolbar-left" class="flex items-center" />
 
         <div class="flex-1" />
 
@@ -73,16 +73,13 @@ function handleItemClick(item: { id: string; onClick?: () => void; to?: string; 
           </div>
         </template>
 
-        <!-- Slot for center tools (via Teleport from pages) -->
-        <div id="toolbar-bun-slot" class="flex items-center gap-1" />
+        <!-- Center slot (via Teleport from pages) -->
+        <div id="toolbar-center" class="flex items-center gap-1" />
 
         <div class="flex-1" />
 
-        <!-- Page-specific right-side content (via Teleport from pages) -->
-        <div id="toolbar-right-slot" class="flex items-center gap-2 mr-2" />
-
-        <!-- Slot for package manager commands -->
-        <div id="toolbar-package-slot" class="flex items-center gap-1" />
+        <!-- Right slot (via Teleport from pages) -->
+        <div id="toolbar-right" class="flex items-center gap-2 mr-2" />
       </div>
 
       <!-- Bottom Panel (for rotation animation) -->
