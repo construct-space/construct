@@ -239,6 +239,7 @@ onUnmounted(() => {
         v-if="currentPage"
         :is="currentPage"
         :key="`${spaceName}-${currentPagePath}`"
+        :project-id="projectId"
       />
 
       <!-- Page not found within the space -->
