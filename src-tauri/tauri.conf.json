@@ -31,12 +31,12 @@
     "windows": [
       {
         "title": "Construct",
-        "width": 1400,
-        "height": 900,
+        "width": 1440,
+        "height": 810,
         "resizable": true,
         "fullscreen": false,
-        "minWidth": 900,
-        "minHeight": 600,
+        "minWidth": 1024,
+        "minHeight": 576,
         "maxWidth": 3840,
         "maxHeight": 2160,
         "titleBarStyle": "Overlay",

@@ -137,7 +137,10 @@ export const useAuthStore = defineStore('auth', {
       // Clear all user-scoped data so a new login starts fresh
       localStorage.removeItem('cp_tasks')
       localStorage.removeItem('cp_pinned_items')
-      localStorage.removeItem('cp_onboarding_complete')
+      // Clear per-user onboarding flag
+      const userId = this.user?.id || this.user?.email || 'unknown'
+      localStorage.removeItem(`cp_onboarding_complete:${userId}`)
+      localStorage.removeItem('cp_onboarding_complete') // legacy cleanup
 
       // Clear pinned items from SQLite (Tauri)
       try {

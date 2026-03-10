@@ -36,31 +36,26 @@ export async function authGuard(
     return next(authStore.isAuthenticated ? '/app' : '/login')
   }
 
-  // Auto-skip onboarding if spaces are already installed on disk
-  if (authStore.isAuthenticated && !localStorage.getItem('cp_onboarding_complete')) {
-    try {
-      const { exists } = await import('@tauri-apps/plugin-fs')
-      const { homeDir } = await import('@tauri-apps/api/path')
-      const home = await homeDir()
-      const checkPath = `${home}/.construct/spaces/code/manifest.json`
-      if (await exists(checkPath)) {
-        localStorage.setItem('cp_onboarding_complete', 'true')
-        if (to.path === '/onboarding') {
-          return next('/app')
-        }
-      }
-    } catch {
-      // Tauri APIs not available (web mode)
-    }
-  }
+  // Per-user onboarding key (so switching accounts triggers onboarding again)
+  const userId = authStore.user?.id || authStore.user?.email || 'unknown'
+  const onboardingKey = `cp_onboarding_complete:${userId}`
 
   // Onboarding check: authenticated + navigating to app + not yet onboarded → redirect
   if (
     authStore.isAuthenticated &&
     to.path.startsWith('/app') &&
-    !localStorage.getItem('cp_onboarding_complete')
+    !localStorage.getItem(onboardingKey)
   ) {
     return next('/onboarding')
+  }
+
+  // If on onboarding page but already completed, redirect to app
+  if (
+    authStore.isAuthenticated &&
+    to.path === '/onboarding' &&
+    localStorage.getItem(onboardingKey)
+  ) {
+    return next('/app')
   }
 
   next()
