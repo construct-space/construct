@@ -140,21 +140,14 @@ export function useSpaceMarketplace() {
     isLoading.value = true
     error.value = null
     try {
-      // Try portal API first (primary)
-      const portalData = await fetchJson<RegistryResponse>(`${appConfig.spacesRegistryUrl}/registry`)
-      if (portalData?.spaces?.length) {
-        remote.value = portalData.spaces.map(registryToRemote)
-        return
+      const data = await fetchJson<RegistryResponse>(`${appConfig.spacesRegistryUrl}/registry`)
+      if (data?.spaces?.length) {
+        remote.value = data.spaces.map(registryToRemote)
+      } else {
+        remote.value = []
       }
-
-      // Fall back to GitHub-hosted index
-      const ghData = await fetchJson<RegistryResponse>(appConfig.spacesIndexUrl)
-      if (ghData?.spaces?.length) {
-        remote.value = ghData.spaces.map(registryToRemote)
-        return
-      }
-      remote.value = []
     } catch {
+      error.value = 'Failed to load spaces from registry'
       remote.value = []
     } finally {
       isLoading.value = false
@@ -458,15 +451,9 @@ export async function autoInstallRecommended(): Promise<void> {
 
     console.log('[Marketplace] First launch detected — auto-installing recommended spaces...')
 
-    // Fetch registry (portal first, GitHub fallback)
-    let registrySpaces: RegistrySpace[] = []
+    // Fetch registry
     const portalData = await fetchJson<RegistryResponse>(`${appConfig.spacesRegistryUrl}/registry`)
-    if (portalData?.spaces?.length) {
-      registrySpaces = portalData.spaces
-    } else {
-      const ghData = await fetchJson<RegistryResponse>(appConfig.spacesIndexUrl)
-      registrySpaces = ghData?.spaces || []
-    }
+    const registrySpaces = portalData?.spaces || []
 
     // Filter recommended and install (skip native host pages)
     const recommended = registrySpaces.filter(s => s.recommended && !NATIVE_SPACE_IDS.has(s.id))
@@ -526,9 +513,14 @@ async function fetchJson<T>(url: string): Promise<T | null> {
     const { Command } = await import('@tauri-apps/plugin-shell')
     const cmd = Command.create('curl', ['-sfL', '--max-time', '15', url])
     const output = await cmd.execute()
-    if (output.code !== 0) return null
+    console.log(`[Marketplace] curl ${url} → code=${output.code}, stdout=${output.stdout.length} bytes`)
+    if (output.code !== 0) {
+      console.warn(`[Marketplace] curl failed: ${output.stderr}`)
+      return null
+    }
     return JSON.parse(output.stdout) as T
-  } catch {
+  } catch (e) {
+    console.warn(`[Marketplace] curl error, trying fetch:`, e)
     // Fallback to browser fetch (works when CORS allows it)
     try {
       const res = await fetch(url)
@@ -540,18 +532,12 @@ async function fetchJson<T>(url: string): Promise<T | null> {
   }
 }
 
-/** Find a space entry in the registry index (must include tarball for install) */
+/** Find a space entry in the registry (must include tarball for install) */
 async function findRegistrySpace(spaceId: string): Promise<RegistrySpace | null> {
-  // Try portal API first
-  const portalData = await fetchJson<RegistryResponse>(`${appConfig.spacesRegistryUrl}/registry`)
-  if (portalData) {
-    const found = portalData.spaces?.find(s => s.id === spaceId)
-    if (found?.tarball) return found
-  }
-
-  // Fallback to GitHub index (has tarball paths)
-  const ghData = await fetchJson<RegistryResponse>(appConfig.spacesIndexUrl)
-  return ghData?.spaces?.find(s => s.id === spaceId) ?? null
+  const data = await fetchJson<RegistryResponse>(`${appConfig.spacesRegistryUrl}/registry`)
+  if (!data) return null
+  const found = data.spaces?.find(s => s.id === spaceId)
+  return found?.tarball ? found : null
 }
 
 /** Download a tarball and extract it to ~/.construct/spaces/{id}/ */
