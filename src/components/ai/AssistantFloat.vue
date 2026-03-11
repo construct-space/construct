@@ -403,20 +403,11 @@ watch(debugMessages, () => {
   })
 }, { deep: true })
 
-// Load dev mode setting from context service
+// Load dev mode setting — only enabled during tauri dev, never in release builds
 const loadDevMode = async () => {
   if (!isTauri.value) return
-  try {
-    // In dev builds, auto-enable. In production, check settings.
-    if (import.meta.env.DEV) {
-      devMode.value = true
-    } else {
-      const result = await sendRequest('settings.get', { key: 'dev_mode' }) as { value?: string }
-      devMode.value = result?.value === 'true'
-    }
-  } catch {
-    // Ignore - use default
-  }
+  // Only show debug panel in dev builds (cargo tauri dev / bun run dev)
+  devMode.value = import.meta.env.DEV === true
 }
 
 // Stop the current streaming response
