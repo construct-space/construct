@@ -113,6 +113,11 @@ export const routes: RouteRecordRaw[] = [
             name: 'project-architect',
             component: () => import('@/pages/projects/ArchitectPage.vue'),
           },
+          {
+            path: 'vibe',
+            name: 'project-vibe',
+            component: () => import('@/pages/VibePage.vue'),
+          },
           // /app/projects/:projectId/:spaceName — space within project
           {
             path: ':spaceName',
@@ -146,6 +151,11 @@ export const routes: RouteRecordRaw[] = [
         path: 'architect',
         name: 'architect',
         component: () => import('@/pages/projects/ArchitectPage.vue'),
+      },
+      {
+        path: 'vibe',
+        name: 'vibe',
+        component: () => import('@/pages/VibePage.vue'),
       },
 
       // ===== Dynamic space routes (company-scoped) =====

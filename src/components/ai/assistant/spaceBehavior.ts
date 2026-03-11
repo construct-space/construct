@@ -61,6 +61,9 @@ export function resolveAssistantAgentId(input: AgentRoutingInput): string {
     case 'chat':
       return 'conductor'
 
+    case 'vibe':
+      return 'conductor'
+
     // Architecture / planning space
     case 'architect':
       return 'planner'

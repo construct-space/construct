@@ -81,12 +81,20 @@ async function activateProjectMode(project: { id: string | number; name: string;
   }
 
   const projectSpaces = getProjectSpaces(spaces.value, project.spaces)
-  const items = projectSpaces.map(s => ({
-    id: s.name,
-    label: s.displayName || s.name,
-    icon: getSpaceConfig(s.name).icon || s.icon || 'i-lucide-circle',
-    route: `/app/projects/${projectId()}/${s.name}`,
-  }))
+  const items = [
+    {
+      id: 'vibe',
+      label: 'Vibe',
+      icon: 'i-lucide-zap',
+      route: `/app/projects/${projectId()}/vibe`,
+    },
+    ...projectSpaces.map(s => ({
+      id: s.name,
+      label: s.displayName || s.name,
+      icon: getSpaceConfig(s.name).icon || s.icon || 'i-lucide-circle',
+      route: `/app/projects/${projectId()}/${s.name}`,
+    })),
+  ]
 
   enterProject(
     { id: String(project.id), name: project.name },

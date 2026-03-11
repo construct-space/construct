@@ -113,6 +113,13 @@ function getExtLabel(ext: string): string {
           <span class="flex items-center gap-2 font-mono text-xs opacity-60">
             {{ project.path }}
           </span>
+          <button
+            class="inline-flex items-center gap-2 rounded-full border border-[var(--app-border)] px-3 py-1.5 text-xs font-medium text-[var(--app-foreground)] transition-colors hover:border-amber-400/40 hover:bg-amber-400/10"
+            @click="enterSpace('vibe')"
+          >
+            <i class="i-lucide-zap size-3.5 text-amber-400" />
+            Open Vibe
+          </button>
         </div>
 
         <!-- PROJECT OVERVIEW CARDS -->

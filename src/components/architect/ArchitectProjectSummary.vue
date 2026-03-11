@@ -19,6 +19,7 @@ const emit = defineEmits<{
   createProject: []
   saveFeature: []
   editChoices: [index: number]
+  openVibe: []
 }>()
 
 // Derive a display name from plan or description
@@ -122,28 +123,41 @@ function getAnswerDisplay(val: string | string[]): string {
 
     <!-- Create button -->
     <div class="px-6 py-4 border-t border-[var(--app-border)]/20">
-      <button
-        v-if="isInsideProject"
-        class="w-full py-3 rounded-xl text-sm font-semibold transition-all duration-200"
-        :class="isDone
-          ? 'bg-[var(--app-accent)] text-[var(--app-accent-foreground)] hover:opacity-90 cursor-pointer'
-          : 'bg-[color-mix(in_srgb,var(--app-background),white_6%)] text-app-muted/40 cursor-not-allowed border border-[var(--app-border)]/20'"
-        :disabled="!isDone || isKicking"
-        @click="emit('saveFeature')"
-      >
-        {{ isKicking ? 'Saving...' : 'Save Feature Plan' }}
-      </button>
-      <button
-        v-else
-        class="w-full py-3 rounded-xl text-sm font-semibold transition-all duration-200"
-        :class="isDone
-          ? 'bg-[var(--app-accent)] text-[var(--app-accent-foreground)] hover:opacity-90 cursor-pointer'
-          : 'bg-[color-mix(in_srgb,var(--app-background),white_6%)] text-app-muted/40 cursor-not-allowed border border-[var(--app-border)]/20'"
-        :disabled="!isDone || isKicking"
-        @click="emit('createProject')"
-      >
-        {{ isKicking ? 'Creating...' : 'Create Project →' }}
-      </button>
+      <div class="space-y-2">
+        <button
+          v-if="isInsideProject"
+          class="w-full py-3 rounded-xl text-sm font-semibold transition-all duration-200"
+          :class="isDone
+            ? 'bg-[var(--app-accent)] text-[var(--app-accent-foreground)] hover:opacity-90 cursor-pointer'
+            : 'bg-[color-mix(in_srgb,var(--app-background),white_6%)] text-app-muted/40 cursor-not-allowed border border-[var(--app-border)]/20'"
+          :disabled="!isDone || isKicking"
+          @click="emit('saveFeature')"
+        >
+          {{ isKicking ? 'Saving...' : 'Save Feature Plan' }}
+        </button>
+        <button
+          v-else
+          class="w-full py-3 rounded-xl text-sm font-semibold transition-all duration-200"
+          :class="isDone
+            ? 'bg-[var(--app-accent)] text-[var(--app-accent-foreground)] hover:opacity-90 cursor-pointer'
+            : 'bg-[color-mix(in_srgb,var(--app-background),white_6%)] text-app-muted/40 cursor-not-allowed border border-[var(--app-border)]/20'"
+          :disabled="!isDone || isKicking"
+          @click="emit('createProject')"
+        >
+          {{ isKicking ? 'Creating...' : 'Create Project →' }}
+        </button>
+
+        <button
+          class="w-full py-3 rounded-xl text-sm font-semibold transition-all duration-200 border"
+          :class="isDone
+            ? 'border-amber-400/30 bg-amber-400/10 text-amber-100 hover:bg-amber-400/15 cursor-pointer'
+            : 'border-[var(--app-border)]/20 bg-[color-mix(in_srgb,var(--app-background),white_4%)] text-app-muted/40 cursor-not-allowed'"
+          :disabled="!isDone || isKicking"
+          @click="emit('openVibe')"
+        >
+          Start Vibe Build
+        </button>
+      </div>
     </div>
   </div>
 </template>

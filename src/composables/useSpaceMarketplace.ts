@@ -482,7 +482,7 @@ export async function autoInstallRecommended(): Promise<void> {
 }
 
 /** Spaces that are now native host pages — never install as dynamic spaces */
-export const NATIVE_SPACE_IDS = new Set(['architect', 'projects'])
+export const NATIVE_SPACE_IDS = new Set(['vibe', 'architect', 'projects'])
 
 /**
  * Ensure essential spaces are always installed.

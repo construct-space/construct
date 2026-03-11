@@ -566,6 +566,10 @@ const contextInfo = computed(() => {
     return { label: 'Project', hint: 'Ask about this project', icon: 'i-lucide-folder', color: 'text-slate-500' }
   }
 
+  if (currentSpaceKey.value === 'vibe') {
+    return { label: 'Vibe', hint: 'Ask about execution plans, delivery flow, or session results', icon: 'i-lucide-zap', color: 'text-amber-400' }
+  }
+
   if (path.match(/\/app\/projects\/\d+\/code/)) {
     return { label: 'Code', hint: 'Ask about code, debugging, or implementation', icon: 'i-lucide-code-2', color: 'text-blue-500' }
   }

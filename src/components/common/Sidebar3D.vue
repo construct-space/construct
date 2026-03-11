@@ -195,6 +195,10 @@ watch(() => route.path, (newPath) => {
         <div class="absolute inset-0 w-full h-full flex flex-col items-center gap-1 pt-2 overflow-y-auto scrollbar-none"
           style="backface-visibility: hidden; transform: translateZ(20px)">
           <!-- Essential spaces (always visible) -->
+          <RouterLink to="/app/vibe" class="sidebar-btn"
+            :class="activeId === 'vibe' ? 'sidebar-btn-active' : 'sidebar-btn-inactive'" title="Vibe">
+            <Icon name="i-lucide-zap" class="size-5 text-amber-400" />
+          </RouterLink>
           <RouterLink to="/app/architect" class="sidebar-btn"
             :class="activeId === 'architect' ? 'sidebar-btn-active' : 'sidebar-btn-inactive'" title="Architect">
             <Icon name="i-lucide-pill" class="size-5 text-red-500" />

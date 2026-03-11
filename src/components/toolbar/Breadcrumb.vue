@@ -18,6 +18,7 @@ const routeLabels: Record<string, string> = {
   'projects': 'PROJECTS',
   'spaces': 'SPACES',
   'settings': 'SETTINGS',
+  'vibe': 'VIBE',
   'media': 'MEDIA',
   'teams': 'TEAMS',
   'code': 'CODE',

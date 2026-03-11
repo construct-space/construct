@@ -2409,6 +2409,7 @@ struct StreamChunk {
     #[serde(rename = "type")]
     message_type: Option<String>,
     route: Option<ModelRoute>,
+    data: Option<serde_json::Value>,
 }
 
 #[tauri::command]
@@ -2451,6 +2452,7 @@ async fn chat_stream(
                         error: Some(format!("Connection failed: {}", e)),
                         message_type: None,
                         route: None,
+                        data: None,
                     },
                 );
                 return;
@@ -2488,6 +2490,7 @@ async fn chat_stream(
                         error: Some(format!("Serialize failed: {}", e)),
                         message_type: None,
                         route: None,
+                        data: None,
                     },
                 );
                 return;
@@ -2503,6 +2506,7 @@ async fn chat_stream(
                     error: Some(format!("Write failed: {}", e)),
                     message_type: None,
                     route: None,
+                    data: None,
                 },
             );
             return;
@@ -2525,6 +2529,7 @@ async fn chat_stream(
                             error: Some("Connection closed".to_string()),
                             message_type: None,
                             route: None,
+                            data: None,
                         },
                     );
                     break;
@@ -2542,6 +2547,7 @@ async fn chat_stream(
                             error: Some("Request timeout".to_string()),
                             message_type: None,
                             route: None,
+                            data: None,
                         },
                     );
                     break;
@@ -2555,6 +2561,7 @@ async fn chat_stream(
                             error: Some(format!("Read failed: {}", e)),
                             message_type: None,
                             route: None,
+                            data: None,
                         },
                     );
                     break;
@@ -2591,6 +2598,7 @@ async fn chat_stream(
                     let route = response
                         .get("route")
                         .and_then(|r| serde_json::from_value::<ModelRoute>(r.clone()).ok());
+                    let data = response.get("data").cloned();
 
                     let _ = app_clone.emit(
                         "chat-stream-chunk",
@@ -2600,6 +2608,7 @@ async fn chat_stream(
                             error: error.clone(),
                             message_type,
                             route,
+                            data,
                         },
                     );
 
@@ -2620,7 +2629,7 @@ async fn architect_stream(
     app: tauri::AppHandle,
     state: tauri::State<'_, SharedContextState>,
     model: String,
-    mode: String,         // "questions", "plan", or "clarify"
+    mode: String, // "questions", "plan", or "clarify"
     description: String,
     answers: Option<serde_json::Value>,
     current_question: Option<serde_json::Value>,
@@ -2652,6 +2661,7 @@ async fn architect_stream(
                         error: Some(format!("Connection failed: {}", e)),
                         message_type: None,
                         route: None,
+                        data: None,
                     },
                 );
                 return;
@@ -2686,6 +2696,7 @@ async fn architect_stream(
                         error: Some(format!("Serialize failed: {}", e)),
                         message_type: None,
                         route: None,
+                        data: None,
                     },
                 );
                 return;
@@ -2701,6 +2712,7 @@ async fn architect_stream(
                     error: Some(format!("Write failed: {}", e)),
                     message_type: None,
                     route: None,
+                    data: None,
                 },
             );
             return;
@@ -2722,6 +2734,7 @@ async fn architect_stream(
                             error: Some("Connection closed".to_string()),
                             message_type: None,
                             route: None,
+                            data: None,
                         },
                     );
                     break;
@@ -2739,6 +2752,7 @@ async fn architect_stream(
                             error: Some("Request timeout".to_string()),
                             message_type: None,
                             route: None,
+                            data: None,
                         },
                     );
                     break;
@@ -2752,6 +2766,7 @@ async fn architect_stream(
                             error: Some(format!("Read failed: {}", e)),
                             message_type: None,
                             route: None,
+                            data: None,
                         },
                     );
                     break;
@@ -2784,6 +2799,7 @@ async fn architect_stream(
                     let route = response
                         .get("route")
                         .and_then(|r| serde_json::from_value::<ModelRoute>(r.clone()).ok());
+                    let data = response.get("data").cloned();
 
                     let _ = app_clone.emit(
                         "architect-stream-chunk",
@@ -2793,6 +2809,206 @@ async fn architect_stream(
                             error: error.clone(),
                             message_type,
                             route,
+                            data,
+                        },
+                    );
+
+                    if done || error.is_some() {
+                        break;
+                    }
+                }
+            }
+        }
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn vibe_stream(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, SharedContextState>,
+    model: String,
+    messages: Vec<serde_json::Value>,
+    source: Option<String>,
+    goal: Option<String>,
+    session_id: Option<String>,
+    local_data: Option<serde_json::Value>,
+    max_iterations: Option<i32>,
+) -> Result<(), String> {
+    use std::thread;
+
+    let state_clone = {
+        let ctx = state.lock().map_err(|_| "Lock error".to_string())?;
+        if ctx.socket.is_none() {
+            return Err("Not connected".to_string());
+        }
+        (ctx.host.clone(), ctx.port)
+    };
+
+    let app_clone = app.clone();
+
+    thread::spawn(move || {
+        let address = format!("{}:{}", state_clone.0, state_clone.1);
+        let mut socket = match TcpStream::connect(&address) {
+            Ok(s) => s,
+            Err(e) => {
+                let _ = app_clone.emit(
+                    "vibe-stream-chunk",
+                    StreamChunk {
+                        content: String::new(),
+                        done: true,
+                        error: Some(format!("Connection failed: {}", e)),
+                        message_type: None,
+                        route: None,
+                        data: None,
+                    },
+                );
+                return;
+            }
+        };
+
+        let _ = socket.set_read_timeout(Some(Duration::from_secs(300)));
+        let id = MESSAGE_ID.fetch_add(1, Ordering::SeqCst).to_string();
+
+        let request = ContextRequest {
+            id: id.clone(),
+            request_type: "ai.vibe_stream".to_string(),
+            payload: Some(serde_json::json!({
+                "model": model,
+                "messages": messages,
+                "source": source,
+                "goal": goal,
+                "session_id": session_id,
+                "local_data": local_data,
+                "max_iterations": max_iterations.unwrap_or(0)
+            })),
+        };
+
+        let request_json = match serde_json::to_string(&request) {
+            Ok(json) => json,
+            Err(e) => {
+                let _ = app_clone.emit(
+                    "vibe-stream-chunk",
+                    StreamChunk {
+                        content: String::new(),
+                        done: true,
+                        error: Some(format!("Serialize failed: {}", e)),
+                        message_type: None,
+                        route: None,
+                        data: None,
+                    },
+                );
+                return;
+            }
+        };
+
+        if let Err(e) = socket.write_all(format!("{}\n", request_json).as_bytes()) {
+            let _ = app_clone.emit(
+                "vibe-stream-chunk",
+                StreamChunk {
+                    content: String::new(),
+                    done: true,
+                    error: Some(format!("Write failed: {}", e)),
+                    message_type: None,
+                    route: None,
+                    data: None,
+                },
+            );
+            return;
+        }
+
+        let mut reader = BufReader::new(socket);
+        let mut line = String::new();
+
+        loop {
+            line.clear();
+            match reader.read_line(&mut line) {
+                Ok(0) => {
+                    let _ = app_clone.emit(
+                        "vibe-stream-chunk",
+                        StreamChunk {
+                            content: String::new(),
+                            done: true,
+                            error: Some("Connection closed".to_string()),
+                            message_type: None,
+                            route: None,
+                            data: None,
+                        },
+                    );
+                    break;
+                }
+                Ok(_) => {}
+                Err(e)
+                    if e.kind() == std::io::ErrorKind::WouldBlock
+                        || e.kind() == std::io::ErrorKind::TimedOut =>
+                {
+                    let _ = app_clone.emit(
+                        "vibe-stream-chunk",
+                        StreamChunk {
+                            content: String::new(),
+                            done: true,
+                            error: Some("Request timeout".to_string()),
+                            message_type: None,
+                            route: None,
+                            data: None,
+                        },
+                    );
+                    break;
+                }
+                Err(e) => {
+                    let _ = app_clone.emit(
+                        "vibe-stream-chunk",
+                        StreamChunk {
+                            content: String::new(),
+                            done: true,
+                            error: Some(format!("Read failed: {}", e)),
+                            message_type: None,
+                            route: None,
+                            data: None,
+                        },
+                    );
+                    break;
+                }
+            }
+
+            if line.trim().is_empty() {
+                continue;
+            }
+
+            if let Ok(response) = serde_json::from_str::<serde_json::Value>(&line) {
+                if response.get("id").and_then(|v| v.as_str()) == Some(&id) {
+                    let content = response
+                        .get("content")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let done = response
+                        .get("done")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
+                    let error = response
+                        .get("error")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+                    let message_type = response
+                        .get("type")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+                    let route = response
+                        .get("route")
+                        .and_then(|r| serde_json::from_value::<ModelRoute>(r.clone()).ok());
+                    let data = response.get("data").cloned();
+
+                    let _ = app_clone.emit(
+                        "vibe-stream-chunk",
+                        StreamChunk {
+                            content,
+                            done,
+                            error: error.clone(),
+                            message_type,
+                            route,
+                            data,
                         },
                     );
 
@@ -2848,6 +3064,7 @@ async fn vision_analyze(
                         error: Some(format!("Connection failed: {}", e)),
                         message_type: None,
                         route: None,
+                        data: None,
                     },
                 );
                 return;
@@ -2881,6 +3098,7 @@ async fn vision_analyze(
                         error: Some(format!("Serialize failed: {}", e)),
                         message_type: None,
                         route: None,
+                        data: None,
                     },
                 );
                 return;
@@ -2900,6 +3118,7 @@ async fn vision_analyze(
                     error: Some(format!("Write failed: {}", e)),
                     message_type: None,
                     route: None,
+                    data: None,
                 },
             );
             return;
@@ -2920,6 +3139,7 @@ async fn vision_analyze(
                             error: Some("Connection closed".to_string()),
                             message_type: None,
                             route: None,
+                            data: None,
                         },
                     );
                     break;
@@ -2937,6 +3157,7 @@ async fn vision_analyze(
                             error: Some("Request timeout".to_string()),
                             message_type: None,
                             route: None,
+                            data: None,
                         },
                     );
                     break;
@@ -2950,6 +3171,7 @@ async fn vision_analyze(
                             error: Some(format!("Read failed: {}", e)),
                             message_type: None,
                             route: None,
+                            data: None,
                         },
                     );
                     break;
@@ -2984,6 +3206,7 @@ async fn vision_analyze(
                             error: error.clone(),
                             message_type: None,
                             route: None,
+                            data: None,
                         },
                     );
 
@@ -3393,9 +3616,9 @@ fn set_dock_icon(_app: tauri::AppHandle, state: String) -> Result<(), String> {
     // Embed icon variants at compile time
     let icon_bytes: &[u8] = match state.as_str() {
         "update" => include_bytes!("../icons/dock-update.png"),
-        "error"  => include_bytes!("../icons/dock-error.png"),
-        "busy"   => include_bytes!("../icons/dock-busy.png"),
-        _        => include_bytes!("../icons/icon.png"),
+        "error" => include_bytes!("../icons/dock-error.png"),
+        "busy" => include_bytes!("../icons/dock-busy.png"),
+        _ => include_bytes!("../icons/icon.png"),
     };
 
     unsafe {
@@ -3725,6 +3948,7 @@ pub fn run() {
             chat_direct,
             chat_stream,
             architect_stream,
+            vibe_stream,
             vision_analyze,
             set_traffic_lights_visible,
             open_system_color_picker,

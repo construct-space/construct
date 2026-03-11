@@ -7,12 +7,16 @@
  * Bottom: Input bar with Expand and Attach buttons
  */
 import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useArchitectEngine } from '@/composables/useArchitectEngine'
 import ArchitectQuestionFlow from '@/components/architect/ArchitectQuestionFlow.vue'
 import ArchitectProjectSummary from '@/components/architect/ArchitectProjectSummary.vue'
 import ArchitectBottomInput from '@/components/architect/ArchitectBottomInput.vue'
 import ArchitectProjectConfig from '@/components/architect/ArchitectProjectConfig.vue'
+import { storeVibeHandoff } from '@/utils/vibeHandoff'
 
+const route = useRoute()
+const router = useRouter()
 const engine = useArchitectEngine()
 
 // ─── Resizable split ───
@@ -81,6 +85,35 @@ function handleExpand(text: string) {
 
 function handleAttach() {
   // Future: file/screenshot upload dialog
+}
+
+function handleOpenVibe() {
+  if (!engine.plan.value) return
+
+  const handoffId = storeVibeHandoff({
+    source: 'architect',
+    description: engine.description.value,
+    plan: engine.plan.value,
+    decisions: engine.decisions.value.map(decision => ({
+      id: decision.id,
+      label: decision.label,
+      value: decision.value,
+    })),
+    projectId: typeof route.params.projectId === 'string' ? route.params.projectId : undefined,
+  })
+
+  const target = typeof route.params.projectId === 'string' && route.params.projectId
+    ? `/app/projects/${route.params.projectId}/vibe`
+    : '/app/vibe'
+
+  router.push({
+    path: target,
+    query: {
+      handoff: handoffId,
+      autorun: '1',
+      source: 'architect',
+    },
+  })
 }
 
 onMounted(() => engine.setup())
@@ -236,6 +269,7 @@ onUnmounted(() => engine.cleanup())
               @create-project="engine.showConfigStep"
               @save-feature="engine.saveFeaturePlan"
               @edit-choices="engine.goToQuestion"
+              @open-vibe="handleOpenVibe"
             />
           </div>
         </div>
