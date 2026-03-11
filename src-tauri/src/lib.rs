@@ -2425,16 +2425,12 @@ async fn chat_stream(
 ) -> Result<(), String> {
     use std::thread;
 
-    eprintln!("[chat_stream] Called with model: {}", model);
-
     // Clone what we need for the thread
     let state_clone = {
         let ctx = state.lock().map_err(|_| "Lock error".to_string())?;
         if ctx.socket.is_none() {
-            eprintln!("[chat_stream] Error: Not connected");
             return Err("Not connected".to_string());
         }
-        eprintln!("[chat_stream] Connected to {}:{}", ctx.host, ctx.port);
         (ctx.host.clone(), ctx.port)
     };
 
@@ -2442,15 +2438,9 @@ async fn chat_stream(
 
     // Spawn a thread for streaming to avoid blocking
     thread::spawn(move || {
-        eprintln!("[chat_stream thread] Started");
-        // Create a new connection for streaming
         let address = format!("{}:{}", state_clone.0, state_clone.1);
-        eprintln!("[chat_stream thread] Connecting to {}", address);
         let mut socket = match TcpStream::connect(&address) {
-            Ok(s) => {
-                eprintln!("[chat_stream thread] Connected successfully");
-                s
-            }
+            Ok(s) => s,
             Err(e) => {
                 eprintln!("[chat_stream thread] Connection failed: {}", e);
                 let _ = app_clone.emit(
@@ -2504,9 +2494,7 @@ async fn chat_stream(
             }
         };
 
-        eprintln!("[chat_stream thread] Sending request: {}", request_json);
         if let Err(e) = socket.write_all(format!("{}\n", request_json).as_bytes()) {
-            eprintln!("[chat_stream thread] Write failed: {}", e);
             let _ = app_clone.emit(
                 "chat-stream-chunk",
                 StreamChunk {
@@ -2519,7 +2507,7 @@ async fn chat_stream(
             );
             return;
         }
-        eprintln!("[chat_stream thread] Request sent, waiting for responses...");
+        // Read streaming responses
 
         // Read streaming responses
         let mut reader = BufReader::new(socket);
@@ -2577,8 +2565,6 @@ async fn chat_stream(
                 continue;
             }
 
-            eprintln!("[chat_stream thread] Received line: {}", line.trim());
-
             // Parse the streaming response
             if let Ok(response) = serde_json::from_str::<serde_json::Value>(&line) {
                 // Check if this is a stream message for our request
@@ -2608,6 +2594,199 @@ async fn chat_stream(
 
                     let _ = app_clone.emit(
                         "chat-stream-chunk",
+                        StreamChunk {
+                            content,
+                            done,
+                            error: error.clone(),
+                            message_type,
+                            route,
+                        },
+                    );
+
+                    if done || error.is_some() {
+                        break;
+                    }
+                }
+            }
+        }
+    });
+
+    Ok(())
+}
+
+// Architect streaming — bypasses conductor for direct JSON generation
+#[tauri::command]
+async fn architect_stream(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, SharedContextState>,
+    model: String,
+    mode: String,         // "questions", "plan", or "clarify"
+    description: String,
+    answers: Option<serde_json::Value>,
+    current_question: Option<serde_json::Value>,
+    clarification: Option<String>,
+    installed_spaces: Option<Vec<serde_json::Value>>,
+) -> Result<(), String> {
+    use std::thread;
+
+    let state_clone = {
+        let ctx = state.lock().map_err(|_| "Lock error".to_string())?;
+        if ctx.socket.is_none() {
+            return Err("Not connected".to_string());
+        }
+        (ctx.host.clone(), ctx.port)
+    };
+
+    let app_clone = app.clone();
+
+    thread::spawn(move || {
+        let address = format!("{}:{}", state_clone.0, state_clone.1);
+        let mut socket = match TcpStream::connect(&address) {
+            Ok(s) => s,
+            Err(e) => {
+                let _ = app_clone.emit(
+                    "architect-stream-chunk",
+                    StreamChunk {
+                        content: String::new(),
+                        done: true,
+                        error: Some(format!("Connection failed: {}", e)),
+                        message_type: None,
+                        route: None,
+                    },
+                );
+                return;
+            }
+        };
+
+        let _ = socket.set_read_timeout(Some(Duration::from_secs(300)));
+        let id = MESSAGE_ID.fetch_add(1, Ordering::SeqCst).to_string();
+
+        let request = ContextRequest {
+            id: id.clone(),
+            request_type: "ai.architect_stream".to_string(),
+            payload: Some(serde_json::json!({
+                "model": model,
+                "mode": mode,
+                "description": description,
+                "answers": answers,
+                "current_question": current_question,
+                "clarification": clarification,
+                "installed_spaces": installed_spaces,
+            })),
+        };
+
+        let request_json = match serde_json::to_string(&request) {
+            Ok(json) => json,
+            Err(e) => {
+                let _ = app_clone.emit(
+                    "architect-stream-chunk",
+                    StreamChunk {
+                        content: String::new(),
+                        done: true,
+                        error: Some(format!("Serialize failed: {}", e)),
+                        message_type: None,
+                        route: None,
+                    },
+                );
+                return;
+            }
+        };
+
+        if let Err(e) = socket.write_all(format!("{}\n", request_json).as_bytes()) {
+            let _ = app_clone.emit(
+                "architect-stream-chunk",
+                StreamChunk {
+                    content: String::new(),
+                    done: true,
+                    error: Some(format!("Write failed: {}", e)),
+                    message_type: None,
+                    route: None,
+                },
+            );
+            return;
+        }
+
+        // Read streaming responses
+        let mut reader = BufReader::new(socket);
+        let mut line = String::new();
+
+        loop {
+            line.clear();
+            match reader.read_line(&mut line) {
+                Ok(0) => {
+                    let _ = app_clone.emit(
+                        "architect-stream-chunk",
+                        StreamChunk {
+                            content: String::new(),
+                            done: true,
+                            error: Some("Connection closed".to_string()),
+                            message_type: None,
+                            route: None,
+                        },
+                    );
+                    break;
+                }
+                Ok(_) => {}
+                Err(e)
+                    if e.kind() == std::io::ErrorKind::WouldBlock
+                        || e.kind() == std::io::ErrorKind::TimedOut =>
+                {
+                    let _ = app_clone.emit(
+                        "architect-stream-chunk",
+                        StreamChunk {
+                            content: String::new(),
+                            done: true,
+                            error: Some("Request timeout".to_string()),
+                            message_type: None,
+                            route: None,
+                        },
+                    );
+                    break;
+                }
+                Err(e) => {
+                    let _ = app_clone.emit(
+                        "architect-stream-chunk",
+                        StreamChunk {
+                            content: String::new(),
+                            done: true,
+                            error: Some(format!("Read failed: {}", e)),
+                            message_type: None,
+                            route: None,
+                        },
+                    );
+                    break;
+                }
+            }
+
+            if line.trim().is_empty() {
+                continue;
+            }
+
+            if let Ok(response) = serde_json::from_str::<serde_json::Value>(&line) {
+                if response.get("id").and_then(|v| v.as_str()) == Some(&id) {
+                    let content = response
+                        .get("content")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let done = response
+                        .get("done")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
+                    let error = response
+                        .get("error")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+                    let message_type = response
+                        .get("type")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+                    let route = response
+                        .get("route")
+                        .and_then(|r| serde_json::from_value::<ModelRoute>(r.clone()).ok());
+
+                    let _ = app_clone.emit(
+                        "architect-stream-chunk",
                         StreamChunk {
                             content,
                             done,
@@ -3545,6 +3724,7 @@ pub fn run() {
             list_agents,
             chat_direct,
             chat_stream,
+            architect_stream,
             vision_analyze,
             set_traffic_lights_visible,
             open_system_color_picker,

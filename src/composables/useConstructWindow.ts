@@ -28,6 +28,10 @@ export interface ConstructWindowOptions {
   resizable?: boolean
   /** Keep above other windows (default: false) */
   alwaysOnTop?: boolean
+  /** Show in OS taskbar/dock (default: true) */
+  skipTaskbar?: boolean
+  /** Start visible (default: true) */
+  visible?: boolean
   /** Unique label — auto-generated if omitted */
   label?: string
 }
@@ -88,6 +92,8 @@ export function useConstructWindow() {
           decorations: options.decorations ?? true,
           resizable: options.resizable ?? true,
           alwaysOnTop: options.alwaysOnTop ?? false,
+          skipTaskbar: options.skipTaskbar ?? false,
+          visible: options.visible ?? true,
           minimizable: true,
           maximizable: true,
           closable: true,
@@ -216,12 +222,12 @@ export function useConstructWindow() {
   }
 
   /**
-   * Emit a custom event to the window's backend.
+   * Emit a custom event to a specific window by label (cross-window).
    */
   async function emit(win: ConstructWindow, event: string, data?: unknown): Promise<void> {
     if (win._tauriWindow && isTauriEnv()) {
-      const tw = win._tauriWindow as { emit(e: string, d?: unknown): Promise<void> }
-      await tw.emit(event, data)
+      const tw = win._tauriWindow as { emitTo(target: string, e: string, d?: unknown): Promise<void> }
+      await tw.emitTo(win.label, event, data)
     }
   }
 

@@ -1,5 +1,8 @@
+import { ref } from 'vue'
+
 // Global state for AI Assistant visibility
 const isOpen = ref(false)
+const isPoppedOut = ref(false)
 
 export function useAssistant() {
   const open = () => {
@@ -15,9 +18,10 @@ export function useAssistant() {
   }
 
   return {
-    isOpen, // Return writable ref for direct usage in templates
+    isOpen,
+    isPoppedOut,
     open,
     close,
-    toggle
+    toggle,
   }
 }

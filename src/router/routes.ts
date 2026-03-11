@@ -176,6 +176,14 @@ export const routes: RouteRecordRaw[] = [
     ],
   },
 
+  // AI Assistant — opened in a separate Tauri window (popout mode)
+  {
+    path: '/assistant',
+    name: 'assistant-popout',
+    component: () => import('@/pages/AssistantPage.vue'),
+    meta: { requiresAuth: true },
+  },
+
   // Space preview — opened in a separate Tauri window for dev testing
   {
     path: '/preview/:spaceName',

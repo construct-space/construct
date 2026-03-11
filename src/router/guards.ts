@@ -1,5 +1,21 @@
 import type { NavigationGuardNext, RouteLocationNormalized } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { isTauriEnv } from '@/utils/tauri'
+
+// Cache the resolved window label (async, so resolved once on first guard call)
+let _windowLabel: string | null = null
+let _windowLabelResolved = false
+
+async function getWindowLabel(): Promise<string | null> {
+  if (_windowLabelResolved) return _windowLabel
+  _windowLabelResolved = true
+  if (!isTauriEnv()) return null
+  try {
+    const { getCurrentWebviewWindow } = await import('@tauri-apps/api/webviewWindow')
+    _windowLabel = getCurrentWebviewWindow().label
+  } catch { /* ignore */ }
+  return _windowLabel
+}
 
 export async function authGuard(
   to: RouteLocationNormalized,
@@ -13,6 +29,15 @@ export async function authGuard(
   // OAuth callback must ALWAYS be accessible (deep link from browser)
   if (to.path === '/oauth/callback') {
     return next()
+  }
+
+  // Popout windows: detect by Tauri window label and redirect to the correct route.
+  // Tauri WebviewWindow can't pass hash fragments in URLs, so we detect the label instead.
+  const label = await getWindowLabel()
+  if (label === 'standalone-assistant' && to.path !== '/assistant') {
+    // Context (project, space) is sent via Tauri emitTo() events after window opens.
+    localStorage.removeItem('construct_popout_route')
+    return next('/assistant')
   }
 
   // Hydrate auth if not yet authenticated

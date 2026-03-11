@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { InterviewQuestion } from '@/utils/architect-knowledge'
+import type { InterviewQuestion } from '~/data/architect-knowledge'
 
 const props = defineProps<{
   question: InterviewQuestion

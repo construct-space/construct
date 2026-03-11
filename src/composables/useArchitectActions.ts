@@ -216,7 +216,7 @@ export function useArchitectActions() {
   ): Promise<ActionResult> {
     try {
       const { createDesign } = useLocalDesigns()
-      const design = await createDesign(projectId, name)
+      const design = await createDesign(String(projectId), name)
 
       // TODO: Apply template if specified
       if (template && template !== 'blank') {

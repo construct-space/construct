@@ -24,7 +24,6 @@ export {
 } from '@/stores/pinned'
 export { usePreferencesStore } from '@/stores/preferences'
 export { useProjectStore } from '@/stores/project'
-export { useDocumentsStore } from '@/stores/documents'
 export { useSettingsStore } from '@/stores/settings'
 export { useTranslationsStore } from '@/stores/translations'
 
@@ -49,7 +48,6 @@ export {
   registerDesign,
   setCanvasContext,
 } from '@/composables/useCanvasContext'
-export { useChatPanel } from '@/composables/useChatPanel'
 export { useConstructAuth } from '@/composables/useConstructAuth'
 export { useContextDB } from '@/composables/useContextDB'
 export {
@@ -71,7 +69,6 @@ export {
 } from '@/composables/useDesignActions'
 export { useDraggableWindow } from '@/composables/useDraggableWindow'
 export { useDropdownPosition } from '@/composables/useDropdownPosition'
-export { useFreepikApi } from '@/composables/useFreepikApi'
 export {
   useGoogleFonts,
   isFontLoaded,
@@ -95,7 +92,6 @@ export { usePanels } from '@/composables/usePanels'
 export { usePermissions } from '@/composables/usePermissions'
 export { useProjectContext } from '@/composables/useProjectContext'
 export { useProjectDirectory } from '@/composables/useProjectDirectory'
-export { useRoundRobin } from '@/composables/useRoundRobin'
 export {
   useShortcutStore,
   getKey,

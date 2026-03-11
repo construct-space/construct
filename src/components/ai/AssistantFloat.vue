@@ -6,42 +6,41 @@
  * Automatically adapts behavior based on current mode (code/design/chat).
  */
 
-import { useContextService, type Agent as AgentInfo, type ModelRoute } from '~/composables/useContextService'
+import { useContextService, type ModelRoute } from '~/composables/useContextService'
 import { useAIModel } from '~/composables/useAIModel'
 import { useAuthStore } from '~/stores/auth'
 import { useProjectStore } from '~/stores/project'
 import {
   getLatestSpaceContext,
-  requestSpaceData,
   subscribeSpaceContext,
 } from '~/lib/spaceContextBus'
-
-// DocumentListItem type — inline to avoid importing the domain store
-interface DocumentListItem {
-  id: number
-  created_at: string
-  updated_at: string
-  title: string
-  type: string
-  project_id?: number
-}
+import type {
+  DocumentListItem,
+  FileTreeEntry,
+  GitChange,
+  GitCommit,
+  GitRepoInfo,
+  TaskCacheItem,
+  DocCacheItem,
+  ConductorOption,
+  ConductorQuestion,
+  SearchImageResult,
+  ChatMessage,
+} from '~/types/assistant'
+import {
+  parseReferences,
+  formatToolName,
+  formatToolResult,
+} from '~/utils/parseReferences'
+import { useAssistantPanel } from '~/composables/useAssistantPanel'
+import { useConversationCache } from '~/composables/useConversationCache'
 import { useMarkdown } from '~/composables/useMarkdown'
 import { parseToolResult } from '~/composables/useDesignActions'
-import { listAvailableDesigns, getDesignForCodeGeneration, registerDesign, useCanvasContext } from '~/composables/useCanvasContext'
-import type { DesignNode } from '~/types/design'
-
-// Stub types for space composables provided at runtime by IIFE bundles
-interface FileTreeEntry {
-  name: string
-  path: string
-  isDirectory: boolean
-  children?: FileTreeEntry[]
-}
-interface GitChange { path: string; status?: string }
-interface GitCommit { shortHash?: string; subject?: string; author?: string; message?: string }
-interface GitRepoInfo { name?: string; status?: string; remoteUrl?: string; hasUpstream?: boolean; ahead?: number; behind?: number }
-interface TaskCacheItem { id: number | string; title: string; status: string; priority?: number | string }
-interface DocCacheItem { content: string; title: string; type: string; id: number | string }
+import { useCanvasContext } from '~/composables/useCanvasContext'
+import { useAssistantData, taskPriorityColors } from '~/composables/useAssistantData'
+import { useAssistantAutocomplete } from '~/composables/useAssistantAutocomplete'
+import { useAssistantCommands } from '~/composables/useAssistantCommands'
+import { useAssistantPrompt, compactForLLM, buildMessageWithToolContext } from '~/composables/useAssistantPrompt'
 
 // Space composables are provided at runtime by IIFE bundles.
 // These defaults are used when a space is not installed.
@@ -75,12 +74,13 @@ import AssistantDeploySpace from './assistant/deploy.vue'
 import AssistantProjectSpace from './assistant/project.vue'
 import AssistantDashboardSpace from './assistant/dashboard.vue'
 import AssistantGeneralSpace from './assistant/general.vue'
-// UIDesign type — use inline definition to avoid hard import from space
-interface UIDesign {
-  id: string
-  name: string
-  [key: string]: unknown
-}
+
+// Props — popoutMode when opened in a separate ConstructWindow
+const props = defineProps<{
+  popoutMode?: boolean
+  /** Space name passed from AssistantPage (received via Tauri event) */
+  popoutSpace?: string | null
+}>()
 
 // Define emits
 const emit = defineEmits<{
@@ -137,346 +137,6 @@ const scheduleExplorerRefresh = () => {
   }, 180)
 }
 
-// Build local_data with project and design context for code tools
-function buildLocalData(references?: ParsedReferences): Record<string, unknown> {
-  const localData: Record<string, unknown> = {}
-
-  // Include current project context (local projects — no API auth needed)
-  const project = projectStore.currentProject
-  if (project) {
-    localData.project_id = project.id
-    localData.project_name = project.name
-    localData.project_path = project.path
-    if (project.description) localData.project_description = project.description
-  }
-
-  // Include current code folder path if available
-  if (codeEditorState.rootPath) {
-    localData.current_folder = codeEditorState.rootPath
-    const folderName = codeEditorState.rootPath.split('/').pop()
-    localData.current_folder_name = folderName
-  }
-
-  // Include current file context from code editor
-  if (codeEditorState.currentFile) {
-    localData.current_file = {
-      path: codeEditorState.currentFile,
-      language: codeEditorState.currentLanguage,
-      // Send first 300 lines for context (avoid huge payloads)
-      content: codeEditorState.fileContent?.split('\n').slice(0, 300).join('\n') || '',
-    }
-  }
-
-  // Include editor selection if any
-  if (codeEditorSelection.value) {
-    localData.selection = codeEditorSelection.value
-  }
-
-  // Include compact canvas summary (NOT full node data — that bloats the LLM context)
-  // The AI can call get_canvas_state tool for full details when needed
-  if (currentNodes.value.length > 0) {
-    localData.current_design = currentDesignName.value
-    localData.canvas_summary = {
-      total_elements: currentNodes.value.length,
-      screens: currentNodes.value
-        .filter((n: { type: string; parentId?: string | null }) => n.type === 'screen' && !n.parentId)
-        .map((n: { id: string; name: string; x: number; y: number; width: number; height: number }) => ({
-          id: n.id, name: n.name, x: n.x, y: n.y, w: n.width, h: n.height,
-        })),
-      hint: 'Call get_canvas_state for full element details including fills, text, and styles.',
-    }
-    // Still send canvas_data for tool execution (get_canvas_state fallback reads it)
-    // but only screen-level data to keep payload small
-    localData.canvas_data = currentNodes.value.map((n: { id: string; type: string; name: string; x: number; y: number; width: number; height: number; parentId?: string | null; fill?: unknown }) => ({
-      id: n.id, type: n.type, name: n.name, x: n.x, y: n.y, width: n.width, height: n.height,
-      ...(n.parentId ? { parentId: n.parentId } : {}),
-      ...(typeof n.fill === 'string' ? { fill: n.fill } : n.fill ? { fill: 'gradient' } : {}),
-    }))
-  }
-
-  // Include compact design list (names + screen counts only, NOT full nodes)
-  if (designsCache.value.size > 0) {
-    const designs: Array<{ name: string; screen_count: number; element_count: number }> = []
-    for (const [, design] of designsCache.value) {
-      const nodes = design.nodes as readonly { type: string; parentId?: string | null }[]
-      designs.push({
-        name: design.name,
-        screen_count: nodes.filter(n => n.type === 'screen' && !n.parentId).length,
-        element_count: nodes.length,
-      })
-    }
-    localData.designs = designs
-  }
-
-  if (references) {
-    localData.references = {
-      designs: references.designs.map(ref => ref.raw),
-      docs: references.docs.map(ref => ref.title),
-      tasks: references.tasks,
-      components: references.components,
-      files: references.files,
-      code_files: references.codeFiles.map(ref => ref.filename),
-    }
-  }
-
-  return localData
-}
-
-// Reference types for cross-space linking
-interface DesignReference {
-  design: string        // Design/screen name
-  variant?: string      // Optional variant/page (after /)
-  raw: string           // Original matched text
-}
-
-interface FileReference {
-  filename: string      // File name or partial path
-  raw: string           // Original matched text
-}
-
-interface DocReference {
-  title: string         // Document title or partial match
-  raw: string           // Original matched text
-}
-
-interface ParsedReferences {
-  designs: DesignReference[]
-  docs: DocReference[]  // ^DocTitle references
-  tasks: string[]
-  components: string[]  // ~ComponentName
-  files: string[]       // $path/to/file (explicit paths)
-  codeFiles: FileReference[]  // !filename (fuzzy file search like CMD+P)
-}
-
-// Parse @design, #task, ~component, $file, and !file references from message
-// Supports: @DesignName, @DesignName/VariantPage, #123, ~ComponentName, $src/file.ts, !login.vue
-function parseReferences(text: string): ParsedReferences {
-  // @Design or @Design/Variant Page - supports paths and spaces
-  // Match @ followed by text until we hit certain delimiters (but allow / and spaces inside)
-  const designMatches = [...text.matchAll(/@([\w][\w\s-]*(?:\/[\w\s-]+)?)(?=\s+(?:make|create|build|convert|redesign|update|change|adapt|plus)\b|\s*[,.|!?]|\s+[^/\w]|$)/gi)]
-  const designs: DesignReference[] = designMatches.map(m => {
-    const raw = m[1]?.trim() || ''
-    const parts = raw.split('/')
-    return {
-      design: parts[0]?.trim() || '',
-      variant: parts[1]?.trim(),
-      raw
-    }
-  })
-
-  // #123 - Task references
-  const tasks = [...text.matchAll(/#(\d+)/g)].map(m => m[1]).filter((t): t is string => !!t)
-
-  // ~ComponentName - Component references
-  const components = [...text.matchAll(/~([\w-]+)/g)].map(m => m[1]).filter((c): c is string => !!c)
-
-  // $path/to/file - Explicit file path references
-  const files = [...text.matchAll(/\$([\w./-]+)/g)].map(m => m[1]).filter((f): f is string => !!f)
-
-  // !filename - Fuzzy file search (like VS Code CMD+P)
-  const codeFileMatches = [...text.matchAll(/!([\w.-]+(?:\/[\w.-]+)*)/g)]
-  const codeFiles: FileReference[] = codeFileMatches.map(m => ({
-    filename: m[1] || '',
-    raw: m[0] || ''
-  }))
-
-  // ^DocTitle - Document references
-  const docMatches = [...text.matchAll(/\^([\w][\w\s-]*?)(?=\s*[,.|!?]|\s+[^\w]|$)/g)]
-  const docs: DocReference[] = docMatches.map(m => ({
-    title: m[1]?.trim() || '',
-    raw: m[1]?.trim() || ''
-  }))
-
-  return { designs, docs, tasks, components, files, codeFiles }
-}
-
-// Get referenced designs context
-function getReferencedDesignsContext(refs: DesignReference[]): string {
-  if (refs.length === 0) return ''
-
-  const contexts: string[] = []
-  for (const ref of refs) {
-    // Use raw reference which includes variant path if present
-    const context = getDesignForCodeGeneration(ref.raw)
-    if (ref.variant) {
-      contexts.push(`### ${ref.design} / ${ref.variant}\n${context}`)
-    } else {
-      contexts.push(context)
-    }
-  }
-  return '\n\n## Referenced Designs\n' + contexts.join('\n\n')
-}
-
-// Get referenced components context (from code space)
-function getReferencedComponentsContext(components: string[]): string {
-  if (components.length === 0) return ''
-  // TODO: Implement component lookup from code space
-  return `\n\n## Referenced Components\nComponents referenced: ${components.map(c => `~${c}`).join(', ')}`
-}
-
-// Get referenced files context
-function getReferencedFilesContext(files: string[]): string {
-  if (files.length === 0) return ''
-  // TODO: Implement file content lookup for $path references
-  return `\n\n## Referenced Files\nFiles referenced: ${files.map(f => `$${f}`).join(', ')}`
-}
-
-// Get referenced code files context (for !filename references)
-// Returns file paths that match the fuzzy search
-function getReferencedCodeFilesContext(refs: FileReference[], allFiles: ProjectFile[]): string {
-  if (refs.length === 0 || allFiles.length === 0) return ''
-
-  const matchedFiles: string[] = []
-
-  for (const ref of refs) {
-    const query = ref.filename.toLowerCase()
-    // Fuzzy match - find files containing the query
-    const matches = allFiles.filter(f =>
-      f.name.toLowerCase().includes(query) ||
-      f.path.toLowerCase().includes(query)
-    )
-    matchedFiles.push(...matches.slice(0, 3).map(f => f.path))
-  }
-
-  if (matchedFiles.length === 0) return ''
-
-  return `\n\n## Referenced Code Files (via ! search)\nMatched files: ${matchedFiles.join(', ')}\n\nUse the read_file or file_search tools to access these files if needed.`
-}
-
-// Get referenced documents context (for ^DocTitle references)
-// Fetches actual content from DB or local files
-async function getReferencedDocsContext(refs: DocReference[]): Promise<string> {
-  if (refs.length === 0) return ''
-
-  const contexts: string[] = ['\n\n## Referenced Documents']
-  for (const ref of refs) {
-    const query = ref.title.toLowerCase()
-
-    // Check local .md files first (primary source)
-    const localDoc = localDocs.value.find(d =>
-      d.title.toLowerCase().includes(query)
-    )
-    if (localDoc) {
-      try {
-        if (docsTauriFs) {
-          const content = await docsTauriFs.readTextFile(localDoc.path)
-          const trimmed = content.length > 4000
-            ? content.substring(0, 4000) + '\n\n... [truncated]'
-            : content
-          contexts.push(`### ${localDoc.title} (${localDoc.type})\n${trimmed}`)
-        } else {
-          contexts.push(`### ${localDoc.title} (${localDoc.type})\nFile: ${localDoc.path}\n[Use read_file tool to access: ${localDoc.path}]`)
-        }
-      } catch {
-        contexts.push(`### ${localDoc.title} (${localDoc.type})\nFile: ${localDoc.path}\n[Use read_file tool to access: ${localDoc.path}]`)
-      }
-    }
-  }
-  return contexts.join('\n')
-}
-
-// Project file structure for !autocomplete
-interface ProjectFile {
-  name: string
-  path: string
-  type: 'file' | 'directory'
-}
-
-// Get design data from IndexedDB for AI context
-function getDesignDataForAI(refs: DesignReference[], designs: UIDesign[]): string {
-  if (refs.length === 0 || designs.length === 0) return ''
-
-  const parts: string[] = ['\n\n## Design Data from Project']
-
-  for (const ref of refs) {
-    const designName = ref.design.toLowerCase()
-    const design = designs.find(d =>
-      d.name.toLowerCase() === designName ||
-      d.name.toLowerCase().includes(designName)
-    )
-
-    if (design) {
-      parts.push(`\n### ${design.name}`)
-      parts.push(`Design ID: ${design.id}`)
-      const designNodes = design.nodes as DesignNode[] | undefined
-      parts.push(`Elements: ${designNodes?.length || 0}`)
-
-      // Include actual node data for code generation
-      if (designNodes && designNodes.length > 0) {
-        // Limit to essential properties for context size
-        const essentialNodes = designNodes.map((node: DesignNode) => ({
-          id: node.id,
-          type: node.type,
-          name: node.name,
-          x: node.x,
-          y: node.y,
-          width: node.width,
-          height: node.height,
-          fill: node.fill,
-          text: node.text,
-          fontSize: node.fontSize,
-          cornerRadius: node.cornerRadius,
-          parentId: node.parentId,
-        }))
-        parts.push(`\n\`\`\`json\n${JSON.stringify(essentialNodes, null, 2)}\n\`\`\``)
-      }
-    }
-  }
-
-  return parts.join('\n')
-}
-
-// Format tool name for display (snake_case -> Title Case with icon hint)
-function formatToolName(name: string): string {
-  // Map tool names to friendlier labels
-  const toolLabels: Record<string, string> = {
-    'read_file': 'Reading file',
-    'write_file': 'Writing file',
-    'create_file': 'Creating file',
-    'edit_file': 'Editing file',
-    'list_files': 'Listing files',
-    'file_search': 'Searching files',
-    'search_code': 'Searching code',
-    'run_command': 'Running command',
-    'create_task': 'Creating task',
-    'update_task': 'Updating task',
-    'list_tasks': 'Listing tasks',
-    'create_project': 'Creating project',
-    'list_projects': 'Listing projects',
-    'list_users': 'Listing users',
-    'invite_user': 'Inviting user',
-    'search_users': 'Searching users',
-    'create_screen': 'Creating screen',
-    'create_element': 'Creating element',
-    'search_images': 'Searching images',
-    'search_icons': 'Searching icons',
-    'git_status': 'Git status',
-    'git_diff': 'Git diff',
-    'git_commit': 'Git commit',
-    'get_current_time': 'Getting time',
-    'execute_code': 'Executing code'
-  }
-  return toolLabels[name] || name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-}
-
-// Format tool result for display (truncate if too long)
-function formatToolResult(result: string): string {
-  try {
-    const parsed = JSON.parse(result)
-    const formatted = JSON.stringify(parsed, null, 2)
-    // Truncate very long results
-    if (formatted.length > 500) {
-      return formatted.substring(0, 500) + '\n... (truncated)'
-    }
-    return formatted
-  } catch {
-    // Not JSON, return as-is (truncated if needed)
-    if (result.length > 500) {
-      return result.substring(0, 500) + '\n... (truncated)'
-    }
-    return result
-  }
-}
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -528,16 +188,6 @@ const {
   sendRequest,
 } = useContextService()
 
-// Agent types - AgentInfo is imported from useContextService
-
-interface IntentAnalysis {
-  primary_agent: string
-  secondary_agents?: string[]
-  reasoning: string
-  confidence: number
-  keywords?: string[]
-}
-
 // AI Model - uses default from preferences
 const { defaultModelId, currentModel, getProviderId, resolveModelId } = useAIModel()
 
@@ -547,325 +197,69 @@ const _isClaudeModel = computed(() => {
   return providerId === 'anthropic-oauth'
 })
 
-// Conductor question option
-interface ConductorOption {
-  label: string
-  value: string
-  description?: string
-}
-
-// Conductor question for structured choices
-interface ConductorQuestion {
-  type: 'question'
-  question: string
-  options: ConductorOption[]
-  allowMultiple?: boolean
-  allowOther?: boolean
-}
-
-// Message type with rendered HTML cache
-// Tool call display for Claude-like UI
-interface ToolCallDisplay {
-  id: string
-  name: string
-  arguments: Record<string, unknown>
-  status: 'calling' | 'completed' | 'error'
-  result?: string
-  expanded: boolean
-  startTime: number
-  endTime?: number
-  durationMs?: number // Server-measured duration (from Go-side timing)
-}
-
-// Image search result for clickable placement
-interface SearchImageResult {
-  url: string
-  thumb: string
-  description: string
-  credit: string
-  width: number
-  height: number
-}
-
-interface ChatMessage {
-  role: 'user' | 'assistant'
-  content: string
-  thinking?: string
-  renderedHtml?: string
-  conductorQuestion?: ConductorQuestion // Structured question with options
-  selectedOptions?: string[] // User's selected options
-  imageUrl?: string // Base64 data URL for attached images
-  toolCalls?: ToolCallDisplay[] // Tool executions for this message
-  searchImages?: SearchImageResult[] // Clickable image results from search
-  statusText?: string // Live progress status (e.g., "Executing 3 tool(s)...", "Iteration 2/15...")
-}
-
-// Global conversation cache - persists across navigation and page refreshes
-// Uses SQLite ai_conversations table (per user/company for cloud sync) for Tauri
-// localStorage fallback for web
-const STORAGE_KEY = 'construct_ai_conversations'
-
-// Type for AI conversation response
-interface AIConversationResponse {
-  conversations?: Array<{
-    context_key: string
-    messages_json: string
-    user_id: number
-
-  }>
-}
-
-const isContextNotConnectedError = (error: unknown): boolean =>
-  String(error).toLowerCase().includes('not connected')
-
-// Load conversation cache - async for SQLite support
-const loadConversationCache = async (): Promise<Map<string, ChatMessage[]>> => {
-  if (typeof window === 'undefined') return new Map()
-
-  if (isTauri.value) {
-    try {
-      // Use dedicated ai.conversations.list endpoint (scoped to user/company)
-      const result = await sendRequest('ai.conversations.list', {}) as AIConversationResponse
-      if (result?.conversations) {
-        const map = new Map<string, ChatMessage[]>()
-        for (const conv of result.conversations) {
-          try {
-            const messages = JSON.parse(conv.messages_json) as ChatMessage[]
-            map.set(conv.context_key, messages)
-          } catch {
-            // Skip invalid entries
-          }
-        }
-        return map
-      }
-    } catch (e) {
-      if (!isContextNotConnectedError(e)) {
-        console.warn('[AssistantFloat] Failed to load conversation cache from SQLite:', e)
-      }
-    }
-    return new Map()
-  }
-
-  // localStorage fallback for web
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored) {
-      const parsed = JSON.parse(stored)
-      return new Map(Object.entries(parsed))
-    }
-  } catch (e) {
-    console.warn('[AssistantFloat] Failed to load conversation cache:', e)
-  }
-  return new Map()
-}
-
-// Compact messages for storage — strip heavy fields that bloat the payload
-const compactMessagesForStorage = (msgs: ChatMessage[]): ChatMessage[] => {
-  const MAX_RESULT_LEN = 300
-  const MAX_ARG_LEN = 200
-
-  return msgs.map(msg => {
-    const compact: ChatMessage = {
-      role: msg.role,
-      content: msg.content,
-    }
-
-    // Keep structured question/answer data
-    if (msg.conductorQuestion) compact.conductorQuestion = msg.conductorQuestion
-    if (msg.selectedOptions) compact.selectedOptions = msg.selectedOptions
-
-    // Keep image references (base64 URLs are needed to show inline images)
-    if (msg.imageUrl) compact.imageUrl = msg.imageUrl
-    if (msg.searchImages?.length) compact.searchImages = msg.searchImages
-
-    // Strip: renderedHtml (re-rendered on load), statusText (transient), thinking (large, not shown in history)
-
-    // Compact tool calls — keep name/status, truncate results and args
-    if (msg.toolCalls?.length) {
-      compact.toolCalls = msg.toolCalls.map(tc => {
-        const compactTc: ToolCallDisplay = {
-          id: tc.id,
-          name: tc.name,
-          arguments: {},
-          status: tc.status,
-          expanded: false,
-          startTime: 0,
-        }
-
-        // Truncate arguments — just keep keys with shortened values
-        if (tc.arguments) {
-          const args: Record<string, unknown> = {}
-          for (const [k, v] of Object.entries(tc.arguments)) {
-            if (k === 'raw' && typeof v === 'object' && v !== null) {
-              // For raw tool args, keep the object but truncate string values
-              const rawArgs: Record<string, unknown> = {}
-              for (const [rk, rv] of Object.entries(v as Record<string, unknown>)) {
-                if (typeof rv === 'string' && rv.length > MAX_ARG_LEN) {
-                  rawArgs[rk] = rv.slice(0, MAX_ARG_LEN) + '…'
-                } else {
-                  rawArgs[rk] = rv
-                }
-              }
-              args[k] = rawArgs
-            } else if (typeof v === 'string' && v.length > MAX_ARG_LEN) {
-              args[k] = v.slice(0, MAX_ARG_LEN) + '…'
-            } else {
-              args[k] = v
-            }
-          }
-          compactTc.arguments = args
-        }
-
-        // Truncate result — biggest source of bloat (canvas state, file contents, etc.)
-        if (tc.result) {
-          if (tc.result.length > MAX_RESULT_LEN) {
-            compactTc.result = tc.result.slice(0, MAX_RESULT_LEN) + '… [truncated]'
-          } else {
-            compactTc.result = tc.result
-          }
-        }
-
-        return compactTc
-      })
-    }
-
-    return compact
-  })
-}
-
-// Save a single conversation by context key - more efficient for SQLite
-const RECENT_TURNS_FOR_SAVE = 6
-const selectRecentTurns = (msgs: ChatMessage[], turns = RECENT_TURNS_FOR_SAVE): ChatMessage[] => {
-  const selected: ChatMessage[] = []
-  let capturedTurns = 0
-  for (let i = msgs.length - 1; i >= 0; i -= 1) {
-    const msg = msgs[i]
-    if (!msg) continue
-    selected.unshift(msg)
-    if (msg.role === 'user') {
-      capturedTurns += 1
-      if (capturedTurns >= turns) break
-    }
-  }
-  return selected
-}
-
-const saveConversation = async (contextKey: string, messages: ChatMessage[]) => {
-  if (typeof window === 'undefined') return
-
-  if (isTauri.value) {
-    try {
-      const trimmed = selectRecentTurns(messages)
-      const compacted = compactMessagesForStorage(trimmed)
-      const payload = JSON.stringify(compacted)
-      if (import.meta.env.DEV) {
-        console.log(`[save] contextKey=${contextKey} payload=${Math.round(payload.length / 1024)}KB messages=${messages.length}`)
-      }
-      await sendRequest('ai.conversations.save', {
-        contextKey,
-        messages: payload
-      })
-    } catch (e) {
-      // If payload too large, strip all tool results and retry once
-      if (String(e).includes('payload_too_large')) {
-        console.warn('[AssistantFloat] Payload too large, retrying with stripped tool results')
-        const compactedForRetry = compactMessagesForStorage(messages)
-        // Find the last message that has an image — preserve only that one
-        const lastImageIdx = compactedForRetry.reduce((last, m, i) => m.imageUrl ? i : last, -1)
-        const stripped = compactedForRetry.map((m, i) => ({
-          ...m,
-          imageUrl: (m.imageUrl && i !== lastImageIdx) ? undefined : m.imageUrl,
-          toolCalls: m.toolCalls?.map(tc => ({
-            ...tc,
-            result: tc.result ? `[${tc.name} result stripped — payload too large]` : tc.result,
-            arguments: {}
-          }))
-        }))
-        try {
-          await sendRequest('ai.conversations.save', {
-            contextKey,
-            messages: JSON.stringify(stripped)
-          })
-        } catch (retryErr) {
-          console.warn('[AssistantFloat] Retry save also failed:', retryErr)
-        }
-      } else if (!isContextNotConnectedError(e)) {
-        console.warn('[AssistantFloat] Failed to save conversation to SQLite:', e)
-      }
-    }
-    return
-  }
-
-  // localStorage fallback - save entire cache (also compact)
-  const obj: Record<string, ChatMessage[]> = {}
-  conversationCache.forEach((v, k) => { obj[k] = compactMessagesForStorage(v) })
-  obj[contextKey] = compactMessagesForStorage(messages)
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(obj))
-  } catch (e) {
-    console.warn('[AssistantFloat] Failed to save conversation cache:', e)
-  }
-}
-
-// Incremental save — upsert a single message by index instead of full blob
-// Uses keyed debounce so concurrent saves to different messages don't cancel each other
-const upsertTimers = new Map<string, ReturnType<typeof setTimeout>>()
-let lastIncrementalSaveTs = 0
-const saveMessageIncremental = (contextKey: string, messageIndex: number, message: ChatMessage) => {
-  if (typeof window === 'undefined' || !isTauri.value) return
-
-  // Keyed debounce — each contextKey:messageIndex gets its own timer
-  const key = `${contextKey}:${messageIndex}`
-  const existing = upsertTimers.get(key)
-  if (existing) clearTimeout(existing)
-
-  upsertTimers.set(key, setTimeout(async () => {
-    upsertTimers.delete(key)
-    try {
-      const compacted = compactMessagesForStorage([message])[0]
-      await sendRequest('ai.conversations.upsert_message', {
-        contextKey,
-        messageIndex,
-        message: JSON.stringify(compacted)
-      })
-      lastIncrementalSaveTs = Date.now()
-    } catch (e) {
-      if (!isContextNotConnectedError(e)) {
-        console.warn('[AssistantFloat] Incremental save failed, falling back to full save:', e)
-        // Fallback to full save
-        saveConversation(contextKey, messages.value)
-      }
-    }
-  }, 200))
-}
-
-// Save conversation cache - for backwards compatibility (used by clear operations)
-const _saveConversationCache = async (cache: Map<string, ChatMessage[]>) => {
-  if (typeof window === 'undefined') return
-
-  if (isTauri.value) {
-    // For Tauri, save each conversation individually
-    for (const [key, messages] of cache.entries()) {
-      await saveConversation(key, messages)
-    }
-    return
-  }
-
-  // localStorage fallback for web
-  const obj: Record<string, ChatMessage[]> = {}
-  cache.forEach((v, k) => { obj[k] = v })
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(obj))
-  } catch (e) {
-    console.warn('[AssistantFloat] Failed to save conversation cache:', e)
-  }
-}
-
-// Initialize cache (will be loaded async on mount)
+// Mutable cache — loaded async on mount, accessed directly throughout
 let conversationCache = new Map<string, ChatMessage[]>()
 
 // Use global assistant state
-const { isOpen } = useAssistant()
+const { isOpen, isPoppedOut } = useAssistant()
+
+// Pop out assistant into a separate ConstructWindow
+async function popOutAssistant() {
+  const { useConstructWindow } = await import('@/composables/useConstructWindow')
+  const { open: openWindow, getByLabel, focus: focusWin } = useConstructWindow()
+
+  // If already popped out, focus the existing window
+  const existing = getByLabel('standalone-assistant')
+  if (existing) {
+    await focusWin(existing)
+    return
+  }
+
+  // Gather current context
+  const project = projectStore.currentProject
+  const space = route.path.match(/\/app\/(?:projects\/[^/]+\/)?(\w+)/)?.[1] || ''
+  const contextPayload = {
+    type: 'assistant-context' as const,
+    project: project ? { id: project.id, name: project.name, path: project.path } : null,
+    space: space || null,
+  }
+
+  // Signal the router guard to redirect to /assistant
+  localStorage.setItem('construct_popout_route', '/assistant')
+
+  await openWindow('/', {
+    label: 'standalone-assistant',
+    title: project ? `Construct AI — ${project.name}` : 'Construct AI',
+    width: 520,
+    height: 780,
+    center: true,
+    decorations: false,
+    resizable: true,
+    skipTaskbar: false,
+    visible: true,
+  })
+
+  // Close the float in main window
+  isOpen.value = false
+  isPoppedOut.value = true
+
+  // Send context via BroadcastChannel — the popout listens on mount.
+  // Retry a few times to ensure the popout's listener is ready.
+  const channel = new BroadcastChannel('construct-assistant')
+  const sendContext = () => channel.postMessage(contextPayload)
+  setTimeout(sendContext, 200)
+  setTimeout(sendContext, 800)
+  setTimeout(sendContext, 2000)
+
+  // Listen for popout window close via the channel
+  const closeChannel = new BroadcastChannel('construct-assistant')
+  closeChannel.onmessage = (event) => {
+    if (event.data?.type === 'assistant-closed') {
+      isPoppedOut.value = false
+      closeChannel.close()
+    }
+  }
+}
 
 // Double Shift detection (left Shift = assistant).
 // Right Shift is handled by ChatFloat for side-panel toggle.
@@ -879,10 +273,34 @@ const handleKeyUp = (e: KeyboardEvent) => {
 
   const now = Date.now()
   if (now - lastLeftShiftPress < DOUBLE_PRESS_DELAY) {
+    // If popped out, focus the popout window instead of toggling float
+    if (isPoppedOut.value) {
+      focusPopoutWindow()
+      lastLeftShiftPress = 0
+      return
+    }
     isOpen.value = !isOpen.value
     lastLeftShiftPress = 0
   } else {
     lastLeftShiftPress = now
+  }
+}
+
+async function focusPopoutWindow() {
+  try {
+    const { useConstructWindow } = await import('@/composables/useConstructWindow')
+    const { getByLabel, focus } = useConstructWindow()
+    const win = getByLabel('standalone-assistant')
+    if (win) {
+      await focus(win)
+    } else {
+      // Window was closed externally — reset state and open float
+      isPoppedOut.value = false
+      isOpen.value = true
+    }
+  } catch {
+    isPoppedOut.value = false
+    isOpen.value = true
   }
 }
 
@@ -911,14 +329,19 @@ onUnmounted(() => {
     pendingExplorerRefresh = null
   }
   // Cleanup drag/resize listeners if still active
-  document.removeEventListener('mousemove', onPanelDrag)
-  document.removeEventListener('mouseup', stopPanelDrag)
-  document.removeEventListener('mousemove', onResize)
-  document.removeEventListener('mouseup', stopResize)
+  cleanupPanelListeners()
 })
 
 // Conversation key based on route (space + project query)
 const conversationKey = computed(() => {
+  // Popout mode: build key from props + project store
+  if (props.popoutMode) {
+    const space = props.popoutSpace || 'assistant'
+    const projectId = projectStore.currentProject?.id
+    if (projectId) return `${space}-${projectId}`
+    return `popout-${space}`
+  }
+
   const path = route.path
   const project = route.query.project
   // Extract space from path like /app/code
@@ -938,189 +361,30 @@ const abortController = ref<AbortController | null>(null)
 const currentRoute = ref<ModelRoute | null>(null) // Track routed model info
 const messageQueue = ref<string[]>([]) // Queue messages while AI is processing
 
-// Panel position & drag-to-move
-type PanelPosition = 'bottom-center' | 'left' | 'right' | 'bottom' | 'floating'
-const panelPosition = ref<PanelPosition>(
-  (typeof window !== 'undefined' && localStorage.getItem('construct_assistant_position') as PanelPosition) || 'bottom-center'
-)
-const floatingPos = reactive({ x: 0, y: 0 })
-const isDraggingPanel = ref(false)
-const showDockMenu = ref(false)
-const panelRef = ref<HTMLElement | null>(null)
-let dragOffset = { x: 0, y: 0 }
+// Conversation persistence — extracted to composable
+const conversationCacheComposable = useConversationCache({ isTauri, sendRequest, messages })
+const { loadConversationCache, saveConversation, saveMessageIncremental } = conversationCacheComposable
+const _saveConversationCache = conversationCacheComposable.saveConversationCache
 
-// Resize state
-const panelSize = reactive({
-  width: parseInt(localStorage.getItem('construct_assistant_w') || '0') || 0,
-  height: parseInt(localStorage.getItem('construct_assistant_h') || '0') || 0,
-})
-const isResizing = ref(false)
-let resizeEdge = '' // 'right', 'bottom', 'corner'
-let resizeStart = { x: 0, y: 0, w: 0, h: 0 }
-
-const wantsDocked = computed(() => ['left', 'right', 'bottom'].includes(panelPosition.value))
-const dockTargetEl = ref<HTMLElement | null>(null)
-const isDocked = computed(() => wantsDocked.value && dockTargetEl.value !== null)
-
-function resolveDockTarget(): HTMLElement | null {
-  switch (panelPosition.value) {
-    case 'left': return document.getElementById('assistant-dock-left')
-    case 'right': return document.getElementById('assistant-dock-right')
-    case 'bottom': return document.getElementById('assistant-dock-bottom')
-    default: return null
-  }
-}
-
-watch(panelPosition, () => {
-  if (wantsDocked.value) {
-    // Wait for DOM to settle then resolve the target.
-    // Don't null out dockTargetEl first — changing Teleport target
-    // mid-transition causes "parent.insertBefore on null" errors.
-    nextTick(() => {
-      requestAnimationFrame(() => {
-        dockTargetEl.value = resolveDockTarget()
-      })
-    })
-  } else {
-    dockTargetEl.value = null
-  }
-}, { immediate: true })
-
-const panelPositionClasses = computed(() => {
-  switch (panelPosition.value) {
-    case 'left':
-      return 'w-[420px] h-full border-r border-gray-200/50 dark:border-gray-800/50'
-    case 'right':
-      return 'w-[420px] h-full border-l border-gray-200/50 dark:border-gray-800/50'
-    case 'bottom':
-      return 'w-full h-[350px] border-t border-gray-200/50 dark:border-gray-800/50'
-    case 'floating':
-      return 'fixed w-[50vw] min-w-[420px] max-w-[800px]'
-    case 'bottom-center':
-    default:
-      return 'fixed bottom-6 left-[calc(50%+36px)] -translate-x-1/2 w-[50vw] min-w-[420px] max-w-[800px]'
-  }
-})
-
-const panelStyle = computed(() => {
-  const style: Record<string, string> = {}
-  if (panelPosition.value === 'floating') {
-    style.left = `${floatingPos.x}px`
-    style.top = `${floatingPos.y}px`
-  }
-  // Apply custom size only for floating modes
-  if (!isDocked.value) {
-    if (panelSize.width) {
-      style.width = `${panelSize.width}px`
-      style.minWidth = '380px'
-      style.maxWidth = `${window.innerWidth - 32}px`
-    }
-    if (panelSize.height) {
-      style.height = `${panelSize.height}px`
-    }
-  }
-  return style
-})
-
-function savePanelPosition() {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('construct_assistant_position', panelPosition.value)
-  }
-}
-
-function setPanelPosition(pos: PanelPosition) {
-  panelPosition.value = pos
-  savePanelPosition()
-}
-
-function startPanelDrag(e: MouseEvent) {
-  if (e.button !== 0) return
-  e.preventDefault()
-  const panel = panelRef.value
-  if (!panel) return
-  const rect = panel.getBoundingClientRect()
-  if (panelPosition.value !== 'floating') {
-    floatingPos.x = rect.left
-    floatingPos.y = rect.top
-    panelPosition.value = 'floating'
-  }
-  dragOffset = { x: e.clientX - floatingPos.x, y: e.clientY - floatingPos.y }
-  isDraggingPanel.value = true
-  document.addEventListener('mousemove', onPanelDrag)
-  document.addEventListener('mouseup', stopPanelDrag)
-}
-
-function onPanelDrag(e: MouseEvent) {
-  if (!isDraggingPanel.value) return
-  const panel = panelRef.value
-  const pw = panel?.offsetWidth || 420
-  const ph = panel?.offsetHeight || 400
-  floatingPos.x = Math.max(0, Math.min(e.clientX - dragOffset.x, window.innerWidth - pw))
-  floatingPos.y = Math.max(0, Math.min(e.clientY - dragOffset.y, window.innerHeight - ph))
-}
-
-function stopPanelDrag() {
-  isDraggingPanel.value = false
-  document.removeEventListener('mousemove', onPanelDrag)
-  document.removeEventListener('mouseup', stopPanelDrag)
-  // Snap to edges if close enough — dock into layout
-  const threshold = 50
-  const pw = panelRef.value?.offsetWidth || 420
-  if (floatingPos.x < threshold) {
-    setPanelPosition('left')
-  } else if (floatingPos.x + pw > window.innerWidth - threshold) {
-    setPanelPosition('right')
-  } else if (floatingPos.y + 200 > window.innerHeight - threshold) {
-    setPanelPosition('bottom')
-  } else {
-    savePanelPosition()
-  }
-}
-
-// Resize handlers
-function startResize(e: MouseEvent, edge: string) {
-  if (e.button !== 0) return
-  e.preventDefault()
-  e.stopPropagation()
-  const panel = panelRef.value
-  if (!panel) return
-  resizeEdge = edge
-  resizeStart = {
-    x: e.clientX,
-    y: e.clientY,
-    w: panel.offsetWidth,
-    h: panel.offsetHeight,
-  }
-  isResizing.value = true
-  document.addEventListener('mousemove', onResize)
-  document.addEventListener('mouseup', stopResize)
-}
-
-function onResize(e: MouseEvent) {
-  if (!isResizing.value) return
-  const dx = e.clientX - resizeStart.x
-  const dy = e.clientY - resizeStart.y
-  const minW = 380
-  const maxW = window.innerWidth - 32
-  const minH = 300
-  const maxH = window.innerHeight - 32
-
-  if (resizeEdge === 'right' || resizeEdge === 'corner') {
-    panelSize.width = Math.max(minW, Math.min(resizeStart.w + dx, maxW))
-  }
-  if (resizeEdge === 'bottom' || resizeEdge === 'corner') {
-    panelSize.height = Math.max(minH, Math.min(resizeStart.h + dy, maxH))
-  }
-}
-
-function stopResize() {
-  isResizing.value = false
-  document.removeEventListener('mousemove', onResize)
-  document.removeEventListener('mouseup', stopResize)
-  // Persist size
-  if (panelSize.width) localStorage.setItem('construct_assistant_w', String(panelSize.width))
-  if (panelSize.height) localStorage.setItem('construct_assistant_h', String(panelSize.height))
-}
+// Panel position, drag-to-move, resize, dock — extracted to composable
+const {
+  panelPosition,
+  isDraggingPanel,
+  showDockMenu,
+  panelRef,
+  panelSize,
+  isResizing,
+  wantsDocked,
+  dockTargetEl,
+  isDocked,
+  panelPositionClasses,
+  panelStyle,
+  setPanelPosition,
+  startPanelDrag,
+  startResize,
+  resolveDockTarget,
+  cleanupListeners: cleanupPanelListeners,
+} = useAssistantPanel()
 
 // Dev mode - shows internal AI operations (tool calls, routing, debug info)
 const devMode = ref(import.meta.env.DEV) // Default to env check
@@ -1167,756 +431,53 @@ function stopGeneration() {
   }
 }
 
-// Input history for up/down arrow navigation
-const inputHistory = ref<string[]>([])
-const historyIndex = ref(-1)
-const tempInput = ref('') // Store current input when navigating history
 const latency = ref<number | null>(null)
 const inputRef = ref<HTMLInputElement | null>(null)
 
-// Autocomplete state
-const showAutocomplete = ref(false)
-const autocompleteType = ref<'design' | 'task' | 'component' | 'file' | 'codeFile' | 'doc' | 'command' | null>(null)
-const autocompleteQuery = ref('')
-const autocompleteIndex = ref(0)
-const autocompleteStartPos = ref(0)
-
-// Project files for ! autocomplete (loaded from code space)
-const projectFiles = ref<ProjectFile[]>([])
-
-// Available agents (loaded from API) - uses AgentInfo type imported from useContextService
-const agents = ref<AgentInfo[]>([])
-
-// Available slash commands (built-in + dynamic agent dispatch commands)
-const slashCommands = computed(() => {
-  // Built-in commands
-  const commands = [
-    { label: 'agents', description: 'List all available specialized agents', icon: 'i-lucide-users', type: 'command' },
-    { label: 'analyze', description: 'Analyze intent and suggest best agent', icon: 'i-lucide-search', type: 'command' },
-    { label: 'help', description: 'Show all available commands', icon: 'i-lucide-help-circle', type: 'command' },
-    { label: 'clear', description: 'Clear conversation history', icon: 'i-lucide-trash-2', type: 'command' },
-  ]
-
-  // Add agent dispatch commands (e.g., /code, /design, /kanban)
-  for (const agent of agents.value) {
-    // Convert icon format: lucide:code -> i-lucide-code
-    const iconName = agent.icon
-      ? `i-${agent.icon.replace(':', '-')}`
-      : 'i-lucide-bot'
-    commands.push({
-      label: agent.id,
-      description: agent.description,
-      icon: iconName,
-      type: 'agent',
-    })
-  }
-
-  return commands
+// Project data loading (designs, docs, files) delegated to useAssistantData composable
+const {
+  projectDesigns,
+  syncApiDesigns,
+  projectDocs,
+  localDocs,
+  projectFiles,
+  docsTauriFs: getDocsTauriFs,
+} = useAssistantData({
+  projectStore,
+  sendRequest,
+  callTool,
+  connected,
+  busTasksCache,
+  codeEditorState,
 })
 
-// Load agents from context service
-async function loadAgents() {
-  try {
-    const { listAgents } = useContextService()
-    const response = await listAgents()
-    agents.value = response.agents
-  } catch {
-    // Fallback to basic agents if API fails
-    agents.value = [
-      { id: 'code', name: 'Code Agent', category: 'specialized', description: 'Full codebase access for development', icon: 'lucide:code', isBuiltin: true },
-      { id: 'design', name: 'Design Agent', category: 'specialized', description: 'UI/UX design assistant', icon: 'lucide:palette', isBuiltin: true },
-      { id: 'kanban', name: 'Kanban Agent', category: 'specialized', description: 'Project management', icon: 'lucide:kanban', isBuiltin: true },
-      { id: 'git', name: 'Git Agent', category: 'specialized', description: 'Version control', icon: 'lucide:git-branch', isBuiltin: true },
-      { id: 'explorer', name: 'Explorer Agent', category: 'specialized', description: 'Codebase exploration', icon: 'lucide:compass', isBuiltin: true },
-      { id: 'planner', name: 'Planner Agent', category: 'specialized', description: 'Technical planning', icon: 'lucide:clipboard-list', isBuiltin: true },
-    ]
-  }
-}
-
-// Status icons for tasks
-const taskStatusIcons: Record<string, string> = {
-  backlog: 'i-lucide-inbox',
-  todo: 'i-lucide-circle',
-  in_progress: 'i-lucide-loader',
-  review: 'i-lucide-eye',
-  done: 'i-lucide-check-circle',
-}
-
-// Priority colors for tasks
-const taskPriorityColors: Record<string, string> = {
-  low: 'text-gray-400',
-  medium: 'text-blue-400',
-  high: 'text-orange-400',
-  urgent: 'text-red-400',
-}
-
-// Get suggestions based on type and query
-const autocompleteSuggestions = computed(() => {
-  if (!autocompleteType.value) return []
-
-  const query = autocompleteQuery.value.toLowerCase()
-
-  switch (autocompleteType.value) {
-    case 'design': {
-      // Merge designs from all sources: IndexedDB (local), sync-api (team cloud), and in-memory canvas
-      const dbDesigns = projectDesigns.value
-      const cloudDesigns = syncApiDesigns.value
-      const memoryDesigns = listAvailableDesigns()
-
-      // Merge and deduplicate (prefer cloud > local > memory for source indicator)
-      const allDesignNames = new Set<string>()
-      const allDesigns: { name: string; nodeCount: number; source: 'cloud' | 'local' | 'memory' }[] = []
-
-      // Cloud designs first (team shared)
-      for (const d of cloudDesigns) {
-        if (!allDesignNames.has(d.name.toLowerCase())) {
-          allDesignNames.add(d.name.toLowerCase())
-          allDesigns.push({ name: d.name, nodeCount: (d.nodes as DesignNode[] | undefined)?.length || 0, source: 'cloud' })
-        }
-      }
-      // Local IndexedDB designs
-      for (const d of dbDesigns) {
-        if (!allDesignNames.has(d.name.toLowerCase())) {
-          allDesignNames.add(d.name.toLowerCase())
-          allDesigns.push({ name: d.name, nodeCount: (d.nodes as DesignNode[] | undefined)?.length || 0, source: 'local' })
-        }
-      }
-      // In-memory canvas designs (not yet saved)
-      for (const name of memoryDesigns) {
-        if (!allDesignNames.has(name.toLowerCase())) {
-          allDesignNames.add(name.toLowerCase())
-          allDesigns.push({ name, nodeCount: 0, source: 'memory' })
-        }
-      }
-
-      if (allDesigns.length === 0) {
-        return [{ label: 'No designs available', icon: 'i-lucide-layout', type: 'design' as const, disabled: true }]
-      }
-      return allDesigns
-        .filter(d => d.name.toLowerCase().includes(query))
-        .slice(0, 8)
-        .map(d => ({
-          label: d.name,
-          sublabel: d.nodeCount > 0
-            ? `${d.nodeCount} elements${d.source === 'cloud' ? ' (cloud)' : d.source === 'local' ? ' (local)' : ''}`
-            : d.source === 'cloud' ? '(cloud)' : d.source === 'local' ? '(local)' : undefined,
-          icon: d.source === 'cloud' ? 'i-lucide-cloud' : 'i-lucide-layout',
-          type: 'design' as const
-        }))
-    }
-    case 'task': {
-      const tasks = busTasksCache.value
-      if (tasks.length === 0) {
-        return [{ label: 'No tasks loaded', icon: 'i-lucide-check-square', type: 'task' as const, disabled: true }]
-      }
-      // Filter tasks by query (match ID or title)
-      const filtered = tasks.filter(t =>
-        t.id.toString().includes(query) ||
-        t.title.toLowerCase().includes(query)
-      )
-      return filtered
-        .slice(0, 8)
-        .map(t => ({
-          label: `${t.id}`,
-          sublabel: t.title,
-          icon: taskStatusIcons[t.status] || 'i-lucide-check-square',
-          priority: t.priority,
-          type: 'task' as const
-        }))
-    }
-    case 'doc': {
-      // Merge DB docs and local .md files, deduplicate by title
-      const allDocNames = new Set<string>()
-      const allDocs: { title: string; docType: string; source: 'cloud' | 'local' }[] = []
-
-      // DB docs first (authoritative)
-      for (const d of projectDocs.value) {
-        if (!allDocNames.has(d.title.toLowerCase())) {
-          allDocNames.add(d.title.toLowerCase())
-          allDocs.push({ title: d.title, docType: d.type, source: 'cloud' })
-        }
-      }
-      // Local .md files
-      for (const d of localDocs.value) {
-        if (!allDocNames.has(d.title.toLowerCase())) {
-          allDocNames.add(d.title.toLowerCase())
-          allDocs.push({ title: d.title, docType: d.type, source: 'local' })
-        }
-      }
-
-      if (allDocs.length === 0) {
-        return [{ label: 'No documents available', icon: 'i-lucide-file-text', type: 'doc' as const, disabled: true }]
-      }
-      return allDocs
-        .filter(d => d.title.toLowerCase().includes(query))
-        .slice(0, 8)
-        .map(d => ({
-          label: d.title,
-          sublabel: `${d.docType}${d.source === 'local' ? ' (local)' : ''}`,
-          icon: d.docType === 'prd' ? 'i-lucide-clipboard-list' : d.docType === 'architecture' ? 'i-lucide-boxes' : d.docType === 'readme' ? 'i-lucide-book-open' : 'i-lucide-file-text',
-          type: 'doc' as const
-        }))
-    }
-    case 'component':
-      // TODO: Fetch components from code space
-      return [
-        { label: 'Components will appear here', icon: 'i-lucide-component', type: 'component' as const, disabled: true }
-      ]
-    case 'codeFile': {
-      // !filename - fuzzy file search like VS Code CMD+P
-      if (projectFiles.value.length === 0) {
-        return [{ label: 'No project files loaded', icon: 'i-lucide-folder-open', type: 'codeFile' as const, disabled: true }]
-      }
-      // Fuzzy filter files by query
-      const filtered = projectFiles.value.filter(f =>
-        f.name.toLowerCase().includes(query) ||
-        f.path.toLowerCase().includes(query)
-      )
-      if (filtered.length === 0) {
-        return [{ label: 'No matching files', icon: 'i-lucide-file-x', type: 'codeFile' as const, disabled: true }]
-      }
-      const root = codeEditorState.rootPath
-      return filtered
-        .slice(0, 10)
-        .map(f => {
-          // Show relative path from project root (e.g. "Landing/index.html" instead of full absolute path)
-          const relativePath = root && f.path.startsWith(root)
-            ? f.path.slice(root.length + 1)
-            : f.path
-          // Show parent directory as sublabel for context (e.g. "Landing/" for "Landing/index.html")
-          const parentDir = relativePath.includes('/')
-            ? relativePath.substring(0, relativePath.lastIndexOf('/') + 1)
-            : ''
-          return {
-            label: f.name,
-            sublabel: parentDir || '/',
-            fullPath: relativePath,
-            icon: getFileIcon(f.name),
-            type: 'codeFile' as const
-          }
-        })
-    }
-    case 'command': {
-      // Filter slash commands by query
-      const filtered = slashCommands.value.filter(c =>
-        c.label.toLowerCase().includes(query)
-      )
-      return filtered.map(c => ({
-        label: `/${c.label}`,
-        sublabel: c.description,
-        icon: c.icon,
-        type: 'command' as const,
-        commandType: c.type, // 'command' or 'agent'
-      }))
-    }
-    default:
-      return []
-  }
+// Autocomplete system (trigger detection, suggestions, keyboard nav, selection)
+const {
+  showAutocomplete,
+  autocompleteType,
+  autocompleteIndex,
+  autocompleteSuggestions,
+  inputHistory,
+  historyIndex,
+  tempInput,
+  handleInput,
+  handleKeydown,
+  selectAutocomplete,
+  loadAgents,
+} = useAssistantAutocomplete({
+  message,
+  inputRef,
+  isLoading,
+  projectDesigns,
+  syncApiDesigns,
+  projectDocs,
+  localDocs,
+  projectFiles,
+  busTasksCache,
+  codeEditorRootPath: computed(() => codeEditorState.rootPath),
+  stopGeneration,
+  sendMessage: () => sendMessage(),
 })
-
-// Get icon based on file extension
-function getFileIcon(filename: string): string {
-  const ext = filename.split('.').pop()?.toLowerCase()
-  const icons: Record<string, string> = {
-    vue: 'i-logos-vue',
-    ts: 'i-logos-typescript-icon',
-    tsx: 'i-logos-react',
-    js: 'i-logos-javascript',
-    jsx: 'i-logos-react',
-    go: 'i-logos-go',
-    py: 'i-logos-python',
-    css: 'i-vscode-icons-file-type-css',
-    scss: 'i-vscode-icons-file-type-scss',
-    html: 'i-logos-html-5',
-    json: 'i-vscode-icons-file-type-json',
-    md: 'i-lucide-file-text',
-  }
-  return icons[ext || ''] || 'i-lucide-file-code'
-}
-
-// Handle input changes to detect @ # ~ $ ! / triggers
-function handleInput(e: Event) {
-  const input = e.target as HTMLInputElement
-  const value = input.value
-  const cursorPos = input.selectionStart || 0
-
-  // Check for / at the start of input (slash command)
-  const slashMatch = value.match(/^\/(\S*)$/)
-  if (slashMatch) {
-    autocompleteStartPos.value = 0
-    autocompleteQuery.value = slashMatch[1] || ''
-    autocompleteIndex.value = 0
-    autocompleteType.value = 'command'
-    showAutocomplete.value = true
-    return
-  }
-
-  // Find the trigger character before cursor
-  const textBeforeCursor = value.substring(0, cursorPos)
-  const triggerMatch = textBeforeCursor.match(/(?:^|\s)([@#~$!^])(\S*)$/)
-
-  if (triggerMatch) {
-    const trigger = triggerMatch[1]
-    const query = triggerMatch[2] || ''
-    autocompleteStartPos.value = cursorPos - query.length - 1
-    autocompleteQuery.value = query
-    autocompleteIndex.value = 0
-
-    switch (trigger) {
-      case '@':
-        autocompleteType.value = 'design'
-        showAutocomplete.value = true
-        break
-      case '#':
-        autocompleteType.value = 'task'
-        showAutocomplete.value = true
-        break
-      case '~':
-        autocompleteType.value = 'component'
-        showAutocomplete.value = true
-        break
-      case '$':
-      case '!':
-        autocompleteType.value = 'codeFile'
-        showAutocomplete.value = true
-        break
-      case '^':
-        autocompleteType.value = 'doc'
-        showAutocomplete.value = true
-        break
-    }
-  } else {
-    showAutocomplete.value = false
-    autocompleteType.value = null
-  }
-}
-
-// Handle keyboard navigation in autocomplete and input history
-function handleKeydown(e: KeyboardEvent) {
-  // Escape to stop generation when loading
-  if (e.key === 'Escape' && isLoading.value) {
-    e.preventDefault()
-    stopGeneration()
-    return
-  }
-
-  // If autocomplete is showing, handle autocomplete navigation
-  if (showAutocomplete.value && autocompleteSuggestions.value.length > 0) {
-    switch (e.key) {
-      case 'ArrowDown':
-        e.preventDefault()
-        autocompleteIndex.value = (autocompleteIndex.value + 1) % autocompleteSuggestions.value.length
-        break
-      case 'ArrowUp':
-        e.preventDefault()
-        autocompleteIndex.value = autocompleteIndex.value <= 0
-          ? autocompleteSuggestions.value.length - 1
-          : autocompleteIndex.value - 1
-        break
-      case 'Enter':
-      case 'Tab': {
-        e.preventDefault()
-        const suggestion = autocompleteSuggestions.value[autocompleteIndex.value]
-        if (suggestion) selectAutocomplete(suggestion)
-        break
-      }
-      case 'Escape':
-        e.preventDefault()
-        showAutocomplete.value = false
-        break
-    }
-    return
-  }
-
-  // Handle input history navigation with up/down arrows
-  if (e.key === 'ArrowUp' && inputHistory.value.length > 0) {
-    e.preventDefault()
-    if (historyIndex.value === -1) {
-      // Save current input before navigating
-      tempInput.value = message.value
-      historyIndex.value = inputHistory.value.length - 1
-    } else if (historyIndex.value > 0) {
-      historyIndex.value--
-    }
-    message.value = inputHistory.value[historyIndex.value] || ''
-    return
-  }
-
-  if (e.key === 'ArrowDown' && historyIndex.value !== -1) {
-    e.preventDefault()
-    if (historyIndex.value < inputHistory.value.length - 1) {
-      historyIndex.value++
-      message.value = inputHistory.value[historyIndex.value] || ''
-    } else {
-      // Return to original input
-      historyIndex.value = -1
-      message.value = tempInput.value
-    }
-    return
-  }
-
-  // Handle Enter to send
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault()
-    sendMessage()
-  }
-}
-
-// Select an autocomplete suggestion
-function selectAutocomplete(suggestion: { label: string; sublabel?: string; fullPath?: string; type: string }) {
-  if (!suggestion || !autocompleteType.value) return
-
-  // Handle command selection - replace entire input with the command
-  if (autocompleteType.value === 'command') {
-    message.value = suggestion.label + ' '
-    showAutocomplete.value = false
-    autocompleteType.value = null
-    nextTick(() => {
-      inputRef.value?.focus()
-    })
-    return
-  }
-
-  const triggerMap: Record<string, string> = {
-    design: '@',
-    task: '#',
-    component: '~',
-    codeFile: '!',
-    doc: '^'
-  }
-  const trigger = triggerMap[autocompleteType.value] || '@'
-
-  // For codeFile, use the relative path (fullPath) if available, otherwise use label
-  const insertValue = autocompleteType.value === 'codeFile' && suggestion.fullPath
-    ? suggestion.fullPath
-    : suggestion.label
-
-  const before = message.value.substring(0, autocompleteStartPos.value)
-  const after = message.value.substring(autocompleteStartPos.value + autocompleteQuery.value.length + 1)
-
-  message.value = `${before}${trigger}${insertValue} ${after}`
-  showAutocomplete.value = false
-  autocompleteType.value = null
-
-  // Focus back on input
-  nextTick(() => {
-    inputRef.value?.focus()
-  })
-}
-
-// Project designs from IndexedDB (for @ autocomplete)
-const projectDesigns = ref<UIDesign[]>([])
-
-// Designs from sync-api (team cloud)
-const syncApiDesigns = ref<UIDesign[]>([])
-
-// Project documents for ^ autocomplete (merged: DB + local .md files)
-const projectDocs = ref<DocumentListItem[]>([])
-const localDocs = ref<{ title: string; path: string; type: string }[]>([])
-
-// Guess doc type from filename
-function guessDocType(filename: string): string {
-  const nameLower = filename.toLowerCase()
-  if (nameLower.includes('prd')) return 'prd'
-  if (nameLower.includes('readme')) return 'readme'
-  if (nameLower.includes('architect')) return 'architecture'
-  if (nameLower.includes('roadmap')) return 'roadmap'
-  if (nameLower.includes('setup')) return 'setup'
-  return 'custom'
-}
-
-// Convert title to filename: "My PRD" -> "my-prd.md"
-function docTitleToFilename(title: string): string {
-  return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '.md'
-}
-
-// Convert filename to title: "my-prd.md" -> "My Prd"
-function docFilenameToTitle(filename: string): string {
-  return filename.replace(/\.md$/, '').replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-}
-
-// Tauri FS for doc sync (lazy loaded)
-let docsTauriFs: typeof import('@tauri-apps/plugin-fs') | null = null
-const initDocsTauri = async () => {
-  if (docsTauriFs) return true
-  try {
-    docsTauriFs = await import('@tauri-apps/plugin-fs')
-    return true
-  } catch {
-    return false
-  }
-}
-
-// Load project docs from space handler + scan local docs/ folder
-async function syncProjectDocs(_projectId: string | number, projectPath: string | undefined) {
-  // Step 1: Try loading from space-docs handler (documents.list)
-  try {
-    const docs = await requestSpaceData('docs', { type: 'documents.list' })
-    if (Array.isArray(docs)) {
-      projectDocs.value = (docs as Array<{ title: string; type: string; filename?: string; id?: number }>).map(d => ({
-        id: d.id ?? 0,
-        title: d.title,
-        type: d.type || 'custom',
-      })) as DocumentListItem[]
-    }
-  } catch (e) {
-    console.warn('[AssistantFloat] Failed to load docs from space handler:', e)
-  }
-
-  if (!projectPath) {
-    console.log('[AssistantFloat] Doc sync complete: space=', projectDocs.value.length, '(no local path)')
-    return
-  }
-
-  // Step 2: Scan local docs/ folder for .md files
-  const hasTauri = await initDocsTauri()
-  if (!hasTauri || !docsTauriFs) {
-    console.debug('[AssistantFloat] Tauri FS not available for doc sync')
-    return
-  }
-
-  const docsPath = `${projectPath}/docs`
-
-  try {
-    const exists = await docsTauriFs.exists(docsPath)
-    if (!exists) {
-      console.log('[AssistantFloat] Doc sync complete: space=', projectDocs.value.length, '(no docs/ dir)')
-      return
-    }
-  } catch {
-    return
-  }
-
-  const scannedLocal: { title: string; path: string; type: string }[] = []
-  try {
-    const entries = await docsTauriFs.readDir(docsPath)
-    for (const entry of entries) {
-      if (entry.name && entry.name.endsWith('.md')) {
-        scannedLocal.push({
-          title: docFilenameToTitle(entry.name),
-          path: `${docsPath}/${entry.name}`,
-          type: guessDocType(entry.name),
-        })
-      }
-    }
-  } catch (e) {
-    console.debug('[AssistantFloat] Could not read docs directory:', e)
-  }
-
-  localDocs.value = scannedLocal
-
-  // Step 3: Merge — add local docs not already in space handler results
-  const spaceTitles = new Set(projectDocs.value.map(d => d.title.toLowerCase()))
-  for (const local of scannedLocal) {
-    if (!spaceTitles.has(local.title.toLowerCase())) {
-      projectDocs.value.push({ id: 0, title: local.title, type: local.type } as DocumentListItem)
-    }
-  }
-
-  console.log('[AssistantFloat] Doc sync complete: space=', projectDocs.value.length, 'local=', localDocs.value.length)
-}
-
-
-// Fetch designs from sync-api for team-shared context
-// NOTE: Disabled - sync-api service is not available. Designs now loaded via context service.
-async function loadDesignsFromSyncApi(_projectId: string | number) {
-  // Skip sync-api fetch - designs are loaded via context service (SQLite)
-  void _projectId
-}
-
-// Load tasks, designs, and files when project changes
-watch(
-  () => projectStore.currentProject?.id,
-  async (projectId) => {
-    if (projectId) {
-      // Load tasks via context bus (space-kanban handler)
-      if (busTasksCache.value.length === 0) {
-        try {
-          const tasks = await requestSpaceData('kanban', { type: 'tasks.fetchProject', params: { projectId } })
-          if (Array.isArray(tasks)) busTasksCache.value = tasks
-        } catch (e) {
-          console.warn('[AssistantFloat] Failed to load tasks for autocomplete:', e)
-        }
-      }
-
-      // Load designs from SQLite (via context service)
-      try {
-        const result = await sendRequest<{ designs: UIDesign[] }>('designs.list', { projectId })
-        const designs = result?.designs || []
-        projectDesigns.value = designs
-
-        // Also register them in the canvas context for code generation
-        for (const design of designs) {
-          registerDesign(design.name, design.nodes as DesignNode[])
-        }
-        console.log('[AssistantFloat] Loaded', designs.length, 'designs from SQLite')
-      } catch (e) {
-        console.warn('[AssistantFloat] Failed to load designs:', e)
-      }
-
-      // Load designs from sync-api (team cloud) in parallel
-      loadDesignsFromSyncApi(projectId)
-
-      // Sync documents for ^ autocomplete (bidirectional: DB <-> local docs/)
-      try {
-        const project = projectStore.currentProject
-        await syncProjectDocs(projectId, project?.local_path)
-      } catch (e) {
-        console.warn('[AssistantFloat] Failed to sync docs:', e)
-      }
-
-      // Load project files for ! autocomplete (via context service)
-      try {
-        const project = projectStore.currentProject
-        if (connected.value) {
-          const candidateRoots = [
-            codeEditorState.rootPath,
-            project?.local_path,
-            project?.local_path ? `${project.local_path}/code` : undefined,
-          ].filter((p): p is string => !!p && p.trim().length > 0)
-
-          let bestRoot: string | null = null
-          let bestCount = 0
-          const bestFiles: ProjectFile[] = []
-
-          for (const root of candidateRoots) {
-            const files = await loadProjectFiles(root)
-            if (files.length > bestCount) {
-              bestCount = files.length
-              bestRoot = root
-              bestFiles.splice(0, bestFiles.length, ...files)
-            }
-          }
-
-          projectFiles.value = bestFiles
-          if (bestRoot) {
-            console.log('[AssistantFloat] Using file root for autocomplete:', bestRoot, 'files:', bestCount)
-          }
-        }
-      } catch (e) {
-        console.warn('[AssistantFloat] Failed to load project files:', e)
-      }
-    } else {
-      projectDesigns.value = []
-      syncApiDesigns.value = []
-      projectDocs.value = []
-      localDocs.value = []
-      projectFiles.value = []
-    }
-  },
-  { immediate: true }
-)
-
-// Load project files recursively (limited depth for performance)
-async function loadProjectFiles(rootPath: string, maxDepth = 4): Promise<ProjectFile[]> {
-  const files: ProjectFile[] = []
-
-  // Use tool-call API directly; parse ToolResult.content JSON
-  try {
-    const result = await callTool({
-      id: `tool-${Date.now()}`,
-      type: 'function',
-      function: {
-        name: 'get_file_tree',
-        arguments: JSON.stringify({
-          path: rootPath,
-          max_depth: maxDepth,
-        }),
-      },
-    })
-
-    if (result?.is_error) {
-      console.debug('[AssistantFloat] get_file_tree error for', rootPath, result.content)
-      return []
-    }
-
-    const parsed = JSON.parse(result?.content || '{}') as { tree?: unknown; success?: boolean }
-    if (parsed?.tree && Array.isArray(parsed.tree)) {
-      // Flatten the tree into a file list
-      flattenFileTree(parsed.tree as ContextFileTreeEntry[], files)
-      console.log('[AssistantFloat] Loaded', files.length, 'files for ! autocomplete from', rootPath)
-    }
-  } catch (e) {
-    console.debug('[AssistantFloat] Could not load file tree from', rootPath, e)
-  }
-
-  return files
-}
-
-// Flatten nested file tree into flat array
-interface ContextFileTreeEntry {
-  name: string
-  type: string
-  path?: string
-  children?: ContextFileTreeEntry[]
-}
-
-function flattenFileTree(tree: ContextFileTreeEntry[], files: ProjectFile[], parentPath = '') {
-  for (const entry of tree) {
-    const fullPath = parentPath ? `${parentPath}/${entry.name}` : entry.name
-
-    if (entry.type === 'file') {
-      // Only include code files
-      const ext = entry.name.split('.').pop()?.toLowerCase()
-      const codeExtensions = ['vue', 'ts', 'tsx', 'js', 'jsx', 'go', 'py', 'css', 'scss', 'html', 'json', 'md', 'yaml', 'yml']
-      if (ext && codeExtensions.includes(ext)) {
-        files.push({
-          name: entry.name,
-          path: entry.path || fullPath,
-          type: 'file'
-        })
-      }
-    } else if (entry.type === 'directory' && entry.children) {
-      flattenFileTree(entry.children, files, fullPath)
-    }
-  }
-}
-
-// Sync project files from code editor's file tree (already loaded by FileExplorer)
-watch(
-  () => codeEditorState.fileTree,
-  (tree) => {
-    if (tree && tree.length > 0) {
-      const files: ProjectFile[] = []
-      flattenCodeEditorTree(tree, files)
-      projectFiles.value = files
-      console.log('[AssistantFloat] Synced', files.length, 'files from code editor tree')
-    }
-  },
-  { immediate: true, deep: true }
-)
-
-// If code root path changes (e.g. local folder opens after assistant mounted),
-// refresh ! autocomplete files from that root immediately.
-watch(
-  () => codeEditorState.rootPath,
-  async (root) => {
-    if (!root || !connected.value) return
-    if (projectFiles.value.length > 0) return
-    const files = await loadProjectFiles(root)
-    if (files.length > 0) {
-      projectFiles.value = files
-      console.log('[AssistantFloat] Loaded files from code rootPath fallback:', root, files.length)
-    }
-  },
-  { immediate: true }
-)
-
-// Flatten code editor's FileEntry tree into ProjectFile[]
-function flattenCodeEditorTree(entries: FileTreeEntry[], files: ProjectFile[], maxDepth = 5, depth = 0) {
-  if (depth > maxDepth) return
-  for (const entry of entries) {
-    if (!entry.isDirectory) {
-      const ext = entry.name.split('.').pop()?.toLowerCase()
-      const codeExtensions = ['vue', 'ts', 'tsx', 'js', 'jsx', 'go', 'py', 'rs', 'dart', 'css', 'scss', 'less', 'html', 'json', 'yaml', 'yml', 'toml', 'md', 'sql', 'sh', 'bash', 'zsh', 'swift', 'kt', 'java', 'c', 'cpp', 'h', 'rb', 'php', 'xml', 'svg', 'env', 'gitignore', 'dockerfile']
-      if (ext && codeExtensions.includes(ext)) {
-        files.push({ name: entry.name, path: entry.path, type: 'file' })
-      }
-    } else if (entry.children && Array.isArray(entry.children)) {
-      flattenCodeEditorTree(entry.children as typeof entries, files, maxDepth, depth + 1)
-    }
-  }
-}
 
 // Drag-drop state for image upload (only in UI space)
 const isDragging = ref(false)
@@ -1953,7 +514,7 @@ watch(messages, (newMessages) => {
     conversationCache.set(conversationKey.value, [...newMessages])
     // Debounce storage write - save individual conversation
     if (saveTimeout) clearTimeout(saveTimeout)
-    const interval = (isTauri.value && lastIncrementalSaveTs > 0)
+    const interval = (isTauri.value && conversationCacheComposable.lastIncrementalSaveTs > 0)
       ? FULL_SAVE_INTERVAL_INCREMENTAL
       : FULL_SAVE_INTERVAL_DEFAULT
     saveTimeout = setTimeout(() => {
@@ -1994,6 +555,22 @@ const contextInfo = computed(() => {
 
   // Fallback to route-based context
   const path = route.path
+
+  // Popout mode: derive context from space prop
+  if (props.popoutMode && props.popoutSpace) {
+    const ps = props.popoutSpace.toLowerCase()
+    if (ps === 'code') return { label: 'Code', hint: 'Ask about code, debugging, or implementation', icon: 'i-lucide-code-2', color: 'text-blue-500' }
+    if (ps === 'design' || ps === 'ui') return { label: 'Design', hint: 'Ask about design, UI/UX, or assets', icon: 'i-lucide-palette', color: 'text-fuchsia-500' }
+    if (ps === 'git') return { label: 'Git', hint: 'Ask about version control', icon: 'i-lucide-git-branch', color: 'text-emerald-500' }
+    if (ps === 'ai') return { label: 'AI Space', hint: 'Ask about AI features', icon: 'i-lucide-brain', color: 'text-violet-500' }
+    if (ps === 'notes' || ps === 'docs') return { label: 'Notes', hint: 'Ask about documentation', icon: 'i-lucide-file-text', color: 'text-amber-500' }
+    if (ps === 'kanban') return { label: 'Kanban', hint: 'Ask about tasks', icon: 'i-lucide-kanban', color: 'text-orange-500' }
+    if (ps === 'deploy') return { label: 'Deploy', hint: 'Ask about deployments', icon: 'i-lucide-rocket', color: 'text-rose-500' }
+  }
+  // Popout with project but no space
+  if (props.popoutMode && projectStore.currentProject) {
+    return { label: 'Project', hint: 'Ask about this project', icon: 'i-lucide-folder', color: 'text-slate-500' }
+  }
 
   if (path.match(/\/app\/projects\/\d+\/code/)) {
     return { label: 'Code', hint: 'Ask about code, debugging, or implementation', icon: 'i-lucide-code-2', color: 'text-blue-500' }
@@ -2036,6 +613,12 @@ const componentLabel = computed(() => {
 
 // Extract current space from route (project-scoped and direct space routes)
 const currentSpace = computed(() => {
+  // Popout mode: read space from prop (received via Tauri event from main window)
+  if (props.popoutMode && props.popoutSpace) {
+    const s = props.popoutSpace
+    return s.charAt(0).toUpperCase() + s.slice(1)
+  }
+
   const path = route.path
   // Project-scoped: /app/projects/:projectId/:spaceName (projectId can be string slug or number)
   const projectMatch = path.match(/\/app\/projects\/[^/]+\/(\w+)/)
@@ -2069,283 +652,39 @@ const assistantSpaceUiComponent = computed(() => {
     case 'deploy': return AssistantDeploySpace
     default:
       if (/\/app\/projects\/\d+/.test(path)) return AssistantProjectSpace
+      // Popout mode with project context but no specific space
+      if (props.popoutMode && projectStore.currentProject && !currentSpaceKey.value) return AssistantProjectSpace
       return AssistantGeneralSpace
   }
 })
 
-// Handle slash commands
-async function handleSlashCommand(command: string): Promise<boolean> {
-  const parts = command.slice(1).split(' ')
-  const cmd = parts[0]?.toLowerCase()
-  const args = parts.slice(1).join(' ')
+// Slash commands — extracted to composable
+const { handleSlashCommand } = useAssistantCommands({ messages, isLoading, sendRequest, renderMarkdown })
 
-  switch (cmd) {
-    case 'agents': {
-      // List all available agents
-      messages.value.push({ role: 'user', content: command })
-      isLoading.value = true
-
-      try {
-        const result = await sendRequest<{ agents: AgentInfo[] }>('agents.list')
-        const agents = result.agents || []
-
-        let response = '## Available Agents\n\n'
-
-        // Group by category
-        const categories: Record<string, AgentInfo[]> = {}
-        for (const agent of agents) {
-          const cat = agent.category || 'other'
-          if (!categories[cat]) categories[cat] = []
-          categories[cat].push(agent)
-        }
-
-        for (const [category, categoryAgents] of Object.entries(categories)) {
-          response += `### ${category.charAt(0).toUpperCase() + category.slice(1)}\n\n`
-          for (const agent of categoryAgents) {
-            response += `- **${agent.name}** (\`${agent.id}\`): ${agent.description}\n`
-          }
-          response += '\n'
-        }
-
-        response += '---\n\n'
-        response += '**Commands:**\n'
-        response += '- `/agent <id>` - Get details about a specific agent\n'
-        response += '- `/analyze <text>` - Analyze which agent would handle a task\n'
-        response += '- `/dispatch <id> <task>` - Dispatch a task to a specific agent\n'
-
-        messages.value.push({
-          role: 'assistant',
-          content: response,
-          renderedHtml: renderMarkdown(response)
-        })
-      } catch (error) {
-        messages.value.push({
-          role: 'assistant',
-          content: `Error fetching agents: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          renderedHtml: renderMarkdown(`⚠️ Error fetching agents: ${error instanceof Error ? error.message : 'Unknown error'}`)
-        })
-      } finally {
-        isLoading.value = false
-      }
-      return true
-    }
-
-    case 'agent': {
-      // Get details about a specific agent
-      if (!args) {
-        messages.value.push({ role: 'user', content: command })
-        messages.value.push({
-          role: 'assistant',
-          content: 'Usage: `/agent <id>` - Get details about a specific agent\n\nExample: `/agent code`',
-          renderedHtml: renderMarkdown('Usage: `/agent <id>` - Get details about a specific agent\n\nExample: `/agent code`')
-        })
-        return true
-      }
-
-      messages.value.push({ role: 'user', content: command })
-      isLoading.value = true
-
-      try {
-        const result = await sendRequest<{
-          id: string
-          name: string
-          category: string
-          description: string
-          systemPrompt: string
-          allowedTools?: string[]
-          blockedTools?: string[]
-          canInvokeAgents?: string[]
-          maxIterations: number
-        }>('agents.get', { id: args.trim() })
-
-        let response = `## ${result.name}\n\n`
-        response += `**ID:** \`${result.id}\`\n`
-        response += `**Category:** ${result.category}\n`
-        response += `**Description:** ${result.description}\n\n`
-
-        if (result.allowedTools && result.allowedTools.length > 0) {
-          response += `**Allowed Tools:** ${result.allowedTools.slice(0, 10).join(', ')}${result.allowedTools.length > 10 ? ` (+${result.allowedTools.length - 10} more)` : ''}\n\n`
-        }
-
-        if (result.blockedTools && result.blockedTools.length > 0) {
-          response += `**Blocked Tools:** ${result.blockedTools.slice(0, 5).join(', ')}${result.blockedTools.length > 5 ? ` (+${result.blockedTools.length - 5} more)` : ''}\n\n`
-        }
-
-        if (result.canInvokeAgents && result.canInvokeAgents.length > 0) {
-          response += `**Can Invoke:** ${result.canInvokeAgents.join(', ')}\n\n`
-        }
-
-        response += `**Max Iterations:** ${result.maxIterations}\n\n`
-        response += '---\n\n'
-        response += `Use \`/dispatch ${result.id} <task>\` to send a task to this agent.`
-
-        messages.value.push({
-          role: 'assistant',
-          content: response,
-          renderedHtml: renderMarkdown(response)
-        })
-      } catch {
-        messages.value.push({
-          role: 'assistant',
-          content: `Agent not found: ${args}`,
-          renderedHtml: renderMarkdown(`⚠️ Agent not found: \`${args}\`\n\nUse \`/agents\` to see available agents.`)
-        })
-      } finally {
-        isLoading.value = false
-      }
-      return true
-    }
-
-    case 'analyze': {
-      // Analyze which agent would handle a task
-      if (!args) {
-        messages.value.push({ role: 'user', content: command })
-        messages.value.push({
-          role: 'assistant',
-          content: 'Usage: `/analyze <text>` - Analyze which agent would handle a task\n\nExample: `/analyze create a login form`',
-          renderedHtml: renderMarkdown('Usage: `/analyze <text>` - Analyze which agent would handle a task\n\nExample: `/analyze create a login form`')
-        })
-        return true
-      }
-
-      messages.value.push({ role: 'user', content: command })
-      isLoading.value = true
-
-      try {
-        const result = await sendRequest<IntentAnalysis>('agents.analyze', { prompt: args })
-
-        let response = `## Intent Analysis\n\n`
-        response += `**Task:** "${args}"\n\n`
-        response += `**Primary Agent:** \`${result.primary_agent}\`\n`
-        response += `**Confidence:** ${Math.round(result.confidence * 100)}%\n\n`
-
-        if (result.secondary_agents && result.secondary_agents.length > 0) {
-          response += `**Secondary Agents:** ${result.secondary_agents.map(a => `\`${a}\``).join(', ')}\n\n`
-        }
-
-        if (result.keywords && result.keywords.length > 0) {
-          response += `**Matched Keywords:** ${result.keywords.join(', ')}\n\n`
-        }
-
-        response += `**Reasoning:** ${result.reasoning}\n\n`
-        response += '---\n\n'
-        response += `Use \`/dispatch ${result.primary_agent} ${args}\` to execute this task.`
-
-        messages.value.push({
-          role: 'assistant',
-          content: response,
-          renderedHtml: renderMarkdown(response)
-        })
-      } catch (error) {
-        messages.value.push({
-          role: 'assistant',
-          content: `Error analyzing intent: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          renderedHtml: renderMarkdown(`⚠️ Error analyzing intent: ${error instanceof Error ? error.message : 'Unknown error'}`)
-        })
-      } finally {
-        isLoading.value = false
-      }
-      return true
-    }
-
-    case 'dispatch': {
-      // Dispatch a task to a specific agent
-      const dispatchParts = args.split(' ')
-      const agentId = dispatchParts[0]
-      const task = dispatchParts.slice(1).join(' ')
-
-      if (!agentId || !task) {
-        messages.value.push({ role: 'user', content: command })
-        messages.value.push({
-          role: 'assistant',
-          content: 'Usage: `/dispatch <agent_id> <task>` - Dispatch a task to a specific agent\n\nExample: `/dispatch code create a function to validate emails`',
-          renderedHtml: renderMarkdown('Usage: `/dispatch <agent_id> <task>` - Dispatch a task to a specific agent\n\nExample: `/dispatch code create a function to validate emails`')
-        })
-        return true
-      }
-
-      messages.value.push({ role: 'user', content: command })
-      isLoading.value = true
-
-      try {
-        const result = await sendRequest<{
-          session_id: string
-          agent_id: string
-          result?: {
-            content: string
-            toolsUsed?: string[]
-            tokensUsed?: number
-            duration?: number
-          }
-        }>('agents.dispatch', { agent_id: agentId, task })
-
-        let response = `## Agent Dispatch\n\n`
-        response += `**Agent:** \`${result.agent_id}\`\n`
-        response += `**Session:** \`${result.session_id}\`\n\n`
-
-        if (result.result) {
-          response += `### Result\n\n${result.result.content}\n\n`
-
-          if (result.result.toolsUsed && result.result.toolsUsed.length > 0) {
-            response += `**Tools Used:** ${result.result.toolsUsed.join(', ')}\n`
-          }
-          if (result.result.tokensUsed) {
-            response += `**Tokens:** ${result.result.tokensUsed}\n`
-          }
-        }
-
-        messages.value.push({
-          role: 'assistant',
-          content: response,
-          renderedHtml: renderMarkdown(response)
-        })
-      } catch (error) {
-        messages.value.push({
-          role: 'assistant',
-          content: `Error dispatching task: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          renderedHtml: renderMarkdown(`⚠️ Error dispatching task: ${error instanceof Error ? error.message : 'Unknown error'}`)
-        })
-      } finally {
-        isLoading.value = false
-      }
-      return true
-    }
-
-    case 'help': {
-      messages.value.push({ role: 'user', content: command })
-      const response = `## Available Commands
-
-### Agent Commands
-- \`/agents\` - List all available specialized agents
-- \`/agent <id>\` - Get details about a specific agent
-- \`/analyze <text>\` - Analyze which agent would handle a task
-- \`/dispatch <id> <task>\` - Dispatch a task to a specific agent
-
-### Reference Syntax
-- \`@DesignName\` - Reference a UI design
-- \`^DocTitle\` - Reference a project document (PRD, README, etc.)
-- \`#123\` - Reference a task by ID
-- \`~ComponentName\` - Reference a code component
-- \`!filename\` - Fuzzy file search
-
-### Keyboard Shortcuts
-- \`Double Left-Shift\` - Toggle AI Assistant
-- \`Double Right-Shift\` - Toggle Chat
-- \`Enter\` - Send message
-- \`Escape\` - Close autocomplete`
-
-      messages.value.push({
-        role: 'assistant',
-        content: response,
-        renderedHtml: renderMarkdown(response)
-      })
-      return true
-    }
-
-    default:
-      return false
-  }
-}
+// System prompt, local data, doc context — extracted to composable
+const {
+  buildLocalData,
+  getReferencedDocsContext,
+  buildSystemPrompt,
+} = useAssistantPrompt({
+  currentSpace,
+  projectStore,
+  route,
+  currentComponent,
+  useGitRepo,
+  busCurrentDoc,
+  projectDocs,
+  localDocs,
+  projectDesigns,
+  syncApiDesigns,
+  projectFiles,
+  codeEditorState,
+  codeEditorSelection,
+  currentNodes,
+  currentDesignName,
+  designsCache,
+  getDocsTauriFs,
+})
 
 // Place selected image on canvas
 function placeSearchImage(msgIndex: number, image: SearchImageResult) {
@@ -2534,7 +873,7 @@ async function sendMessage() {
       ...compactedMsgs.map(m => ({
         role: m.role,
         content: m.role === 'assistant' && m.toolCalls?.length
-          ? buildMessageWithToolContext(m)
+          ? buildMessageWithToolContext(m, projectDocs, projectStore)
           : m.content
       }))
     ]
@@ -2851,446 +1190,7 @@ async function processMessageQueue() {
   await sendMessage()
 }
 
-// Compact messages for LLM context — prune old tool results, keep UI data intact.
-// Only prunes assistant toolCall results older than PROTECT_LAST_TURNS.
-// User messages and assistant text content are never pruned.
-function compactForLLM(msgs: ChatMessage[]): ChatMessage[] {
-  const PROTECT_LAST_TURNS = 3
 
-  // Count actual turns (user message = 1 turn) from the end to find the protection boundary
-  // A turn = user message + its assistant response. We protect the last N turns.
-  let turnCount = 0
-  let protectFromIndex = 0 // default: protect everything (if fewer turns than threshold)
-  for (let i = msgs.length - 1; i >= 0; i--) {
-    const msg = msgs[i]
-    if (msg?.role === 'user') {
-      turnCount++
-      if (turnCount >= PROTECT_LAST_TURNS) {
-        protectFromIndex = i // protect from this user message onward
-        break
-      }
-    }
-  }
-
-  return msgs.map((msg, i) => {
-    // Protect recent turns, user messages, and messages without tool calls
-    if (i >= protectFromIndex) return msg
-    if (msg.role !== 'assistant' || !msg.toolCalls?.length) return msg
-
-    return {
-      ...msg,
-      toolCalls: msg.toolCalls.map(tc => ({
-        ...tc,
-        result: tc.result
-          ? `[Previous ${tc.name} result — call tool again if needed]`
-          : tc.result
-      }))
-    }
-  })
-}
-
-// Build assistant message content enriched with tool call context for conversation history.
-// This ensures follow-up messages know what tools were called and what was created/modified.
-function buildMessageWithToolContext(msg: ChatMessage): string {
-  let content = msg.content || ''
-  if (!msg.toolCalls?.length) return content
-
-  const toolSummaries: string[] = []
-  for (const tc of msg.toolCalls) {
-    // Parse tool result for key details
-    let summary = `- Called ${tc.name}`
-    try {
-      const args = tc.arguments as Record<string, unknown>
-      const result = tc.result ? JSON.parse(tc.result) : null
-
-      if (tc.name === 'create_ui_screen' && result?.screen) {
-        const s = result.screen as Record<string, unknown>
-        summary = `- Created screen "${s.name}" (${result.elements?.length || 0} elements, ${s.width}x${s.height})`
-      } else if (tc.name === 'create_design_element' && result?.element) {
-        const el = result.element as Record<string, unknown>
-        summary = `- Created element "${el.name || el.type}" (type: ${el.type}, ${el.x},${el.y} ${el.width}x${el.height})`
-        if (el.style) summary += ` style: ${JSON.stringify(el.style)}`
-      } else if (tc.name === 'update_design_element' && result?.element) {
-        const el = result.element as Record<string, unknown>
-        summary = `- Updated element "${el.name || el.type}" (id: ${args.element_id || el.id})`
-      } else if (tc.name === 'write_file') {
-        summary = `- Wrote file: ${args.path}`
-      } else if (tc.name === 'create_task' && result?.task) {
-        const t = result.task as Record<string, unknown>
-        summary = `- Created task: "${t.title}" (id: ${t.id})`
-      } else if (tc.name === 'git_commit') {
-        summary = `- Committed: "${args.message}"`
-      } else if (tc.name === 'git_push') {
-        summary = `- Pushed to ${args.remote || 'origin'}${args.branch ? '/' + args.branch : ''}`
-      } else if (tc.name === 'git_pull') {
-        summary = `- Pulled from ${args.remote || 'origin'}${args.branch ? '/' + args.branch : ''}`
-      } else if (tc.name === 'git_checkout') {
-        summary = `- Switched to branch: ${args.branch}`
-      } else if (tc.name === 'git_create_branch') {
-        summary = `- Created branch: ${args.branch_name}`
-      } else if (tc.name === 'git_stage') {
-        summary = `- Staged files`
-      } else if (tc.name === 'git_unstage') {
-        summary = `- Unstaged files`
-      } else if (tc.name === 'sync_document') {
-        summary = `- Created/updated document: "${args.title || 'Untitled'}"`
-        // Refresh docs list so sidebar updates
-        const syncProjectId = (args.project_id as number) || projectStore.currentProject?.id
-        if (syncProjectId) {
-          requestSpaceData('docs', { type: 'documents.reload' }).then((docs) => {
-            if (Array.isArray(docs)) {
-              projectDocs.value = (docs as Array<{ title: string; type: string; id?: number }>).map(d => ({
-                id: d.id ?? 0, title: d.title, type: d.type || 'custom',
-              })) as DocumentListItem[]
-            }
-          }).catch(() => { /* ignore refresh failure */ })
-        }
-      } else if (tc.name === 'list_project_documents' || tc.name === 'list_project_designs' || tc.name === 'list_project_tasks') {
-        summary = `- Listed ${tc.name.replace('list_project_', '')}`
-      } else {
-        // Generic: include args summary
-        const argKeys = Object.keys(args)
-        if (argKeys.length > 0) {
-          summary += `(${argKeys.map(k => `${k}: ${JSON.stringify(args[k])}`).join(', ').substring(0, 200)})`
-        }
-      }
-    } catch {
-      // Keep basic summary
-    }
-    toolSummaries.push(summary)
-  }
-
-  if (toolSummaries.length > 0) {
-    content += `\n\n[Actions performed:\n${toolSummaries.join('\n')}\n]`
-  }
-
-  return content
-}
-
-// Build system prompt with context information
-function buildSystemPrompt(references?: ParsedReferences, docContents?: string): string {
-  // This function provides LIVE CONTEXT only — behavioral rules come from Go agent .md files.
-  // Context includes: project info, space state (git/docs), and referenced content.
-  const parts: string[] = []
-
-  // Resolve current space once for reuse below
-  const space = currentSpace.value?.toLowerCase()
-
-  // Add project context from store (projects are LOCAL — no API/auth needed)
-  const project = projectStore.currentProject
-  if (project) {
-    parts.push(`\n\n## Current Project Context (Local)`)
-    parts.push(`- Project: "${project.name}"`)
-    parts.push(`- Local path: ${project.path}`)
-    if (project.description) {
-      parts.push(`- Description: ${project.description}`)
-    }
-    if (project.spaces && project.spaces.length > 0) {
-      parts.push(`- Enabled spaces: ${project.spaces.join(', ')}`)
-    }
-    parts.push(`- IMPORTANT: Projects are LOCAL (on-disk). The following tools do NOT work without cloud auth and must be AVOIDED:
-  - resolve_project_name, search_project_knowledge, index_project (no cloud DB)
-  - Instead, use: read_file, list_files, file_search, write_file for file operations
-  - Use run_command for simple single commands (no pipes, no chaining, no find — use list_files instead)
-  - The project path above is the root directory — use it directly with file tools.`)
-  }
-
-  // Add route-based context (which space/page the user is in)
-  const path = route.path
-  const routeContext = getRouteContext(path)
-  if (routeContext) {
-    parts.push(`\n\n## Current Location`)
-    parts.push(routeContext)
-  }
-
-  // Extract current space from route
-  const spaceMatch = path.match(/\/app\/projects\/[^/]+\/(\w+)/)
-  if (spaceMatch && spaceMatch[1]) {
-    const currentSpaceName = spaceMatch[1]
-    parts.push(`\nUser is currently in the "${currentSpaceName}" space.`)
-  }
-
-  // Add component context if available
-  if (currentComponent.value) {
-    parts.push(`\n\n## Active Component`)
-    parts.push(`Currently working on component: ${currentComponent.value.name} (${currentComponent.value.type}).`)
-  }
-
-  // Add Git space context — live state not available to Go backend via DB, so inject here
-  if (space === 'git') {
-    const gitRepo = useGitRepo()
-    const repoPath = gitRepo.state.currentRepoPath
-    const currentBranch = gitRepo.state.currentBranch
-    const staged = gitRepo.state.stagedChanges
-    const unstaged = gitRepo.state.unstagedChanges
-    const untracked = gitRepo.state.untrackedFiles
-    const conflicted = gitRepo.state.conflictedFiles
-    const currentRepo = gitRepo.currentRepo.value
-
-    if (repoPath) {
-      let gitContext = `\n\n## Current Git Repository
-
-**Repo:** ${currentRepo?.name || repoPath.split('/').pop() || 'unknown'}
-**Path:** ${repoPath}
-**Branch:** ${currentBranch || '(unknown)'}
-**Status:** ${currentRepo?.status || 'unknown'}`
-
-      if (currentRepo?.remoteUrl) {
-        gitContext += `\n**Remote:** ${currentRepo.remoteUrl}`
-      }
-      if (currentRepo?.hasUpstream) {
-        if ((currentRepo.ahead ?? 0) > 0 || (currentRepo.behind ?? 0) > 0) {
-          gitContext += `\n**Sync:** ${currentRepo.ahead ?? 0} ahead, ${currentRepo.behind ?? 0} behind`
-        }
-      } else {
-        gitContext += `\n**Upstream:** not set (use set_upstream when pushing)`
-      }
-
-      // Show working tree summary
-      const changesSummary: string[] = []
-      if (staged.length > 0) changesSummary.push(`${staged.length} staged`)
-      if (unstaged.length > 0) changesSummary.push(`${unstaged.length} modified`)
-      if (untracked.length > 0) changesSummary.push(`${untracked.length} untracked`)
-      if (conflicted.length > 0) changesSummary.push(`${conflicted.length} conflicted`)
-
-      if (changesSummary.length > 0) {
-        gitContext += `\n**Changes:** ${changesSummary.join(', ')}`
-      } else {
-        gitContext += `\n**Changes:** clean working tree`
-      }
-
-      // List changed files (up to 30)
-      if (staged.length > 0 || unstaged.length > 0 || untracked.length > 0) {
-        gitContext += `\n\n### Changed Files`
-        const allFiles: string[] = []
-        for (const f of staged) allFiles.push(`  [staged] ${f.path}`)
-        for (const f of unstaged) allFiles.push(`  [modified] ${f.path}`)
-        for (const f of untracked.slice(0, 15)) allFiles.push(`  [untracked] ${f}`)
-        if (untracked.length > 15) allFiles.push(`  ... and ${untracked.length - 15} more untracked`)
-        if (conflicted.length > 0) {
-          for (const f of conflicted) allFiles.push(`  [CONFLICT] ${f}`)
-        }
-        gitContext += '\n' + allFiles.slice(0, 30).join('\n')
-        if (allFiles.length > 30) gitContext += `\n  ... and ${allFiles.length - 30} more files`
-      }
-
-      // Recent commits (from loaded history, up to 5)
-      if (gitRepo.state.commits.length > 0) {
-        gitContext += `\n\n### Recent Commits`
-        for (const c of gitRepo.state.commits.slice(0, 5)) {
-          gitContext += `\n- \`${c.shortHash}\` ${c.subject} (${c.author})`
-        }
-      }
-
-      gitContext += `\n\n### Git Tools
-All git tools require \`repo_path\`: use **${repoPath}**
-
-**git_status** - Get current status (staged, unstaged, untracked)
-**git_stage** / **git_unstage** - Stage or unstage files
-**git_discard** - Discard working directory changes (destructive!)
-**git_commit** - Create a commit with staged changes
-**git_log** - View commit history
-**git_diff** - View diffs (unstaged, staged, or for a specific commit)
-**git_branches** - List all branches
-**git_checkout** - Switch branches
-**git_create_branch** / **git_delete_branch** - Manage branches
-**git_fetch** / **git_pull** / **git_push** - Remote operations
-**git_ignore** - Add patterns to .gitignore
-
-When the user says "commit", "push", "pull", etc. without specifying a repo path, always use: ${repoPath}`
-
-      parts.push(gitContext)
-    } else {
-      parts.push(`\n\n## Git Space
-No repository is currently selected. The user needs to select a repository first.
-Once a repo is selected, you will have access to its status, branches, and change details.`)
-    }
-  }
-
-  // Add Docs/Notes space context — inject currently open document (live data, not in DB context)
-  if (space === 'notes' || space === 'docs') {
-    const openDoc = busCurrentDoc.value
-    if (openDoc) {
-      const contentPreview = openDoc.content && openDoc.content.length > 4000
-        ? openDoc.content.substring(0, 4000) + '\n\n... (truncated)'
-        : openDoc.content || '(empty)'
-      parts.push(`\n\n## Currently Open Document
-**Title:** ${openDoc.title}
-**Type:** ${openDoc.type}
-**ID:** ${openDoc.id}
-
-When the user says "this document", "the doc", or asks to edit/update/improve without specifying a title, they mean this document.
-To update it, use \`sync_document\` with the same title and project_id.
-
-### Current Content
-\`\`\`markdown
-${contentPreview}
-\`\`\``)
-    }
-  }
-
-  // Add available project documents list
-  if (projectStore.currentProject) {
-    const allDocTitles: string[] = []
-    for (const d of projectDocs.value) {
-      allDocTitles.push(`${d.title} (${d.type})`)
-    }
-    for (const d of localDocs.value) {
-      if (!projectDocs.value.some(pd => pd.title.toLowerCase() === d.title.toLowerCase())) {
-        allDocTitles.push(`${d.title} (${d.type}, local)`)
-      }
-    }
-    if (allDocTitles.length > 0) {
-      parts.push(`\n\n## Available Project Documents
-${allDocTitles.map(t => `- ${t}`).join('\n')}
-
-To include document content, user can reference with ^DocTitle. To list or fetch via tools, use list_project_documents or get_document.`)
-    }
-  }
-
-  // Add general cross-space reference syntax
-  if (projectStore.currentProject) {
-    parts.push(`\n\n## Cross-Space References
-Users can reference items from other spaces within the same project:
-- **@DesignName** - Reference a UI design screen (includes full design JSON)
-- **@DesignName/Page** - Reference a specific page/variant within a design
-- **^DocTitle** - Reference a project document (PRD, README, architecture, etc.)
-- **#123** - Reference a task by ID (for task operations)
-- **~ComponentName** - Reference a code component
-- **$path/to/file** - Reference a source file by explicit path
-- **!filename** - Fuzzy file search (like VS Code CMD+P) - finds files matching the name
-
-Examples:
-- "@LoginScreen" - Include the LoginScreen design data for code generation
-- "@Hydrate/Product Page" - Include specific page variant data
-- "^PRD" - Include the PRD document content for context
-- "^Architecture" - Include the architecture document
-- "#42" - Reference task 42 for updates
-- "!login.vue" - Find and reference login.vue file in the project
-- "!UserService" - Find files containing "UserService" in their name
-
-When you see these references, the referenced content will be included in context.`)
-  }
-
-  // Add referenced items from @mentions in user message
-  if (references) {
-    // Add design references - from both canvas context AND IndexedDB
-    if (references.designs.length > 0) {
-      // First, add canvas context (for currently open designs)
-      const designsContext = getReferencedDesignsContext(references.designs)
-      if (designsContext) {
-        parts.push(designsContext)
-      }
-
-      // Then, add fresh design data from IndexedDB (local cache)
-      const indexedDBContext = getDesignDataForAI(references.designs, projectDesigns.value)
-      if (indexedDBContext) {
-        parts.push(indexedDBContext)
-      }
-
-      // Also include designs from sync-api (team cloud - authoritative source)
-      const syncApiContext = getDesignDataForAI(references.designs, syncApiDesigns.value)
-      if (syncApiContext && syncApiContext !== indexedDBContext) {
-        parts.push('\n## Team Shared Design Data (sync-api)')
-        parts.push(syncApiContext)
-      }
-
-      parts.push(`\nUse this design data to generate Vue/React/HTML components that match the visual layout.
-The JSON data above contains the exact positions, sizes, colors, and properties of each element.
-Generate code that recreates this layout using appropriate frontend components.`)
-    }
-
-    // Add doc references (content pre-fetched and passed via docContents param)
-    if (references.docs.length > 0 && docContents) {
-      parts.push(docContents)
-    }
-
-    // Add component references
-    if (references.components.length > 0) {
-      parts.push(getReferencedComponentsContext(references.components))
-    }
-
-    // Add explicit file path references ($path)
-    if (references.files.length > 0) {
-      parts.push(getReferencedFilesContext(references.files))
-    }
-
-    // Add code file references (!filename) with fuzzy matching
-    if (references.codeFiles.length > 0) {
-      parts.push(getReferencedCodeFilesContext(references.codeFiles, projectFiles.value))
-    }
-  }
-
-  return parts.join('\n')
-}
-
-// Get context description based on current route
-function getRouteContext(path: string): string | null {
-  // Project-specific pages (projectId can be string slug or number)
-  if (path.match(/\/app\/projects\/[^/]+\/code/)) {
-    return 'The user is in the Code Editor for a project. Help with coding, debugging, file management, and implementation questions.'
-  }
-  if (path.match(/\/app\/projects\/[^/]+\/design/)) {
-    return 'The user is in the Design Studio for a project. Help with UI/UX design, styling, component layouts, and visual design questions.'
-  }
-  if (path.match(/\/app\/projects\/[^/]+\/git/)) {
-    return 'The user is viewing Git/version control for a project. Help with commits, branches, merging, pull requests, and version control workflows.'
-  }
-  if (path.match(/\/app\/projects\/[^/]+\/ai/)) {
-    return 'The user is in the AI Space for a project. Help with AI features, prompts, model configuration, and AI-assisted development.'
-  }
-  if (path.match(/\/app\/projects\/[^/]+\/notes/)) {
-    return 'The user is in the Notes/Documentation section for a project. Help with documentation, markdown, README files, and technical writing.'
-  }
-  if (path.match(/\/app\/projects\/[^/]+\/kanban/)) {
-    return 'The user is viewing the Kanban board for a project. Help with task management, sprint planning, workflow organization, and project tracking.'
-  }
-  if (path.match(/\/app\/projects\/[^/]+\/deploy/)) {
-    return 'The user is in the Deployment section for a project. Help with deployment configuration, CI/CD, hosting, and production releases.'
-  }
-  if (path.match(/\/app\/projects\/[^/]+\/settings/)) {
-    return 'The user is in Project Settings. Help with project configuration, environment variables, integrations, and project management.'
-  }
-  if (path.match(/\/app\/projects\/[^/]+/)) {
-    return 'The user is viewing a Project overview. Help with project information, recent activity, and project navigation.'
-  }
-
-  // Settings pages
-  if (path.includes('/app/settings/profile')) {
-    return 'The user is viewing Profile Settings. Help with account settings, profile information, and personal preferences.'
-  }
-  if (path.includes('/app/settings/security')) {
-    return 'The user is viewing Security Settings. Help with password changes, two-factor authentication, and security best practices.'
-  }
-  if (path.includes('/app/settings/notifications')) {
-    return 'The user is viewing Notification Settings. Help with notification preferences and alert configuration.'
-  }
-  if (path.includes('/app/settings')) {
-    return 'The user is in the Settings area. Help with application configuration and preferences.'
-  }
-
-  // User management
-  if (path.includes('/app/users')) {
-    return 'The user is in User Management. Help with user accounts, permissions, roles, and team management.'
-  }
-
-  // Media library
-  if (path.includes('/app/media')) {
-    return 'The user is in the Media Library. Help with file uploads, asset management, and media organization.'
-  }
-
-  // Reports
-  if (path.includes('/app/reports')) {
-    return 'The user is viewing Reports. Help with analytics, metrics, data visualization, and report generation.'
-  }
-
-  // Dashboard
-  if (path === '/app' || path === '/app/') {
-    return 'The user is on the Dashboard. Help with project overview, navigation, and getting started with Construct.'
-  }
-
-  return null
-}
 
 // Measure latency
 async function measureLatency() {
@@ -3336,14 +1236,8 @@ async function clearChat() {
       console.warn('[AssistantFloat] Failed to delete conversation:', e)
     }
   } else {
-    // localStorage fallback - remove from stored cache
-    const obj: Record<string, ChatMessage[]> = {}
-    conversationCache.forEach((v, k) => { obj[k] = v })
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(obj))
-    } catch (e) {
-      console.warn('[AssistantFloat] Failed to update conversation cache:', e)
-    }
+    // localStorage fallback - save the updated cache
+    _saveConversationCache(conversationCache)
   }
 }
 
@@ -3533,7 +1427,7 @@ Rules:
       ...compactedVisionMsgs.map(m => ({
         role: m.role,
         content: m.role === 'assistant' && m.toolCalls?.length
-          ? buildMessageWithToolContext(m)
+          ? buildMessageWithToolContext(m, projectDocs, projectStore)
           : m.content
       })),
       // Vision message with image + instructions
@@ -3725,7 +1619,7 @@ Rules:
 
 <template>
   <!-- Chat Popover - Double Shift to toggle -->
-  <Teleport :to="dockTargetEl || 'body'" :disabled="!isDocked">
+  <Teleport :to="dockTargetEl || 'body'" :disabled="!isDocked || props.popoutMode">
   <Transition
     enter-active-class="transition-all duration-300 ease-out"
     :enter-from-class="isDocked ? 'opacity-0' : 'opacity-0 scale-95'"
@@ -3734,23 +1628,26 @@ Rules:
     :leave-from-class="isDocked ? 'opacity-100' : 'opacity-100 scale-100'"
     :leave-to-class="isDocked ? 'opacity-0' : 'opacity-0 scale-95'">
     <div
-      v-if="isOpen"
+      v-if="isOpen || props.popoutMode"
       ref="panelRef"
       :class="[
-        panelPositionClasses,
-        isDocked ? 'bg-app flex flex-col' : 'z-50 bg-app rounded-2xl shadow-2xl border flex flex-col',
+        props.popoutMode ? 'w-full h-full flex flex-col bg-app' : panelPositionClasses,
+        !props.popoutMode && isDocked ? 'bg-app flex flex-col' : !props.popoutMode ? 'z-50 bg-app rounded-2xl shadow-2xl border flex flex-col' : '',
         isDraggingPanel || isResizing ? 'select-none' : 'transition-colors',
-        !isDocked && isDragging ? 'border-2 border-dashed border-(--app-accent)' : !isDocked ? 'border-gray-200/50 dark:border-gray-800/50' : ''
+        !props.popoutMode && !isDocked && isDragging ? 'border-2 border-dashed border-(--app-accent)' : !props.popoutMode && !isDocked ? 'border-gray-200/50 dark:border-gray-800/50' : ''
       ]"
-      :style="panelStyle"
+      :style="props.popoutMode ? {} : panelStyle"
       @dragenter="handleDragEnter"
       @dragover="handleDragOver"
       @dragleave="handleDragLeave"
       @drop="handleDrop">
-      <!-- Header (drag handle) -->
+      <!-- Header (drag handle in float mode) -->
       <div
-        class="flex items-center justify-between px-4 py-3 border-b border-gray-200/50 dark:border-gray-800/50 shrink-0 cursor-grab active:cursor-grabbing"
-        @mousedown="startPanelDrag"
+        :class="[
+          'flex items-center justify-between px-4 border-b border-gray-200/50 dark:border-gray-800/50 shrink-0',
+          props.popoutMode ? 'py-2.5' : 'py-3 cursor-grab active:cursor-grabbing'
+        ]"
+        @mousedown="!props.popoutMode && startPanelDrag($event)"
       >
         <div class="flex items-center gap-2">
           <svg :class="['size-5 transition-colors', contextInfo.color]" viewBox="0 0 533 750" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M424.999 672C446.538 672 463.999 689.461 463.999 711C463.999 732.539 446.538 750 424.999 750H110C88.4609 750 70.999 732.539 70.999 711C70.999 689.461 88.4609 672 110 672H424.999ZM39 0C60.5389 0.000263886 78 17.4611 78 39V184.97C126.23 136.682 192.894 106.811 266.534 106.811C413.699 106.811 533 226.112 533 373.276C533 520.441 413.699 639.742 266.534 639.742C119.369 639.742 0.0674128 520.441 0.0673828 373.276C0.0673828 368.709 0.182077 364.168 0.40918 359.657C0.140766 357.81 0 355.921 0 354V39C5.50921e-06 17.4609 17.4609 0 39 0ZM266.533 184.8C162.441 184.8 78.0576 269.184 78.0576 373.276C78.0577 477.369 162.441 561.752 266.533 561.752C370.625 561.752 455.01 477.369 455.01 373.276C455.01 269.184 370.625 184.8 266.533 184.8Z"/></svg>
@@ -3791,8 +1688,8 @@ Rules:
             @click="clearChat">
             <Icon name="i-lucide-trash-2" class="size-4 text-app-muted" />
           </button>
-          <!-- Dock menu (three dots) -->
-          <div class="relative">
+          <!-- Dock menu (three dots) — hidden in popout mode -->
+          <div v-if="!props.popoutMode" class="relative">
             <button
               class="p-1 rounded-md transition-colors"
               :class="showDockMenu ? 'bg-white/20 dark:bg-white/10 text-app-accent' : 'hover:bg-white/30 dark:hover:bg-white/10 text-app-muted'"
@@ -3838,10 +1735,19 @@ Rules:
                   <Icon name="i-lucide-panel-right" class="size-3.5" />
                   Dock right
                 </button>
+                <div class="border-t border-gray-200/30 dark:border-gray-700/30 my-1" />
+                <button
+                  class="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-app-muted hover:text-app hover:bg-white/10 transition-colors"
+                  @click="popOutAssistant(); showDockMenu = false"
+                >
+                  <Icon name="i-lucide-external-link" class="size-3.5" />
+                  Open in window
+                </button>
               </div>
             </Transition>
           </div>
           <button
+            v-if="!props.popoutMode"
             class="p-1 hover:bg-white/30 dark:hover:bg-white/10 rounded-lg transition-colors"
             @click="isOpen = false">
             <Icon name="i-lucide-x" class="size-4 text-app-muted" />
@@ -4260,19 +2166,19 @@ v-for="(msg, index) in messages" :key="index" :class="[
 
       <!-- Resize handles -->
       <div
-        v-if="!isDocked"
+        v-if="!isDocked && !props.popoutMode"
         class="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize z-10"
         @mousedown="startResize($event, 'corner')"
       >
         <svg class="w-3 h-3 text-app-muted/40 absolute bottom-1 right-1" viewBox="0 0 6 6"><circle cx="5" cy="1" r="0.8" fill="currentColor" /><circle cx="1" cy="5" r="0.8" fill="currentColor" /><circle cx="5" cy="5" r="0.8" fill="currentColor" /><circle cx="3" cy="5" r="0.8" fill="currentColor" /><circle cx="5" cy="3" r="0.8" fill="currentColor" /></svg>
       </div>
       <div
-        v-if="!isDocked"
+        v-if="!isDocked && !props.popoutMode"
         class="absolute bottom-0 left-4 right-4 h-1.5 cursor-s-resize"
         @mousedown="startResize($event, 'bottom')"
       />
       <div
-        v-if="!isDocked"
+        v-if="!isDocked && !props.popoutMode"
         class="absolute top-4 bottom-4 right-0 w-1.5 cursor-e-resize"
         @mousedown="startResize($event, 'right')"
       />
