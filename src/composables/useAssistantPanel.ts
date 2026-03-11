@@ -9,9 +9,9 @@ import type { PanelPosition } from '~/types/assistant'
 
 export function useAssistantPanel() {
   // Panel position
-  const panelPosition = ref<PanelPosition>(
-    (typeof window !== 'undefined' && localStorage.getItem('construct_assistant_position') as PanelPosition) || 'bottom-center',
-  )
+  const savedPosition = (typeof window !== 'undefined' && localStorage.getItem('construct_assistant_position') as PanelPosition) || 'bottom-center'
+  // Reset floating to bottom-center — floating without a saved offset lands at 0,0 (top-left)
+  const panelPosition = ref<PanelPosition>(savedPosition === 'floating' ? 'bottom-center' : savedPosition)
   const floatingPos = reactive({ x: 0, y: 0 })
   const isDraggingPanel = ref(false)
   const showDockMenu = ref(false)

@@ -145,14 +145,14 @@ export const useProjectStore = defineStore('project', {
         if (this.projectsRoot) {
           const entries = await projectDir.listProjects()
 
+          // Space names that might exist as stale empty folders at the root
+          const spaceNames = new Set(DEFAULT_SPACES)
+
           for (const entry of entries) {
-            // Check if it's a valid construct project
-            const isConstruct = await projectDir.isConstructProject(entry.path)
+            const config = entry.config
+            // Skip empty directories named after spaces (stale root-level space folders)
+            if (!config && spaceNames.has(entry.name as SpaceType)) continue
 
-            // Only show directories that are actual Construct projects
-            if (!isConstruct) continue
-
-            const config = await projectDir.loadProjectConfig(entry.path)
             projects.push({
               id: buildProjectId(entry.name),
               name: config?.name || entry.name,

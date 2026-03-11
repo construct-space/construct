@@ -38,7 +38,7 @@ interface PromptDeps {
       spaces?: string[]
     } | null
   }
-  route: { path: string }
+  route: { path: string; query?: Record<string, unknown> }
   currentComponent: Ref<{ name: string; type: string } | null>
   useGitRepo: () => {
     state: {
@@ -79,11 +79,22 @@ export function useAssistantPrompt(deps: PromptDeps) {
     currentNodes, currentDesignName, designsCache, getDocsTauriFs,
   } = deps
 
+  function hasExplicitProjectContext(): boolean {
+    if (/\/app\/projects\/[^/]+/.test(route.path)) return true
+    if (route.path === '/assistant') return !!projectStore.currentProject
+    const queryProject = route.query?.project
+    return typeof queryProject === 'string' && queryProject.trim().length > 0
+  }
+
+  function getActiveProjectContext() {
+    return hasExplicitProjectContext() ? projectStore.currentProject : null
+  }
+
   /** Build local_data with project and design context for code tools */
   function buildLocalData(references?: ParsedReferences): Record<string, unknown> {
     const localData: Record<string, unknown> = {}
 
-    const project = projectStore.currentProject
+    const project = getActiveProjectContext()
     if (project) {
       localData.project_id = project.id
       localData.project_name = project.name
@@ -189,7 +200,7 @@ export function useAssistantPrompt(deps: PromptDeps) {
     const parts: string[] = []
     const space = currentSpace.value?.toLowerCase()
 
-    const project = projectStore.currentProject
+    const project = getActiveProjectContext()
     if (project) {
       parts.push(`\n\n## Current Project Context (Local)`)
       parts.push(`- Project: "${project.name}"`)
@@ -333,7 +344,7 @@ ${contentPreview}
       }
     }
 
-    if (projectStore.currentProject) {
+    if (project) {
       const allDocTitles: string[] = []
       for (const d of projectDocs.value) {
         allDocTitles.push(`${d.title} (${d.type})`)
@@ -351,7 +362,7 @@ To include document content, user can reference with ^DocTitle. To list or fetch
       }
     }
 
-    if (projectStore.currentProject) {
+    if (project) {
       parts.push(`\n\n## Cross-Space References
 Users can reference items from other spaces within the same project:
 - **@DesignName** - Reference a UI design screen (includes full design JSON)

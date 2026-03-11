@@ -344,6 +344,9 @@ const conversationKey = computed(() => {
 
   const path = route.path
   const project = route.query.project
+  if (path === '/app' || path === '/app/') {
+    return 'dashboard-global-v2'
+  }
   // Extract space from path like /app/code
   const spaceMatch = path.match(/\/app\/(\w+)/)
   if (spaceMatch && project) {
@@ -634,6 +637,13 @@ const currentSpace = computed(() => {
 })
 
 const currentSpaceKey = computed(() => currentSpace.value?.toLowerCase() || '')
+const hasExplicitProjectContext = computed(() => {
+  if (props.popoutMode) return !!projectStore.currentProject
+  if (/\/app\/projects\/[^/]+/.test(route.path)) return true
+  const routeProject = route.query.project
+  return typeof routeProject === 'string' && routeProject.trim().length > 0
+})
+const activeProjectName = computed(() => hasExplicitProjectContext.value ? (projectStore.currentProject?.name || '') : '')
 const detectedFramework = computed(() => detectCodeFramework(projectFiles.value.map(f => f.path)))
 
 const assistantSpaceUiComponent = computed(() => {
@@ -1659,8 +1669,8 @@ Rules:
             connected ? 'bg-green-500' : 'bg-gray-400'
           ]" :title="connected ? `Connected (${latency?.toFixed(1)}ms)` : 'Disconnected'" />
           <!-- Project | Space context -->
-          <span v-if="projectStore.currentProject" class="text-xs text-app-muted">
-            {{ projectStore.currentProject.name }}<template v-if="currentSpace"> | {{ currentSpace }}</template>
+          <span v-if="activeProjectName" class="text-xs text-app-muted">
+            {{ activeProjectName }}<template v-if="currentSpace"> | {{ currentSpace }}</template>
           </span>
         </div>
         <div class="flex items-center gap-1" @mousedown.stop>

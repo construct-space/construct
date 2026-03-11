@@ -16,12 +16,14 @@ import { useSpaces, getProjectSpaces } from '@/composables/useSpaces'
 import { useSpaceAutoInstall } from '@/composables/useSpaceAutoInstall'
 import { getSpace as getSpaceConfig } from '@/config/spaces'
 import { projectMatchesLookup, routeParamString } from '@/utils/projectRoutes'
+import { useContextService } from '@/composables/useContextService'
 
 const route = useRoute()
 const projectStore = useProjectStore()
 const { enterProject } = useSidebar()
 const { spaces, loadSpaces } = useSpaces()
 const { installMissing } = useSpaceAutoInstall()
+const { setProject, clearProject } = useContextService()
 
 const projectId = () => routeParamString(route.params.projectId)
 
@@ -73,7 +75,7 @@ async function resolveAndOpenProject() {
   }
 }
 
-async function activateProjectMode(project: { id: string | number; name: string; spaces: string[] }) {
+async function activateProjectMode(project: { id: string | number; name: string; path?: string; local_path?: string; spaces: string[] }) {
   if (spaces.value.length === 0) {
     await loadSpaces()
   }
@@ -91,6 +93,15 @@ async function activateProjectMode(project: { id: string | number; name: string;
     items,
     '/app/projects'
   )
+
+  // Sync project context with brain so assistant knows which project is active
+  const projectPath = project.path || project.local_path || ''
+  setProject({
+    name: project.name,
+    type: 'local',
+    rootPath: projectPath,
+    framework: 'unknown',
+  }).catch(() => { /* brain may not be ready yet */ })
 
   // Auto-install missing spaces
   const installedSpaceIds = new Set(spaces.value.map(s => s.name))
@@ -111,7 +122,8 @@ watch(
 )
 
 onUnmounted(() => {
-  // Don't clear project — it persists when switching between spaces
+  // Clear project context from brain when leaving project routes
+  clearProject().catch(() => {})
 })
 </script>
 

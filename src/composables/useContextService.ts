@@ -231,6 +231,7 @@ export interface UseContextServiceReturn {
   setMode: (mode: Mode) => Promise<void>
   setComponent: (component: ComponentContext) => Promise<void>
   setProject: (project: ProjectContext) => Promise<void>
+  clearProject: () => Promise<void>
   setSelection: (selection: SelectionContext) => Promise<void>
   clearSelection: () => Promise<void>
   callTool: (toolCall: ToolCall) => Promise<ToolResult>
@@ -449,6 +450,13 @@ export function useContextService(): UseContextServiceReturn {
     if (isTauri.value) {
       await sendRequest('context.set_project', proj as unknown as Record<string, unknown>)
       project.value = proj
+    }
+  }
+
+  async function clearProject() {
+    if (isTauri.value) {
+      await sendRequest('context.clear_project', {})
+      project.value = null
     }
   }
 
@@ -1257,6 +1265,7 @@ export function useContextService(): UseContextServiceReturn {
     setMode,
     setComponent,
     setProject,
+    clearProject,
     setSelection,
     clearSelection,
     callTool,

@@ -21,28 +21,39 @@ const spaceName = ref<string | null>(null)
 // BroadcastChannel for cross-window communication
 const channel = new BroadcastChannel('construct-assistant')
 
-function applyContext(data: { project?: { id: string; name: string; path: string } | null; space?: string | null }) {
-  if (data.space) spaceName.value = data.space
-  if (data.project?.path && !projectStore.currentProject) {
-    if (projectStore.projects.length === 0) {
-      projectStore.loadProjects().then(() => {
-        projectStore.openProject(data.project!.path)
-      })
-    } else {
+async function applyContext(data: { project?: { id: string; name: string; path: string } | null; space?: string | null }) {
+  if ('space' in data) {
+    spaceName.value = data.space ?? null
+  }
+
+  if (data.project?.path) {
+    const currentPath = projectStore.currentProject?.path
+    if (currentPath !== data.project.path) {
+      if (projectStore.projects.length === 0) {
+        await projectStore.loadProjects()
+      }
       projectStore.openProject(data.project.path)
     }
+  } else if ('project' in data) {
+    projectStore.clearCurrentProject()
   }
+
   ready.value = true
 }
 
 channel.onmessage = (event) => {
   if (event.data?.type === 'assistant-context') {
-    applyContext(event.data)
+    void applyContext(event.data)
   }
 }
 
 onMounted(() => {
   isPoppedOut.value = true
+
+  // Popout windows are context-driven; clear any stale project from prior sessions
+  // until the main window sends the current context.
+  projectStore.clearCurrentProject()
+
   // Fallback: if no context arrives within 2s, show without context
   setTimeout(() => { if (!ready.value) ready.value = true }, 2000)
 })
