@@ -349,11 +349,12 @@ onMounted(async () => {
           <div class="text-xs text-[var(--app-muted)]">
             <p class="font-medium text-[var(--app-foreground)] mb-1">How Conductor works:</p>
             <ul class="space-y-1 list-disc list-inside">
-              <li><strong>Simple queries</strong> &rarr; Budget models (DeepSeek)</li>
-              <li><strong>Code tasks</strong> &rarr; Balanced models (Z.ai, Xiaomi)</li>
-              <li><strong>Complex reasoning</strong> &rarr; Premium models (Claude, xAI)</li>
+              <li><strong>Simple queries</strong> &rarr; Free/budget models</li>
+              <li><strong>Code tasks</strong> &rarr; Balanced models</li>
+              <li><strong>Complex reasoning</strong> &rarr; Premium models</li>
               <li><strong>Images</strong> &rarr; Vision-capable models</li>
             </ul>
+            <p class="mt-2 text-[var(--app-muted)]">Only routes to models from configured providers and connected OAuth accounts.</p>
           </div>
         </div>
       </div>

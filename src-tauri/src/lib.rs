@@ -2629,11 +2629,12 @@ async fn architect_stream(
     app: tauri::AppHandle,
     state: tauri::State<'_, SharedContextState>,
     model: String,
-    mode: String, // "questions", "plan", or "clarify"
+    mode: String, // "questions", "plan", "clarify", or "review"
     description: String,
     answers: Option<serde_json::Value>,
     current_question: Option<serde_json::Value>,
     clarification: Option<String>,
+    plan_json: Option<String>,
     installed_spaces: Option<Vec<serde_json::Value>>,
 ) -> Result<(), String> {
     use std::thread;
@@ -2681,6 +2682,7 @@ async fn architect_stream(
                 "answers": answers,
                 "current_question": current_question,
                 "clarification": clarification,
+                "plan_json": plan_json,
                 "installed_spaces": installed_spaces,
             })),
         };
@@ -3799,7 +3801,11 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_upload::init())
         .plugin(tauri_plugin_websocket::init())
-        .plugin(tauri_plugin_window_state::Builder::new().build());
+        .plugin(
+            tauri_plugin_window_state::Builder::new()
+                .with_state_flags(tauri_plugin_window_state::StateFlags::POSITION)
+                .build(),
+        );
     // stronghold requires a password callback — configure when needed
     // .plugin(tauri_plugin_stronghold::Builder::new(|password| { ... }).build())
 

@@ -56,6 +56,8 @@ export function useArchitectEngine() {
   const thinkingMessage = ref('')
   const errorMessage = ref('')
   const clarificationMessage = ref('')
+  const isReviewing = ref(false)
+  const reviewReport = ref<{ issues: Array<{ severity: string; area: string; problem: string; suggestion: string }> } | null>(null)
 
   // Selection state for the active question
   const activeQuestionIndex = ref(-1) // -1 = describe step
@@ -79,13 +81,14 @@ export function useArchitectEngine() {
   // Bypasses conductor/agent orchestration for direct JSON output + lower latency.
 
   async function architectCall(
-    mode: 'questions' | 'plan' | 'clarify',
+    mode: 'questions' | 'plan' | 'clarify' | 'review',
     model: string,
     signal?: AbortSignal,
     onStatus?: (status: string) => void,
     options?: {
       clarification?: string
       currentQuestion?: InterviewQuestion | null
+      planJson?: string
     },
   ): Promise<string> {
     const { isTauri } = useContextService()
@@ -171,6 +174,7 @@ export function useArchitectEngine() {
       answers: mode === 'plan' ? planInput?.answers : null,
       currentQuestion: mode === 'clarify' ? options?.currentQuestion : null,
       clarification: mode === 'clarify' ? options?.clarification : null,
+      planJson: mode === 'review' ? options?.planJson : null,
       installedSpaces: spaces.length > 0 ? spaces : null,
     })
 
@@ -449,6 +453,8 @@ export function useArchitectEngine() {
       const parsed = parseJsonObject(content)
       if (parsed) {
         plan.value = parsed as unknown as ArchitectPlan
+        // Fire off a background review using a different model
+        void reviewPlan(content)
       } else {
         errorMessage.value = 'Failed to generate plan. The AI response was not in the expected format.'
         activeQuestionIndex.value = questions.value.length - 1
@@ -461,6 +467,36 @@ export function useArchitectEngine() {
       isGeneratingPlan.value = false
       isThinking.value = false
       if (abortController === controller) abortController = null
+    }
+  }
+
+  /**
+   * Review the generated plan using a different (budget) model.
+   * Runs in the background — doesn't block the UI.
+   */
+  async function reviewPlan(planJson: string) {
+    isReviewing.value = true
+    reviewReport.value = null
+
+    try {
+      const content = await architectCall(
+        'review',
+        'auto:budget',
+        undefined,
+        undefined,
+        { planJson },
+      )
+
+      const parsed = parseJsonObject(content)
+      if (parsed && Array.isArray((parsed as Record<string, unknown>).issues)) {
+        reviewReport.value = parsed as {
+          issues: Array<{ severity: string; area: string; problem: string; suggestion: string }>
+        }
+      }
+    } catch (e) {
+      console.warn('[Architect] Plan review failed (non-critical):', e)
+    } finally {
+      isReviewing.value = false
     }
   }
 
@@ -478,6 +514,8 @@ export function useArchitectEngine() {
     otherInputValue.value = ''
     errorMessage.value = ''
     clarificationMessage.value = ''
+    reviewReport.value = null
+    isReviewing.value = false
     project.resetProjectState()
   }
 
@@ -626,6 +664,8 @@ export function useArchitectEngine() {
     isThinking,
     thinkingMessage,
     clarificationMessage,
+    isReviewing,
+    reviewReport,
     isLoading,
     isDone,
     currentQuestion,

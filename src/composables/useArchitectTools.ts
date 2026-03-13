@@ -128,10 +128,10 @@ export const architectTools: Tool[] = [
         properties: {
           documents: {
             type: 'array',
-            description: 'Document types to generate. Options: prd, readme, architecture, roadmap, setup',
+            description: 'Document types to generate. Options: prd, readme, architecture, data-models, ui-spec, roadmap, ai-context, setup',
             items: {
               type: 'string',
-              enum: ['prd', 'readme', 'architecture', 'roadmap', 'setup']
+              enum: ['prd', 'readme', 'architecture', 'data-models', 'ui-spec', 'roadmap', 'ai-context', 'setup']
             }
           },
           project_name: {
@@ -314,14 +314,15 @@ export function useArchitectToolExecutor() {
             }
           }
 
+          const validTypes = ['prd', 'readme', 'architecture', 'data-models', 'ui-spec', 'roadmap', 'ai-context', 'setup']
           const docTypes = (args.documents as string[]).filter(
-            (d): d is DocumentType => ['prd', 'readme', 'architecture', 'roadmap', 'setup'].includes(d)
+            (d): d is DocumentType => validTypes.includes(d)
           )
 
           if (docTypes.length === 0) {
             return {
               tool_call_id: toolCall.id,
-              content: JSON.stringify({ success: false, message: 'No valid document types specified. Options: prd, readme, architecture, roadmap, setup' }),
+              content: JSON.stringify({ success: false, message: `No valid document types specified. Options: ${validTypes.join(', ')}` }),
               is_error: true
             }
           }

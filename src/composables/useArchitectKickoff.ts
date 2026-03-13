@@ -178,7 +178,7 @@ export function useArchitectKickoff() {
   function generateSuggestedTasks(plan: ArchitectPlan): SuggestedTask[] {
     const tasks: SuggestedTask[] = []
     const decisions = plan.decisions || {}
-    const prd = plan.prd || {}
+    const prd = plan.docs?.prd || plan.prd || {}
     const asArray = (value: unknown): string[] => {
       if (Array.isArray(value)) return value.map(v => String(v)).filter(Boolean)
       if (typeof value === 'string' && value.trim()) return [value.trim()]
@@ -297,15 +297,20 @@ export function useArchitectKickoff() {
       return DOCUMENT_OPTIONS.filter(opt => opt.type === 'readme' || opt.type === 'prd')
     }
 
+    // Rich docs: enable all doc types that have data
+    if (plan.docs) {
+      const allowed = new Set<DocumentType>(['readme', 'prd'])
+      if (plan.docs.architecture) allowed.add('architecture')
+      if (plan.docs.dataModels) allowed.add('data-models')
+      if (plan.docs.uiSpec) allowed.add('ui-spec')
+      if (plan.docs.roadmap) allowed.add('roadmap')
+      if (plan.docs.aiContext) allowed.add('ai-context')
+      return DOCUMENT_OPTIONS.filter(opt => allowed.has(opt.type))
+    }
+
+    // Legacy: infer from plan shape
     const decisions = plan.decisions || {}
     const prd = plan.prd || {}
-    const text = [
-      plan.name || '',
-      plan.description || '',
-      ...(Array.isArray(prd.coreFeatures) ? prd.coreFeatures : []),
-      ...(Array.isArray(prd.mvpScope) ? prd.mvpScope : []),
-      ...(Array.isArray(prd.futureConsiderations) ? prd.futureConsiderations : []),
-    ].join(' ').toLowerCase()
 
     const hasBackend = typeof decisions.backend === 'string' && decisions.backend.trim().length > 0
     const hasDatabase = typeof decisions.database === 'string' && decisions.database.trim().length > 0
@@ -316,8 +321,8 @@ export function useArchitectKickoff() {
     const featureCount = Array.isArray(prd.coreFeatures) ? prd.coreFeatures.length : 0
     const hasFuture = Array.isArray(prd.futureConsiderations) && prd.futureConsiderations.length > 0
 
+    const text = [plan.name || '', plan.description || ''].join(' ').toLowerCase()
     const looksLikeLanding = /(landing page|marketing site|brochure site|one[-\s]?page|lead capture|seo|solar|portfolio|agency)/.test(text)
-    // Feature count alone doesn't make a project complex — a landing page with 7 sections isn't complex
     const isComplex = hasBackend || hasDatabase || hasAuth || (hasDeployment && !looksLikeLanding) || (!looksLikeLanding && featureCount >= 7)
     const isMidComplex = featureCount >= 3 || (Array.isArray(prd.mvpScope) && prd.mvpScope.length > 0)
 
@@ -327,7 +332,6 @@ export function useArchitectKickoff() {
     }
     if (isComplex) {
       allowed.add('architecture')
-      allowed.add('setup')
     }
     if (hasFuture || (Array.isArray(prd.mvpScope) && prd.mvpScope.length >= 3)) {
       allowed.add('roadmap')

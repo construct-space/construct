@@ -85,7 +85,7 @@ async function addDroppedFolder(path: string) {
 const isDragging = ref(false)
 
 onMounted(async () => {
-  if (projectStore.projects.length === 0 && projectStore.projectsRoot) {
+  if (projectStore.projectsRoot) {
     await projectStore.loadProjects()
   }
 

@@ -175,7 +175,17 @@ export const useProjectStore = defineStore('project', {
           localStorage.setItem(STORAGE_KEY_EXTERNALS, JSON.stringify(this.externalPaths))
         }
 
+        const validExternals: string[] = []
         for (const extPath of normalizedExternals) {
+          // Skip external paths that no longer exist on disk
+          try {
+            const tauriFs = await import('@tauri-apps/plugin-fs')
+            if (!await tauriFs.exists(extPath)) continue
+          } catch {
+            continue
+          }
+          validExternals.push(extPath)
+
           const name = extPath.split('/').filter(Boolean).pop() || extPath
           const existing = projects.find(p => p.path === extPath)
           if (!existing) {
@@ -195,6 +205,11 @@ export const useProjectStore = defineStore('project', {
             })
           }
         }
+        // Prune stale external paths
+        if (validExternals.length !== normalizedExternals.length) {
+          this.externalPaths = validExternals
+          localStorage.setItem(STORAGE_KEY_EXTERNALS, JSON.stringify(validExternals))
+        }
 
         // Set local_path alias for backward compat
         for (const p of projects) {
@@ -202,6 +217,14 @@ export const useProjectStore = defineStore('project', {
           p.local_path = normalizePath(p.path)
         }
         this.projects = projects
+
+        // Prune stale recents — remove entries whose paths don't exist on disk
+        const projectPaths = new Set(projects.map(p => p.path))
+        const validRecents = this.recentProjects.filter(r => projectPaths.has(normalizePath(r.path)))
+        if (validRecents.length !== this.recentProjects.length) {
+          this.recentProjects = validRecents
+          localStorage.setItem(STORAGE_KEY_RECENTS, JSON.stringify(this.recentProjects))
+        }
       } catch (error) {
         this.error = (error as Error).message || 'Failed to load projects'
         console.warn('Failed to load projects:', error)

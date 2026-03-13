@@ -58,11 +58,12 @@ export function summarizeVibeHandoff(handoff: VibeHandoff | null): string {
   if (handoff.plan?.description) {
     lines.push(`Plan summary: ${handoff.plan.description}`)
   }
-  if (handoff.plan?.prd?.coreFeatures?.length) {
-    lines.push(`Core features: ${handoff.plan.prd.coreFeatures.slice(0, 8).join(', ')}`)
+  const prd = handoff.plan?.docs?.prd || handoff.plan?.prd
+  if (prd?.coreFeatures?.length) {
+    lines.push(`Core features: ${prd.coreFeatures.slice(0, 8).join(', ')}`)
   }
-  if (handoff.plan?.prd?.mvpScope?.length) {
-    lines.push(`MVP scope: ${handoff.plan.prd.mvpScope.slice(0, 8).join(', ')}`)
+  if (prd?.mvpScope?.length) {
+    lines.push(`MVP scope: ${prd.mvpScope.slice(0, 8).join(', ')}`)
   }
   if (handoff.decisions?.length) {
     lines.push('Decisions:')

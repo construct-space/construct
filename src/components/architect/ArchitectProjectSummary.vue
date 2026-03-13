@@ -91,17 +91,17 @@ function getAnswerDisplay(val: string | string[]): string {
 
         <p class="text-[11px] text-app-muted/60 uppercase tracking-[1.5px] font-semibold mb-3">FEATURES</p>
         <div class="space-y-1">
-          <div v-for="(feature, i) in plan.prd?.coreFeatures?.slice(0, 8)" :key="i" class="flex items-start gap-2 py-1">
+          <div v-for="(feature, i) in (plan.docs?.prd?.coreFeatures || plan.prd?.coreFeatures)?.slice(0, 8)" :key="i" class="flex items-start gap-2 py-1">
             <Icon name="i-lucide-circle-dot" class="size-3 text-[var(--app-accent)] opacity-60 mt-0.5 shrink-0" />
             <p class="text-sm text-app-foreground/80">{{ feature }}</p>
           </div>
         </div>
 
-        <template v-if="plan.prd?.mvpScope?.length">
+        <template v-if="(plan.docs?.prd?.mvpScope || plan.prd?.mvpScope)?.length">
           <div class="h-px bg-[var(--app-border)]/20 my-4" />
           <p class="text-[11px] text-app-muted/60 uppercase tracking-[1.5px] font-semibold mb-3">MVP SCOPE</p>
           <div class="space-y-1">
-            <div v-for="(item, i) in plan.prd.mvpScope.slice(0, 6)" :key="i" class="flex items-start gap-2 py-1">
+            <div v-for="(item, i) in (plan.docs?.prd?.mvpScope || plan.prd?.mvpScope)!.slice(0, 6)" :key="i" class="flex items-start gap-2 py-1">
               <Icon name="i-lucide-square" class="size-3 text-app-muted/40 mt-0.5 shrink-0" />
               <p class="text-sm text-app-muted">{{ item }}</p>
             </div>

@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { ArchitectPlan } from '@/utils/documentsGenerator'
 
-defineProps<{
+const props = defineProps<{
   plan: ArchitectPlan
   isInsideProject: boolean
   isKicking: boolean
@@ -12,6 +13,8 @@ defineEmits<{
   saveFeature: []
   editChoices: []
 }>()
+
+const prd = computed(() => props.plan.docs?.prd || props.plan.prd || {})
 </script>
 
 <template>
@@ -45,13 +48,13 @@ defineEmits<{
     </div>
 
     <!-- Core features -->
-    <div v-if="plan.prd?.coreFeatures?.length" class="space-y-2.5">
+    <div v-if="prd?.coreFeatures?.length" class="space-y-2.5">
       <p class="text-[11px] text-app-muted/60 uppercase tracking-widest font-medium">
         {{ isInsideProject ? 'Components' : 'Core Features' }}
       </p>
       <div class="flex flex-wrap gap-1.5">
         <span
-          v-for="feature in plan.prd.coreFeatures"
+          v-for="feature in prd.coreFeatures"
           :key="feature"
           class="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg bg-white/4 text-app"
         >
@@ -62,9 +65,9 @@ defineEmits<{
     </div>
 
     <!-- PRD preview -->
-    <div v-if="plan.prd?.overview" class="space-y-2">
+    <div v-if="prd?.overview" class="space-y-2">
       <p class="text-[11px] text-app-muted/60 uppercase tracking-widest font-medium">Overview</p>
-      <p class="text-xs text-app-muted leading-relaxed">{{ plan.prd.overview }}</p>
+      <p class="text-xs text-app-muted leading-relaxed">{{ prd.overview }}</p>
     </div>
 
     <!-- Actions -->

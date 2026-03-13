@@ -282,10 +282,12 @@ export function useProjectDirectory() {
 
       // Use shell commands to create directories (bypasses fs:scope restrictions)
       // Create project directory with all subdirectories in one command
+      // Skip design dir — designs live in SQLite, not on disk
+      const diskSpaces = spaces.filter(s => s !== 'design')
       const allDirs = [
         projectPath,
         `${projectPath}/.construct`,
-        ...spaces.map(s => `${projectPath}/${s}`)
+        ...diskSpaces.map(s => `${projectPath}/${s}`)
       ]
 
       console.log('Creating directories:', allDirs)
