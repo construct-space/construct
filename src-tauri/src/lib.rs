@@ -10,7 +10,7 @@ use std::time::Duration;
 use tauri::menu::{Menu, MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
-use tauri_plugin_shell::ShellExt;
+
 
 // Message ID counter
 static MESSAGE_ID: AtomicU64 = AtomicU64::new(0);
@@ -19,6 +19,8 @@ static CONTEXT_STARTING: std::sync::atomic::AtomicBool = std::sync::atomic::Atom
 
 fn is_dev_instance() -> bool {
     option_env!("VITE_CONSTRUCT_DEV_MODE") == Some("true")
+        || std::env::var("CONSTRUCT_DEV_MODE").as_deref() == Ok("true")
+        || std::env::args().any(|a| a == "--dev")
 }
 
 fn app_display_name() -> &'static str {
@@ -29,17 +31,13 @@ fn app_display_name() -> &'static str {
     }
 }
 
-fn construct_dev_launch_url() -> &'static str {
-    "construct-dev://marketplace"
-}
-
 // Global state for context connection
 struct ContextState {
     socket: Option<TcpStream>,
     host: String,
     port: u16,
     address: Option<String>, // Full address string for returning from start_context_service
-    child: Option<tauri_plugin_shell::process::CommandChild>,
+    child: Option<Child>,    // Brain process (spawned from data dir, not sidecar)
 }
 
 type SharedContextState = Arc<Mutex<ContextState>>;
@@ -1995,7 +1993,81 @@ struct ContextResponse {
     message_type: Option<String>,
 }
 
-// Start the context service sidecar (idempotent - returns existing address if already connected)
+/// Resolve path to the brain binary:
+/// 1. Data dir (updatable): ~/Library/Application Support/Construct/bin/construct-brain
+/// 2. Bundled sidecar (seed): app resource dir / construct-brain-{target}
+/// If only the bundled version exists, copy it to the data dir for future self-updates.
+fn resolve_brain_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    // Determine data dir
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+    let bin_dir = data_dir.join("bin");
+    let external_path = bin_dir.join("construct-brain");
+
+    // If updatable binary exists in data dir, use it
+    if external_path.exists() {
+        eprintln!("[brain] Using external brain at {}", external_path.display());
+        return Ok(external_path);
+    }
+
+    // Find bundled sidecar binary
+    let target = if cfg!(target_arch = "aarch64") {
+        "aarch64-apple-darwin"
+    } else if cfg!(target_arch = "x86_64") && cfg!(target_os = "macos") {
+        "x86_64-apple-darwin"
+    } else if cfg!(target_arch = "x86_64") && cfg!(target_os = "linux") {
+        "x86_64-unknown-linux-gnu"
+    } else if cfg!(target_os = "windows") {
+        "x86_64-pc-windows-msvc"
+    } else {
+        "unknown"
+    };
+
+    let sidecar_name = if cfg!(target_os = "windows") {
+        format!("construct-brain-{}.exe", target)
+    } else {
+        format!("construct-brain-{}", target)
+    };
+
+    // Sidecar lives next to the app binary (Contents/MacOS/ on macOS)
+    let exe_dir = std::env::current_exe()
+        .map_err(|e| format!("Failed to get exe path: {}", e))?
+        .parent()
+        .ok_or_else(|| "Failed to get exe dir".to_string())?
+        .to_path_buf();
+    let bundled_path = exe_dir.join(&sidecar_name);
+
+    if !bundled_path.exists() {
+        return Err(format!(
+            "Brain binary not found at {} or {}",
+            external_path.display(),
+            bundled_path.display()
+        ));
+    }
+
+    // Copy bundled binary to data dir for future self-updates
+    eprintln!(
+        "[brain] Seeding brain: {} → {}",
+        bundled_path.display(),
+        external_path.display()
+    );
+    std::fs::create_dir_all(&bin_dir)
+        .map_err(|e| format!("Failed to create bin dir: {}", e))?;
+    std::fs::copy(&bundled_path, &external_path)
+        .map_err(|e| format!("Failed to copy brain binary: {}", e))?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&external_path, std::fs::Permissions::from_mode(0o755));
+    }
+
+    Ok(external_path)
+}
+
+// Start the context service (idempotent - returns existing address if already connected)
 #[tauri::command]
 async fn start_context_service(
     app: tauri::AppHandle,
@@ -2058,6 +2130,16 @@ async fn start_context_service(
         eprintln!("[brain] start_context_service: acquired spawner lock after wait");
     }
 
+    // Try the well-known brain port first (shared across instances)
+    let well_known_addr = "127.0.0.1:9876".to_string();
+    if TcpStream::connect(&well_known_addr).is_ok() {
+        eprintln!("[brain] start_context_service: reusing shared brain at {}", well_known_addr);
+        let mut ctx = state.lock().map_err(|_| "Lock error".to_string())?;
+        ctx.address = Some(well_known_addr.clone());
+        CONTEXT_STARTING.store(false, Ordering::SeqCst);
+        return Ok(well_known_addr);
+    }
+
     // Reuse known address when possible to avoid spawning duplicate sidecars.
     let existing_addr = {
         let ctx = state.lock().map_err(|_| "Lock error".to_string())?;
@@ -2073,7 +2155,6 @@ async fn start_context_service(
             CONTEXT_STARTING.store(false, Ordering::SeqCst);
             return Ok(addr);
         }
-        // Stale address (old sidecar died): clear and fall through to spawn a new one.
         eprintln!(
             "[brain] start_context_service: existing address {} unreachable, spawning new sidecar",
             addr
@@ -2084,19 +2165,40 @@ async fn start_context_service(
         ctx.child = None;
     }
 
-    eprintln!("[brain] start_context_service: spawning new sidecar process");
+    // Resolve brain binary path:
+    // 1. Data dir (updatable): ~/Library/Application Support/Construct/bin/construct-brain
+    // 2. Bundled sidecar (seed): Contents/MacOS/construct-brain-{target}
+    let brain_path = resolve_brain_path(&app)?;
+    eprintln!("[brain] start_context_service: spawning brain from {}", brain_path.display());
 
-    let sidecar = app.shell().sidecar("construct-brain").map_err(|e| {
+    let mut child = Command::new(&brain_path)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| {
+            CONTEXT_STARTING.store(false, Ordering::SeqCst);
+            format!("Failed to spawn brain: {}", e)
+        })?;
+
+    // Read stderr in background thread (logging)
+    if let Some(stderr) = child.stderr.take() {
+        thread::spawn(move || {
+            let reader = BufReader::new(stderr);
+            for line in reader.lines() {
+                if let Ok(line) = line {
+                    eprintln!("[brain] {}", line);
+                }
+            }
+        });
+    }
+
+    // Read stdout for CONTEXT_ADDR= line
+    let stdout = child.stdout.take().ok_or_else(|| {
         CONTEXT_STARTING.store(false, Ordering::SeqCst);
-        format!("Failed to create sidecar: {}", e)
+        "Failed to capture brain stdout".to_string()
     })?;
 
-    let (mut rx, child) = sidecar.spawn().map_err(|e| {
-        CONTEXT_STARTING.store(false, Ordering::SeqCst);
-        format!("Failed to spawn sidecar: {}", e)
-    })?;
-
-    // Keep child handle alive to prevent sidecar process from being dropped.
+    // Store child handle for cleanup
     {
         let mut ctx = state.lock().map_err(|_| {
             CONTEXT_STARTING.store(false, Ordering::SeqCst);
@@ -2105,20 +2207,13 @@ async fn start_context_service(
         ctx.child = Some(child);
     }
 
-    // Wait for the address output
-    use tauri_plugin_shell::process::CommandEvent;
-
-    while let Some(event) = rx.recv().await {
-        match event {
-            CommandEvent::Stdout(line) => {
-                let line_str = String::from_utf8_lossy(&line);
-                if let Some(addr) = line_str.strip_prefix("CONTEXT_ADDR=") {
+    let reader = BufReader::new(stdout);
+    for line in reader.lines() {
+        match line {
+            Ok(line) => {
+                if let Some(addr) = line.strip_prefix("CONTEXT_ADDR=") {
                     let address = addr.trim().to_string();
-                    eprintln!(
-                        "[brain] start_context_service: sidecar ready at {}",
-                        address
-                    );
-                    // Store address immediately so subsequent start calls can reuse it.
+                    eprintln!("[brain] start_context_service: brain ready at {}", address);
                     if let Ok(mut ctx) = state.lock() {
                         ctx.address = Some(address.clone());
                     }
@@ -2126,38 +2221,15 @@ async fn start_context_service(
                     return Ok(address);
                 }
             }
-            CommandEvent::Stderr(line) => {
-                eprintln!("[brain] {}", String::from_utf8_lossy(&line));
+            Err(e) => {
+                eprintln!("[brain] start_context_service: stdout read error: {}", e);
+                break;
             }
-            CommandEvent::Error(err) => {
-                eprintln!("[brain] start_context_service: sidecar error: {}", err);
-                if let Ok(mut ctx) = state.lock() {
-                    ctx.child = None;
-                    ctx.address = None;
-                    ctx.socket = None;
-                }
-                CONTEXT_STARTING.store(false, Ordering::SeqCst);
-                return Err(format!("Sidecar error: {}", err));
-            }
-            CommandEvent::Terminated(status) => {
-                eprintln!(
-                    "[brain] start_context_service: sidecar terminated: {:?}",
-                    status
-                );
-                if let Ok(mut ctx) = state.lock() {
-                    ctx.child = None;
-                    ctx.address = None;
-                    ctx.socket = None;
-                }
-                CONTEXT_STARTING.store(false, Ordering::SeqCst);
-                return Err(format!("Sidecar terminated: {:?}", status));
-            }
-            _ => {}
         }
     }
 
     CONTEXT_STARTING.store(false, Ordering::SeqCst);
-    Err("Failed to get context service address".to_string())
+    Err("Failed to get brain address".to_string())
 }
 
 // Connect to context service
@@ -3532,14 +3604,25 @@ fn set_app_menu(app: tauri::AppHandle, space: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn open_construct_dev(app: tauri::AppHandle) -> Result<(), String> {
+fn open_construct_dev() -> Result<(), String> {
     if is_dev_instance() {
         return Ok(());
     }
 
-    app.opener()
-        .open_url(construct_dev_launch_url(), None::<&str>)
-        .map_err(|e| format!("Failed to open Construct DEV: {}", e))
+    let exe = std::env::current_exe()
+        .map_err(|e| format!("Failed to get current executable: {}", e))?;
+
+    std::process::Command::new(exe)
+        .arg("--dev")
+        .env("CONSTRUCT_DEV_MODE", "true")
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("Failed to launch Construct DEV: {}", e))
+}
+
+#[tauri::command]
+fn get_is_dev_instance() -> bool {
+    is_dev_instance()
 }
 
 #[tauri::command]
@@ -3665,6 +3748,7 @@ fn set_dock_icon(_app: tauri::AppHandle, state: String) -> Result<(), String> {
 
     // Embed icon variants at compile time
     let icon_bytes: &[u8] = match state.as_str() {
+        "dev" => include_bytes!("../icons/dock-dev.png"),
         "update" => include_bytes!("../icons/dock-update.png"),
         "error" => include_bytes!("../icons/dock-error.png"),
         "busy" => include_bytes!("../icons/dock-busy.png"),
@@ -3840,12 +3924,6 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_positioner::init())
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            if let Some(w) = app.get_webview_window("main") {
-                let _ = w.show();
-                let _ = w.set_focus();
-            }
-        }))
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_upload::init())
         .plugin(tauri_plugin_websocket::init())
@@ -3877,6 +3955,31 @@ pub fn run() {
             // Set up initial menu (default space)
             if let Ok(menu) = build_app_menu(app.handle(), "default") {
                 let _ = app.set_menu(menu);
+            }
+
+            // Override window title and menu bar name for dev instances
+            if is_dev_instance() {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.set_title(app_display_name());
+                }
+                #[cfg(target_os = "macos")]
+                {
+                    use objc2::MainThreadMarker;
+                    use objc2_app_kit::NSApplication;
+                    unsafe {
+                        let mtm = MainThreadMarker::new_unchecked();
+                        let ns_app = NSApplication::sharedApplication(mtm);
+                        if let Some(main_menu) = ns_app.mainMenu() {
+                            if let Some(app_menu_item) = main_menu.itemAtIndex(0) {
+                                if let Some(submenu) = app_menu_item.submenu() {
+                                    let title = objc2_foundation::NSString::from_str(app_display_name());
+                                    submenu.setTitle(&title);
+                                    app_menu_item.setTitle(&title);
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             // Apply vibrancy to the main window on macOS
@@ -3983,7 +4086,7 @@ pub fn run() {
                     );
                 }
                 "open_construct_dev" => {
-                    let _ = open_construct_dev(app.clone());
+                    let _ = open_construct_dev();
                 }
                 _ => {}
             }
@@ -4053,6 +4156,7 @@ pub fn run() {
             // Menu commands
             set_app_menu,
             open_construct_dev,
+            get_is_dev_instance,
             dock_set_listener_ready,
             // Accessibility
             check_accessibility_permission,
@@ -4097,15 +4201,13 @@ pub fn run() {
             if let tauri::RunEvent::Exit = event {
                 eprintln!("[app] Exit event — cleaning up child processes...");
 
-                // Kill construct-brain sidecar
+                // Disconnect from brain (don't kill — other instances may be connected)
                 if let Some(ctx_state) = app_handle.try_state::<SharedContextState>() {
                     if let Ok(mut ctx) = ctx_state.lock() {
-                        if let Some(child) = ctx.child.take() {
-                            eprintln!("[app] Killing construct-brain sidecar");
-                            let _ = child.kill();
-                        }
+                        ctx.child = None; // Drop handle, brain keeps running
                         ctx.socket = None;
                         ctx.address = None;
+                        eprintln!("[app] Disconnected from brain (brain stays alive for other clients)");
                     }
                 }
 

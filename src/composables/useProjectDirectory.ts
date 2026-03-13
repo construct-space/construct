@@ -3,6 +3,7 @@
  * Handles local filesystem project structure
  */
 import { invoke } from '@tauri-apps/api/core'
+import { IS_DEV_INSTANCE } from '@/lib/appPaths'
 
 export interface ProjectConfig {
   version: 1
@@ -660,7 +661,9 @@ EOFCONFIG`], projectPath)
       const homeDir = await tauriPath.homeDir()
       // Ensure proper path joining (homeDir may or may not have trailing slash)
       const normalizedHome = homeDir.endsWith('/') ? homeDir.slice(0, -1) : homeDir
-      const defaultPath = `${normalizedHome}/ConstructProjects`
+      const defaultPath = IS_DEV_INSTANCE.value
+        ? `${normalizedHome}/ConstructDevMode`
+        : `${normalizedHome}/ConstructProjects`
       console.log('Default projects root:', defaultPath)
       return defaultPath
     } catch (e) {

@@ -90,6 +90,7 @@ async function handleProjectsClick() {
 // Icons come from the live space theme registry (populated from manifests)
 const pinnedSpaceNavItems = computed(() => {
   const pinned = pinnedStore.pinnedByType('space')
+  const availableSpaceIds = new Set(spaces.value.map(s => s.name))
   return pinned
     .map(pin => {
       const spaceId = pin.metadata?.spaceId || pin.path.replace('/app/', '').split('?')[0]
@@ -101,8 +102,8 @@ const pinnedSpaceNavItems = computed(() => {
         to: `/app/${spaceId}`,
       }
     })
-    // Filter out essential spaces — they're always shown above
-    .filter(item => !BUILTIN_SPACE_IDS.includes(item.id))
+    // Filter out essential spaces and uninstalled spaces
+    .filter(item => !BUILTIN_SPACE_IDS.includes(item.id) && availableSpaceIds.has(item.id))
 })
 
 // Active route detection — match /app/spaceName* or /app/projects/:id/:spaceName

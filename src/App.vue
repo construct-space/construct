@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { IS_DEV_INSTANCE } from '@/lib/appPaths'
+import { IS_DEV_INSTANCE, initAppPaths } from '@/lib/appPaths'
 import { isTauriEnv } from '@/utils/tauri'
+import { setDockIcon } from '@/composables/useDockIcon'
 import { useAppTheme } from '@/composables/useAppTheme'
 import { useAppMenu } from '@/composables/useAppMenu'
 import { useDeepLink } from '@/composables/useDeepLink'
@@ -140,6 +141,12 @@ let unlisten: (() => void) | null = null
 
 onMounted(async () => {
   isTauri.value = isTauriEnv()
+
+  // Detect runtime --dev flag before anything else
+  await initAppPaths()
+  if (IS_DEV_INSTANCE.value) {
+    setDockIcon('dev')
+  }
 
   if (isTauri.value) {
     setTimeout(() => hideNativeTrafficLights(), 100)

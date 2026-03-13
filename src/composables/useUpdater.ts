@@ -1,6 +1,6 @@
 import { ref } from 'vue'
-import { IS_DEV_INSTANCE } from '@/lib/appPaths'
 import { setDockIcon } from '@/composables/useDockIcon'
+import { useDevMode } from '@/composables/useDevMode'
 
 declare global {
   interface Window {
@@ -25,10 +25,11 @@ const AUTO_CHECK_KEY = 'construct_updater_auto_check'
 const LAST_CHECK_KEY = 'construct_updater_last_check'
 
 export function useUpdater() {
-  const disabledReason = 'Updates are disabled in Construct DEV.'
+  const { updaterDisabled: devModeDisabled } = useDevMode()
+  const disabledReason = 'Updates are disabled in developer mode.'
 
   async function checkForUpdates(): Promise<UpdateInfo | null> {
-    if (IS_DEV_INSTANCE) {
+    if (devModeDisabled.value) {
       updateAvailable.value = false
       updateInfo.value = null
       error.value = disabledReason
@@ -74,7 +75,7 @@ export function useUpdater() {
   }
 
   async function downloadAndInstall(): Promise<boolean> {
-    if (IS_DEV_INSTANCE) {
+    if (devModeDisabled.value) {
       error.value = disabledReason
       return false
     }
@@ -141,7 +142,7 @@ export function useUpdater() {
 
   /** Call on app startup — checks if auto-check is enabled, shows toast if update found */
   async function autoCheckOnStartup() {
-    if (IS_DEV_INSTANCE) return
+    if (devModeDisabled.value) return
     if (!getAutoCheck()) return
     const info = await checkForUpdates()
     if (info) {

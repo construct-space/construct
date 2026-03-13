@@ -330,7 +330,7 @@ export async function watchSpace(
     const devMarkerPath = `${spaceDir}/.dev`
 
     // In production, only watch if .dev marker exists (construct dev is running)
-    if (!devOverrideDir && !IS_DEV_INSTANCE && !import.meta.env.DEV) {
+    if (!devOverrideDir && !IS_DEV_INSTANCE.value && !import.meta.env.DEV) {
       if (!(await exists(devMarkerPath))) return null
       console.log(`[SpaceLoader] Dev marker found for "${spaceId}" — enabling hot-reload`)
     }
@@ -347,7 +347,7 @@ export async function watchSpace(
       if (stopped) return
       try {
         // Stop polling if .dev marker is removed (construct dev stopped)
-        if (!devOverrideDir && !IS_DEV_INSTANCE && !import.meta.env.DEV) {
+        if (!devOverrideDir && !IS_DEV_INSTANCE.value && !import.meta.env.DEV) {
           if (!(await exists(devMarkerPath))) {
             console.log(`[SpaceLoader] Dev marker removed for "${spaceId}" — stopping watcher`)
             stopped = true

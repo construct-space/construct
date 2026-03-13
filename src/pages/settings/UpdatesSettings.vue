@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { IS_DEV_INSTANCE } from '@/lib/appPaths'
 import { useUpdater } from '@/composables/useUpdater'
+import { useDevMode } from '@/composables/useDevMode'
 import Switch from '@/components/ui/Switch.vue'
 import Button from '@/components/ui/Button.vue'
 
@@ -9,24 +9,25 @@ const {
   checkForUpdates, downloadAndInstall, getAutoCheck, setAutoCheck, getLastChecked,
 } = useUpdater()
 
+const { updaterDisabled } = useDevMode()
+
 const appVersion = ref('')
 const lastChecked = ref<Date | null>(getLastChecked())
-const updaterDisabled = IS_DEV_INSTANCE
 
 const autoCheck = ref(getAutoCheck())
 
 watch(autoCheck, (val) => {
-  if (!updaterDisabled) setAutoCheck(val)
+  if (!updaterDisabled.value) setAutoCheck(val)
 })
 
 async function handleCheck() {
-  if (updaterDisabled) return
+  if (updaterDisabled.value) return
   await checkForUpdates()
   lastChecked.value = new Date()
 }
 
 async function handleInstall() {
-  if (updaterDisabled) return
+  if (updaterDisabled.value) return
   await downloadAndInstall()
 }
 
@@ -38,7 +39,7 @@ onMounted(async () => {
     // Fallback to package.json version
     appVersion.value = __APP_VERSION__
   }
-  if (!updaterDisabled) {
+  if (!updaterDisabled.value) {
     handleCheck()
   }
 })
@@ -64,8 +65,8 @@ onMounted(async () => {
         <div class="flex items-start gap-3">
           <svg class="w-5 h-5 text-orange-400 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4" /><path d="M12 17h.01" /><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" /></svg>
           <div>
-            <p class="text-sm font-medium text-[var(--app-foreground)]">Construct DEV does not use the production update channel</p>
-            <p class="text-xs text-[var(--app-muted)] mt-1">Install new DEV builds explicitly instead of using in-app updates.</p>
+            <p class="text-sm font-medium text-[var(--app-foreground)]">Updates are disabled in developer mode</p>
+            <p class="text-xs text-[var(--app-muted)] mt-1">Disable developer mode in Settings &gt; Developer to re-enable updates.</p>
           </div>
         </div>
       </div>

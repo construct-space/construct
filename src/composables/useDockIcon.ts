@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { isTauriEnv } from '@/utils/tauri'
 
-export type DockIconState = 'default' | 'update' | 'error' | 'busy'
+export type DockIconState = 'default' | 'dev' | 'update' | 'error' | 'busy'
 
 /**
  * Set the macOS dock icon state.
