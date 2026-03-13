@@ -58,14 +58,9 @@ export function useAssistantAutocomplete(deps: AutocompleteDeps) {
       const response = await listAgents()
       agents.value = response.agents
     } catch {
-      agents.value = [
-        { id: 'code', name: 'Code Agent', category: 'specialized', description: 'Full codebase access for development', icon: 'lucide:code', isBuiltin: true },
-        { id: 'design', name: 'Design Agent', category: 'specialized', description: 'UI/UX design assistant', icon: 'lucide:palette', isBuiltin: true },
-        { id: 'kanban', name: 'Kanban Agent', category: 'specialized', description: 'Project management', icon: 'lucide:kanban', isBuiltin: true },
-        { id: 'git', name: 'Git Agent', category: 'specialized', description: 'Version control', icon: 'lucide:git-branch', isBuiltin: true },
-        { id: 'explorer', name: 'Explorer Agent', category: 'specialized', description: 'Codebase exploration', icon: 'lucide:compass', isBuiltin: true },
-        { id: 'planner', name: 'Planner Agent', category: 'specialized', description: 'Technical planning', icon: 'lucide:clipboard-list', isBuiltin: true },
-      ]
+      // Agents come from brain's agent registry (agent.md files).
+      // If brain isn't connected yet, leave empty — they'll load on retry.
+      console.debug('[autocomplete] Failed to load agents from brain')
     }
   }
 

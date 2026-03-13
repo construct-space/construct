@@ -458,6 +458,7 @@ const {
   handleKeydown,
   selectAutocomplete,
   loadAgents,
+  agents,
 } = useAssistantAutocomplete({
   message,
   inputRef,
@@ -471,6 +472,13 @@ const {
   codeEditorRootPath: computed(() => codeEditorState.rootPath),
   stopGeneration,
   sendMessage: () => sendMessage(),
+})
+
+// Active agent tracking — resolved from brain's agent registry
+const activeAgentId = ref<string | null>(null)
+const activeAgent = computed(() => {
+  if (!activeAgentId.value) return null
+  return agents.value.find(a => a.id === activeAgentId.value) || null
 })
 
 // Drag-drop state for image upload (only in UI space)
@@ -1153,6 +1161,7 @@ async function sendMessage() {
       designReferenceCount: references.designs.length,
     })
     const agentId = forcedAgentId || routeAgentId
+    activeAgentId.value = agentId
 
     // Stream chat response with space context and local data for smart routing
     await chatStream({
@@ -1663,9 +1672,12 @@ Rules:
             'size-2 rounded-full',
             connected ? 'bg-green-500' : 'bg-gray-400'
           ]" :title="connected ? `Connected (${latency?.toFixed(1)}ms)` : 'Disconnected'" />
-          <!-- Project | Space context -->
-          <span v-if="activeProjectName" class="text-xs text-app-muted">
-            {{ activeProjectName }}<template v-if="currentSpace"> | {{ currentSpace }}</template>
+          <!-- Project | Space | Agent context -->
+          <span v-if="activeProjectName || activeAgent" class="text-xs text-app-muted">
+            <template v-if="activeProjectName">{{ activeProjectName }}</template>
+            <template v-if="activeProjectName && currentSpace"> | {{ currentSpace }}</template>
+            <template v-if="!activeProjectName && currentSpace">{{ currentSpace }}</template>
+            <template v-if="activeAgent"> · {{ activeAgent.name }}</template>
           </span>
         </div>
         <div class="flex items-center gap-1" @mousedown.stop>
