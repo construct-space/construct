@@ -13,7 +13,7 @@ const route = useRoute()
 const activeTab = ref<'models' | 'providers' | 'auth'>('models')
 
 // AI Model selection
-const { modelsByProvider, defaultModelId, setDefaultModel, allModels, resolveModelId, isAutoModelId } = useAIModel()
+const { modelsByProvider, defaultModelId, setDefaultModel, allModels, resolveModelId, isAutoModelId, loadProviders } = useAIModel()
 
 const isAutoMode = computed(() => isAutoModelId(defaultModelId.value))
 
@@ -85,6 +85,9 @@ async function saveKey(provider: ProviderKeyConfig) {
     savedKeys.value[provider.id] = true
     setTimeout(() => { savedKeys.value[provider.id] = false }, 2000)
     toast.add({ title: `${provider.name} API key saved`, color: 'success' })
+
+    // Refresh models list so new provider's models appear immediately
+    await loadProviders()
   } catch {
     toast.add({ title: `Failed to save ${provider.name} key`, color: 'error' })
   } finally {
@@ -99,6 +102,9 @@ async function clearKey(provider: ProviderKeyConfig) {
     configuredProviders.value[provider.id] = false
     try { await db.kvSet(provider.kvKey, '', 'provider_keys') } catch { /* ignore */ }
     toast.add({ title: `${provider.name} key cleared`, color: 'info' })
+
+    // Refresh models list so removed provider's models disappear
+    await loadProviders()
   } catch {
     toast.add({ title: `Failed to clear ${provider.name} key`, color: 'error' })
   }
@@ -146,6 +152,7 @@ async function submitAuthCode() {
     if (success) {
       showAuthCodeInput.value = false
       authCode.value = ''
+      await loadProviders()
       toast.add({ title: 'Claude Max authentication successful', color: 'success' })
     } else {
       toast.add({ title: anthropicOAuth.error.value || 'Failed to authenticate', color: 'error' })
@@ -155,8 +162,9 @@ async function submitAuthCode() {
   }
 }
 
-function logoutAnthropic() {
+async function logoutAnthropic() {
   anthropicOAuth.logout()
+  await loadProviders()
   toast.add({ title: 'Claude Max authentication cleared', color: 'info' })
 }
 
@@ -211,6 +219,7 @@ async function submitOpenAIAuthCode() {
       showOpenAIAuthCodeInput.value = false
       openAIAuthCode.value = ''
       await checkOpenAIStatus()
+      await loadProviders()
       toast.add({ title: 'OpenAI authentication successful', color: 'success' })
       return
     }
@@ -230,6 +239,7 @@ async function logoutOpenAI() {
     openAIAuthenticated.value = false
     showOpenAIAuthCodeInput.value = false
     openAIAuthCode.value = ''
+    await loadProviders()
     toast.add({ title: 'OpenAI authentication cleared', color: 'info' })
   } catch {
     toast.add({ title: 'Failed to disconnect OpenAI', color: 'error' })
