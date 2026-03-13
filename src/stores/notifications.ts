@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { SHOULD_USE_DEV_BEHAVIOR } from '@/lib/appPaths'
 import type { Notification, UpdateNotificationRequest } from '~/types/notification'
 import type { PaginatedResponse } from '~/types/common'
 
@@ -34,7 +35,7 @@ export const useNotificationsStore = defineStore('notifications', {
     // Fetch notifications from API
     async fetchNotifications(reset = false) {
       // DEV MODE: Skip remote API
-      if (import.meta.env.DEV) {
+      if (SHOULD_USE_DEV_BEHAVIOR) {
         this.notifications = []
         this.loading = false
         return

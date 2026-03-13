@@ -1,0 +1,20 @@
+{
+  "productName": "Construct DEV",
+  "identifier": "space.construct.personal.dev",
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "construct-dev"
+        ]
+      }
+    }
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Construct DEV"
+      }
+    ]
+  }
+}

@@ -6,7 +6,7 @@
  * Every space (code, design, architect, etc.) goes through this component.
  *
  * Dev mode:  loads from src/spaces/ via Vite dynamic import
- * Prod mode: loads pre-built IIFE bundles from ~/.construct/spaces/
+ * Prod mode: loads pre-built IIFE bundles from the active app spaces directory.
  *
  * Uses SpaceLoader to get Vue components, renders with <component :is>.
  * Falls back to agent-powered placeholder for config-only spaces (no Vue bundle).

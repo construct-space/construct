@@ -1,11 +1,12 @@
 /**
  * Composable for loading and managing spaces.
  *
- * All modes scan ~/.construct/spaces/ for installed manifests via Tauri FS.
+ * All modes scan the active app spaces directory for installed manifests via Tauri FS.
  * The Go backend (contextService) is NOT used for spaces.
  */
 
 import { registerSpaceTheme } from '@/config/spaces'
+import { getSpacesDirPath } from '@/lib/appPaths'
 import type { SpaceContextMenuConfig } from '@/lib/contextMenuTypes'
 import { getCoreSpaceManifests } from '@/spaces/coreSpaces'
 import type { SpaceScope } from '@/types/project'
@@ -86,7 +87,7 @@ export interface SpaceConfig {
 /**
  * Dynamically load all space configurations.
  *
- * Scans ~/.construct/spaces/ for manifest.json files.
+ * Scans the active app spaces directory for manifest.json files.
  */
 export function useSpaces() {
   const spaces = ref<SpaceConfig[]>([])
@@ -105,7 +106,7 @@ export function useSpaces() {
   }
 
   /**
-   * Scan ~/.construct/spaces/ for installed manifests.
+   * Scan the active app spaces directory for installed manifests.
    * Filters out spaces disabled in marketplace settings.
    */
   const loadFromDisk = async () => {
@@ -119,7 +120,7 @@ export function useSpaces() {
       const { homeDir } = await import('@tauri-apps/api/path')
 
       const home = await homeDir()
-      const spacesDir = `${home}/.construct/spaces`
+      const spacesDir = getSpacesDirPath(home)
 
       if (!(await exists(spacesDir))) {
         spaces.value = coreConfigs

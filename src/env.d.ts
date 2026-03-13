@@ -1,7 +1,13 @@
 /// <reference types="vite/client" />
 
+interface ImportMetaEnv {
+  readonly VITE_CONSTRUCT_DEV_MODE?: string
+  readonly VITE_SPACE_DEV_DIR?: string
+}
+
 // Extend ImportMeta for Nuxt compat
 interface ImportMeta {
+  readonly env: ImportMetaEnv
   readonly client: boolean
   readonly server: boolean
 }

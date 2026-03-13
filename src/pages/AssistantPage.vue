@@ -9,6 +9,7 @@
  */
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useAssistant } from '@/composables/useAssistant'
+import { APP_DISPLAY_NAME, IS_DEV_INSTANCE } from '@/lib/appPaths'
 import { useProjectStore } from '@/stores/project'
 import { isTauriEnv } from '@/utils/tauri'
 import AssistantFloat from '@/components/ai/AssistantFloat.vue'
@@ -103,27 +104,39 @@ async function maximizeWindow() {
           title="Close"
           @click="closeWindow"
         >
-          <svg class="traffic-icon" viewBox="0 0 12 12"><path d="M3.172 3.172a.5.5 0 0 1 .707 0L6 5.293l2.121-2.121a.5.5 0 0 1 .707.707L6.707 6l2.121 2.121a.5.5 0 0 1-.707.707L6 6.707 3.879 8.828a.5.5 0 0 1-.707-.707L5.293 6 3.172 3.879a.5.5 0 0 1 0-.707Z" fill="currentColor"/></svg>
+          <svg class="traffic-icon" viewBox="0 0 12 12">
+            <path d="M3.172 3.172a.5.5 0 0 1 .707 0L6 5.293l2.121-2.121a.5.5 0 0 1 .707.707L6.707 6l2.121 2.121a.5.5 0 0 1-.707.707L6 6.707 3.879 8.828a.5.5 0 0 1-.707-.707L5.293 6 3.172 3.879a.5.5 0 0 1 0-.707Z" fill="currentColor" />
+          </svg>
         </button>
         <button
           class="traffic-light traffic-minimize"
           title="Minimize"
           @click="minimizeWindow"
         >
-          <svg class="traffic-icon" viewBox="0 0 12 12"><path d="M3 6a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 3 6Z" fill="currentColor"/></svg>
+          <svg class="traffic-icon" viewBox="0 0 12 12">
+            <path d="M3 6a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5A.5.5 0 0 1 3 6Z" fill="currentColor" />
+          </svg>
         </button>
         <button
           class="traffic-light traffic-maximize"
           title="Maximize"
           @click="maximizeWindow"
         >
-          <svg class="traffic-icon" viewBox="0 0 12 12"><path d="M4 3.5a.5.5 0 0 0-.5.5v4a.5.5 0 0 0 .5.5h4a.5.5 0 0 0 .5-.5V4a.5.5 0 0 0-.5-.5H4Z" fill="currentColor"/></svg>
+          <svg class="traffic-icon" viewBox="0 0 12 12">
+            <path d="M4 3.5a.5.5 0 0 0-.5.5v4a.5.5 0 0 0 .5.5h4a.5.5 0 0 0 .5-.5V4a.5.5 0 0 0-.5-.5H4Z" fill="currentColor" />
+          </svg>
         </button>
       </div>
 
       <!-- Window title -->
-      <span class="text-xs text-app-muted select-none ml-1" data-tauri-drag-region>
-        Construct AI
+      <span class="text-xs text-app-muted select-none ml-1 flex items-center gap-2" data-tauri-drag-region>
+        <span>{{ APP_DISPLAY_NAME }} AI</span>
+        <span
+          v-if="IS_DEV_INSTANCE"
+          class="rounded-full border border-orange-400/35 bg-orange-500/10 px-2 py-0.5 text-[9px] font-semibold tracking-[0.18em] text-orange-300"
+        >
+          DEV
+        </span>
         <template v-if="projectStore.currentProject">
           — {{ projectStore.currentProject.name }}
         </template>

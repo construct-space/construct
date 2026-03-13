@@ -1,5 +1,6 @@
 import { appConfig } from '@/utils/config'
 import { isTauriEnv } from '@/utils/tauri'
+import { APP_DEEP_LINK_SCHEME } from '@/lib/appPaths'
 import { info, error as logError } from '@tauri-apps/plugin-log'
 
 const OAUTH_STATE_KEY = 'construct_oauth_state'
@@ -29,7 +30,7 @@ async function generateCodeChallenge(verifier: string): Promise<string> {
 
 function getRedirectUri(): string {
   if (isTauriEnv()) {
-    return 'construct://oauth/callback'
+    return `${APP_DEEP_LINK_SCHEME}://oauth/callback`
   }
   return `${window.location.origin}/oauth/callback`
 }
@@ -73,7 +74,7 @@ export function useConstructAuth() {
     const authorizeUrl = `${accountsUrl}/oauth/authorize?${params.toString()}`
 
     if (isTauriEnv()) {
-      // Open in system browser — deep link (construct://oauth/callback) brings user back
+      // Open in system browser — deep link brings the user back into the app
       import('@tauri-apps/plugin-shell').then(({ open }) => {
         open(authorizeUrl)
       }).catch(() => {

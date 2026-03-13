@@ -16,6 +16,7 @@ import { useContextService } from '@/composables/useContextService'
 import { useContextDB } from '@/composables/useContextDB'
 import { useProjectDirectory } from '@/composables/useProjectDirectory'
 import { useAuthStore } from '@/stores/auth'
+import { getSpaceManifestPath } from '@/lib/appPaths'
 import Input from '@/components/ui/Input.vue'
 import Button from '@/components/ui/Button.vue'
 import {
@@ -81,7 +82,7 @@ onMounted(async () => {
 
     const diskInstalled = new Set<string>()
     for (const s of recommendedSpaces) {
-      const manifestPath = `${home}/.construct/spaces/${s.id}/manifest.json`
+      const manifestPath = getSpaceManifestPath(home, s.id)
       if (await exists(manifestPath)) {
         diskInstalled.add(s.id)
       }

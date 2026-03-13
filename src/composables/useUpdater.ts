@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { IS_DEV_INSTANCE } from '@/lib/appPaths'
 import { setDockIcon } from '@/composables/useDockIcon'
 
 declare global {
@@ -24,7 +25,16 @@ const AUTO_CHECK_KEY = 'construct_updater_auto_check'
 const LAST_CHECK_KEY = 'construct_updater_last_check'
 
 export function useUpdater() {
+  const disabledReason = 'Updates are disabled in Construct DEV.'
+
   async function checkForUpdates(): Promise<UpdateInfo | null> {
+    if (IS_DEV_INSTANCE) {
+      updateAvailable.value = false
+      updateInfo.value = null
+      error.value = disabledReason
+      return null
+    }
+
     if (!window.__TAURI__) return null
 
     isChecking.value = true
@@ -64,6 +74,11 @@ export function useUpdater() {
   }
 
   async function downloadAndInstall(): Promise<boolean> {
+    if (IS_DEV_INSTANCE) {
+      error.value = disabledReason
+      return false
+    }
+
     if (!window.__TAURI__ || !updateAvailable.value) return false
 
     isDownloading.value = true
@@ -126,6 +141,7 @@ export function useUpdater() {
 
   /** Call on app startup — checks if auto-check is enabled, shows toast if update found */
   async function autoCheckOnStartup() {
+    if (IS_DEV_INSTANCE) return
     if (!getAutoCheck()) return
     const info = await checkForUpdates()
     if (info) {

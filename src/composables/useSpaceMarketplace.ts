@@ -4,12 +4,13 @@
  * Fetches the space catalog from the registry (portal API primary, GitHub index fallback).
  *
  * Install state is determined by what's on disk:
- *   - Spaces with manifest.json in ~/.construct/spaces/ are "installed"
+ *   - Spaces with manifest.json in the active app spaces dir are "installed"
  *
  * Does NOT use the Go backend (contextService) — that's for AI/auth/storage only.
  */
 
 import { ref, computed } from 'vue'
+import { getSpaceDirPath, getSpacesDirPath } from '@/lib/appPaths'
 import { appConfig } from '@/utils/config'
 
 export interface RemoteSpace {
@@ -163,16 +164,16 @@ export function useSpaceMarketplace() {
   }
 
   /**
-   * Load installed spaces by scanning ~/.construct/spaces/ on disk,
-   * then merging any marketplace metadata from localStorage.
-   */
+ * Load installed spaces by scanning the active app spaces directory on disk,
+ * then merging any marketplace metadata from localStorage.
+ */
   async function fetchInstalled(): Promise<void> {
     try {
       const { readTextFile, readDir, exists } = await import('@tauri-apps/plugin-fs')
       const { homeDir } = await import('@tauri-apps/api/path')
 
       const home = await homeDir()
-      const spacesDir = `${home}/.construct/spaces`
+      const spacesDir = getSpacesDirPath(home)
 
       if (!(await exists(spacesDir))) {
         installed.value = []
@@ -229,7 +230,7 @@ export function useSpaceMarketplace() {
   }
 
   /**
-   * Install a space — downloads tarball from registry and extracts to ~/.construct/spaces/.
+   * Install a space — downloads tarball from registry and extracts to the active app spaces dir.
    */
   async function install(spaceId: string): Promise<boolean> {
     if (NATIVE_SPACE_IDS.has(spaceId)) {
@@ -294,7 +295,7 @@ export function useSpaceMarketplace() {
       const { remove, exists } = await import('@tauri-apps/plugin-fs')
       const { homeDir } = await import('@tauri-apps/api/path')
       const home = await homeDir()
-      const spaceDir = `${home}/.construct/spaces/${spaceId}`
+      const spaceDir = getSpaceDirPath(home, spaceId)
 
       if (await exists(spaceDir)) {
         await remove(spaceDir, { recursive: true })
@@ -417,7 +418,7 @@ export function useSpaceMarketplace() {
 /**
  * Auto-install recommended spaces on first launch.
  *
- * 1. Check if ~/.construct/spaces/ is empty or doesn't exist
+ * 1. Check if the active app spaces dir is empty or doesn't exist
  * 2. If empty, fetch registry
  * 3. Filter spaces where recommended === true
  * 4. Install each recommended space
@@ -435,7 +436,7 @@ export async function autoInstallRecommended(): Promise<void> {
     const { homeDir } = await import('@tauri-apps/api/path')
 
     const home = await homeDir()
-    const spacesDir = `${home}/.construct/spaces`
+    const spacesDir = getSpacesDirPath(home)
 
     let isEmpty = true
     if (await exists(spacesDir)) {
@@ -526,15 +527,15 @@ async function findRegistrySpace(spaceId: string): Promise<RegistrySpace | null>
   return found?.tarball ? found : null
 }
 
-/** Download a tarball and extract it to ~/.construct/spaces/{id}/ */
+/** Download a tarball and extract it to the active app spaces dir. */
 async function downloadAndExtract(spaceId: string, tarballUrl: string): Promise<void> {
   const { mkdir, exists, writeFile } = await import('@tauri-apps/plugin-fs')
   const { homeDir } = await import('@tauri-apps/api/path')
   const { Command } = await import('@tauri-apps/plugin-shell')
 
   const home = await homeDir()
-  const spacesDir = `${home}/.construct/spaces`
-  const spaceDir = `${spacesDir}/${spaceId}`
+  const spacesDir = getSpacesDirPath(home)
+  const spaceDir = getSpaceDirPath(home, spaceId)
 
   // Ensure directory exists
   if (!(await exists(spacesDir))) {

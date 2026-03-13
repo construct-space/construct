@@ -4,6 +4,7 @@
  */
 
 import { appConfig } from '@/utils/config'
+import { SHOULD_USE_DEV_BEHAVIOR } from '@/lib/appPaths'
 import type { Notification, NotificationWSMessage } from '~/types/notification'
 
 let notificationsInstance: ReturnType<typeof createNotificationsComposable> | null = null
@@ -89,7 +90,7 @@ function createNotificationsComposable() {
   // Connect to WebSocket
   async function connect() {
     // DEV MODE: Skip WebSocket — requires remote server with JWT auth
-    if (import.meta.env.DEV) {
+    if (SHOULD_USE_DEV_BEHAVIOR) {
       return
     }
 

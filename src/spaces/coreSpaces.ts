@@ -3,7 +3,7 @@
  *
  * Core spaces are compile-time dependencies: no IIFE eval, no checksum,
  * no disk loading. SpaceLoader checks this registry before falling back
- * to ~/.construct/spaces/.
+ * to the active app spaces directory.
  *
  * To add a core space:
  *   1. Copy its source into src/spaces/{id}/

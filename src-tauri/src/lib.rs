@@ -17,6 +17,22 @@ static MESSAGE_ID: AtomicU64 = AtomicU64::new(0);
 static LSP_MESSAGE_ID: AtomicU64 = AtomicU64::new(1);
 static CONTEXT_STARTING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
+fn is_dev_instance() -> bool {
+    option_env!("VITE_CONSTRUCT_DEV_MODE") == Some("true")
+}
+
+fn app_display_name() -> &'static str {
+    if is_dev_instance() {
+        "Construct DEV"
+    } else {
+        "Construct"
+    }
+}
+
+fn construct_dev_launch_url() -> &'static str {
+    "construct-dev://marketplace"
+}
+
 // Global state for context connection
 struct ContextState {
     socket: Option<TcpStream>,
@@ -3229,12 +3245,20 @@ async fn vision_analyze(
 // ==================== MENU IMPLEMENTATION ====================
 
 fn build_app_menu(app: &tauri::AppHandle, space: &str) -> Result<Menu<tauri::Wry>, tauri::Error> {
+    let app_name = app_display_name();
+
     // App menu (macOS only shows this)
-    let app_menu = SubmenuBuilder::new(app, "Construct")
-        .item(&MenuItemBuilder::with_id("about", "About Construct").build(app)?)
-        .separator()
-        .item(&MenuItemBuilder::with_id("check_updates", "Check for Updates...").build(app)?)
-        .separator()
+    let mut app_menu_builder = SubmenuBuilder::new(app, app_name)
+        .item(&MenuItemBuilder::with_id("about", format!("About {}", app_name)).build(app)?)
+        .separator();
+
+    if !is_dev_instance() {
+        app_menu_builder = app_menu_builder
+            .item(&MenuItemBuilder::with_id("check_updates", "Check for Updates...").build(app)?)
+            .separator();
+    }
+
+    let app_menu = app_menu_builder
         .item(&PredefinedMenuItem::services(app, None)?)
         .separator()
         .item(&PredefinedMenuItem::hide(app, None)?)
@@ -3425,7 +3449,7 @@ fn build_app_menu(app: &tauri::AppHandle, space: &str) -> Result<Menu<tauri::Wry
     };
 
     // Window menu
-    let window_menu = SubmenuBuilder::new(app, "Window")
+    let mut window_menu_builder = SubmenuBuilder::new(app, "Window")
         .item(&PredefinedMenuItem::minimize(app, None)?)
         .item(&PredefinedMenuItem::maximize(app, None)?)
         .separator()
@@ -3433,7 +3457,15 @@ fn build_app_menu(app: &tauri::AppHandle, space: &str) -> Result<Menu<tauri::Wry
             &MenuItemBuilder::with_id("projects", "Projects")
                 .accelerator("CmdOrCtrl+1")
                 .build(app)?,
-        )
+        );
+
+    if !is_dev_instance() {
+        window_menu_builder = window_menu_builder.item(
+            &MenuItemBuilder::with_id("open_construct_dev", "Open Construct DEV").build(app)?,
+        );
+    }
+
+    let window_menu = window_menu_builder
         .separator()
         .item(
             &MenuItemBuilder::with_id("settings", "Settings...")
@@ -3443,7 +3475,7 @@ fn build_app_menu(app: &tauri::AppHandle, space: &str) -> Result<Menu<tauri::Wry
         .build()?;
 
     // Help menu
-    let help_menu = SubmenuBuilder::new(app, "Help")
+    let mut help_menu_builder = SubmenuBuilder::new(app, "Help")
         .item(&MenuItemBuilder::with_id("documentation", "Documentation").build(app)?)
         .item(
             &MenuItemBuilder::with_id("keyboard_shortcuts", "Keyboard Shortcuts")
@@ -3451,9 +3483,14 @@ fn build_app_menu(app: &tauri::AppHandle, space: &str) -> Result<Menu<tauri::Wry
                 .build(app)?,
         )
         .separator()
-        .item(&MenuItemBuilder::with_id("report_issue", "Report Issue...").build(app)?)
-        .item(&MenuItemBuilder::with_id("check_updates_help", "Check for Updates...").build(app)?)
-        .build()?;
+        .item(&MenuItemBuilder::with_id("report_issue", "Report Issue...").build(app)?);
+
+    if !is_dev_instance() {
+        help_menu_builder = help_menu_builder
+            .item(&MenuItemBuilder::with_id("check_updates_help", "Check for Updates...").build(app)?);
+    }
+
+    let help_menu = help_menu_builder.build()?;
 
     // Build the complete menu
     let mut menu_builder = MenuBuilder::new(app)
@@ -3492,6 +3529,17 @@ fn set_app_menu(app: tauri::AppHandle, space: String) -> Result<(), String> {
             Err(format!("Failed to build menu: {}", e))
         }
     }
+}
+
+#[tauri::command]
+fn open_construct_dev(app: tauri::AppHandle) -> Result<(), String> {
+    if is_dev_instance() {
+        return Ok(());
+    }
+
+    app.opener()
+        .open_url(construct_dev_launch_url(), None::<&str>)
+        .map_err(|e| format!("Failed to open Construct DEV: {}", e))
 }
 
 #[tauri::command]
@@ -3934,6 +3982,9 @@ pub fn run() {
                         None::<&str>,
                     );
                 }
+                "open_construct_dev" => {
+                    let _ = open_construct_dev(app.clone());
+                }
                 _ => {}
             }
         })
@@ -4001,6 +4052,7 @@ pub fn run() {
             pty_list,
             // Menu commands
             set_app_menu,
+            open_construct_dev,
             dock_set_listener_ready,
             // Accessibility
             check_accessibility_permission,

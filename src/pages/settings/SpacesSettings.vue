@@ -7,12 +7,14 @@
  */
 
 import { useSpaceMarketplace } from '@/composables/useSpaceMarketplace'
+import { IS_DEV_INSTANCE } from '@/lib/appPaths'
 import {
   RefreshCw, Trash2, ToggleLeft, ToggleRight,
-  Download, Store,
+  Download, Store, ExternalLink,
 } from 'lucide-vue-next'
 
 const router = useRouter()
+const toast = useToast()
 const marketplace = useSpaceMarketplace()
 
 const confirmUninstall = ref<string | null>(null)
@@ -41,6 +43,19 @@ async function handleUninstall(spaceId: string) {
 async function handleCheckUpdates() {
   await marketplace.checkUpdates()
 }
+
+async function handleOpenConstructDev() {
+  try {
+    const { invoke } = await import('@tauri-apps/api/core')
+    await invoke('open_construct_dev')
+  } catch (error) {
+    toast.add({
+      title: 'Construct DEV not available',
+      description: String(error || 'Install Construct DEV to open the isolated space builder.'),
+      color: 'warning',
+    })
+  }
+}
 </script>
 
 <template>
@@ -52,6 +67,14 @@ async function handleCheckUpdates() {
         <p class="text-sm text-[var(--app-muted)] mt-0.5">Manage installed marketplace spaces</p>
       </div>
       <div class="flex gap-2">
+        <button
+          v-if="!IS_DEV_INSTANCE"
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border border-orange-400/25 text-orange-300 hover:bg-orange-500/10 transition-colors"
+          @click="handleOpenConstructDev"
+        >
+          <ExternalLink class="size-3" />
+          Open Construct DEV
+        </button>
         <button
           class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border border-[var(--app-border)] text-[var(--app-foreground)] hover:bg-[color-mix(in_srgb,var(--app-muted)_5%,transparent)] transition-colors"
           @click="handleCheckUpdates"

@@ -41,6 +41,7 @@ import { useAssistantData, taskPriorityColors } from '~/composables/useAssistant
 import { useAssistantAutocomplete } from '~/composables/useAssistantAutocomplete'
 import { useAssistantCommands } from '~/composables/useAssistantCommands'
 import { useAssistantPrompt, compactForLLM, buildMessageWithToolContext } from '~/composables/useAssistantPrompt'
+import { APP_DISPLAY_NAME } from '@/lib/appPaths'
 
 // Space composables are provided at runtime by IIFE bundles.
 // These defaults are used when a space is not installed.
@@ -229,7 +230,7 @@ async function popOutAssistant() {
 
   await openWindow('/', {
     label: 'standalone-assistant',
-    title: project ? `Construct AI — ${project.name}` : 'Construct AI',
+    title: project ? `${APP_DISPLAY_NAME} AI — ${project.name}` : `${APP_DISPLAY_NAME} AI`,
     width: 520,
     height: 780,
     center: true,
@@ -1664,7 +1665,9 @@ Rules:
         @mousedown="!props.popoutMode && startPanelDrag($event)"
       >
         <div class="flex items-center gap-2">
-          <svg :class="['size-5 transition-colors', contextInfo.color]" viewBox="0 0 533 750" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M424.999 672C446.538 672 463.999 689.461 463.999 711C463.999 732.539 446.538 750 424.999 750H110C88.4609 750 70.999 732.539 70.999 711C70.999 689.461 88.4609 672 110 672H424.999ZM39 0C60.5389 0.000263886 78 17.4611 78 39V184.97C126.23 136.682 192.894 106.811 266.534 106.811C413.699 106.811 533 226.112 533 373.276C533 520.441 413.699 639.742 266.534 639.742C119.369 639.742 0.0674128 520.441 0.0673828 373.276C0.0673828 368.709 0.182077 364.168 0.40918 359.657C0.140766 357.81 0 355.921 0 354V39C5.50921e-06 17.4609 17.4609 0 39 0ZM266.533 184.8C162.441 184.8 78.0576 269.184 78.0576 373.276C78.0577 477.369 162.441 561.752 266.533 561.752C370.625 561.752 455.01 477.369 455.01 373.276C455.01 269.184 370.625 184.8 266.533 184.8Z"/></svg>
+          <svg :class="['size-5 transition-colors', contextInfo.color]" viewBox="0 0 533 750" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path d="M424.999 672C446.538 672 463.999 689.461 463.999 711C463.999 732.539 446.538 750 424.999 750H110C88.4609 750 70.999 732.539 70.999 711C70.999 689.461 88.4609 672 110 672H424.999ZM39 0C60.5389 0.000263886 78 17.4611 78 39V184.97C126.23 136.682 192.894 106.811 266.534 106.811C413.699 106.811 533 226.112 533 373.276C533 520.441 413.699 639.742 266.534 639.742C119.369 639.742 0.0674128 520.441 0.0673828 373.276C0.0673828 368.709 0.182077 364.168 0.40918 359.657C0.140766 357.81 0 355.921 0 354V39C5.50921e-06 17.4609 17.4609 0 39 0ZM266.533 184.8C162.441 184.8 78.0576 269.184 78.0576 373.276C78.0577 477.369 162.441 561.752 266.533 561.752C370.625 561.752 455.01 477.369 455.01 373.276C455.01 269.184 370.625 184.8 266.533 184.8Z" />
+          </svg>
           <span class="font-semibold text-app">BRAIN</span>
           <!-- Connection status -->
           <span

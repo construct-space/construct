@@ -10,6 +10,7 @@
  */
 
 import { loadSpace, reloadSpace, type LoadedSpace } from '@/spaces/SpaceLoader'
+import { getSpaceManifestPath } from '@/lib/appPaths'
 import { Loader2, AlertCircle, RefreshCw } from 'lucide-vue-next'
 import { shallowRef, markRaw } from 'vue'
 
@@ -84,7 +85,7 @@ async function startPolling() {
     const { readTextFile } = await import('@tauri-apps/plugin-fs')
     const { homeDir } = await import('@tauri-apps/api/path')
     const home = await homeDir()
-    const manifestPath = `${home}/.construct/spaces/${props.spaceName}/manifest.json`
+    const manifestPath = getSpaceManifestPath(home, props.spaceName)
 
     let lastBuiltAt = ''
     try {

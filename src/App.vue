@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { IS_DEV_INSTANCE } from '@/lib/appPaths'
 import { isTauriEnv } from '@/utils/tauri'
 import { useAppTheme } from '@/composables/useAppTheme'
 import { useAppMenu } from '@/composables/useAppMenu'
@@ -202,6 +203,16 @@ onUnmounted(() => {
           class="w-3 h-3 rounded-full bg-green-500 hover:bg-green-600 cursor-default"
           @click="handleMaximize"
         />
+      </div>
+    </div>
+
+    <div
+      v-if="isTauri && IS_DEV_INSTANCE"
+      class="fixed top-3 right-3 z-[200] select-none"
+      style="-webkit-app-region: no-drag"
+    >
+      <div class="rounded-full border border-orange-400/35 bg-orange-500/10 px-3 py-1 text-[10px] font-semibold tracking-[0.22em] text-orange-300">
+        DEV MODE
       </div>
     </div>
 

@@ -1,5 +1,6 @@
 import { onOpenUrl, getCurrent } from '@tauri-apps/plugin-deep-link'
 import { useRouter } from 'vue-router'
+import { APP_DEEP_LINK_SCHEME } from '@/lib/appPaths'
 import { useSpaceMarketplace } from './useSpaceMarketplace'
 import { useConstructAuth } from './useConstructAuth'
 import { isTauriEnv } from '@/utils/tauri'
@@ -33,8 +34,8 @@ export function useDeepLink() {
     const protocol = parsed.protocol
     info(`[DeepLink] Parsed — protocol: ${protocol}, action: ${action}, segments: ${segments.join('/')}`)
 
-    // OAuth callback: construct://oauth/callback?code=xxx&state=xxx
-    if (protocol === 'construct:' && action === 'oauth' && segments[0] === 'callback') {
+    // OAuth callback: <scheme>://oauth/callback?code=xxx&state=xxx
+    if (protocol === `${APP_DEEP_LINK_SCHEME}:` && action === 'oauth' && segments[0] === 'callback') {
       const { code, state, error } = readOAuthParams(parsed)
 
       // Skip if no params at all (stale getCurrent() on app launch)

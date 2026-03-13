@@ -1,7 +1,7 @@
 /**
  * SpaceLoader — Runtime loader for pre-built space IIFE bundles.
  *
- * All spaces are loaded from ~/.construct/spaces/{name}/ via Tauri FS.
+ * All spaces are loaded from the active app spaces directory via Tauri FS.
  * In dev mode, if VITE_SPACE_DEV_DIR is set, that directory is also
  * checked (for `construct space dev` linking).
  *
@@ -15,6 +15,7 @@
  */
 
 import type { Component } from 'vue'
+import { getSpaceDirPath, IS_DEV_INSTANCE } from '@/lib/appPaths'
 import type { SpaceContextMenuConfig } from '@/lib/contextMenuTypes'
 import { getCoreSpace, isCoreSpace } from './coreSpaces'
 
@@ -95,11 +96,6 @@ async function sha256Hex(content: string): Promise<string> {
   return Array.from(new Uint8Array(hash), b => b.toString(16).padStart(2, '0')).join('')
 }
 
-/** Base path for installed spaces */
-function getSpacesDir(): string {
-  return '/.construct/spaces'
-}
-
 /** Optional dev override directory from env */
 const devOverrideDir = import.meta.env.VITE_SPACE_DEV_DIR || ''
 
@@ -133,7 +129,7 @@ export async function loadSpace(spaceId: string): Promise<LoadedSpace | null> {
     }
   }
 
-  // Load from ~/.construct/spaces/
+  // Load from the installed spaces directory.
   const prodSpace = await loadSpaceFromDisk(spaceId)
   if (prodSpace) {
     loadedSpaces.set(spaceId, prodSpace)
@@ -146,13 +142,13 @@ export async function loadSpace(spaceId: string): Promise<LoadedSpace | null> {
 }
 
 /**
- * Load pre-built IIFE bundle from ~/.construct/spaces/{id}/
+ * Load pre-built IIFE bundle from the active app spaces directory.
  */
 async function loadSpaceFromDisk(spaceId: string): Promise<LoadedSpace | null> {
   try {
     const { homeDir } = await import('@tauri-apps/api/path')
     const home = await homeDir()
-    const spaceDir = `${home}${getSpacesDir()}/${spaceId}`
+    const spaceDir = getSpaceDirPath(home, spaceId)
     return await loadSpaceFromDir(spaceId, spaceDir)
   } catch (err) {
     console.error(`[SpaceLoader] Failed to load space "${spaceId}" from disk:`, err)
@@ -316,7 +312,7 @@ export async function reloadSpace(spaceId: string): Promise<LoadedSpace | null> 
  *
  * Works in both dev and production:
  * - Dev mode (VITE_SPACE_DEV_DIR set): always watches
- * - Production: watches if ~/.construct/spaces/{id}/.dev marker exists
+ * - Production: watches if the space's `.dev` marker exists
  *   (created by `construct dev`, signals active development)
  *
  * Returns an unwatch function, or null if watching isn't needed.
@@ -329,12 +325,12 @@ export async function watchSpace(
     const { readTextFile, exists } = await import('@tauri-apps/plugin-fs')
     const { homeDir } = await import('@tauri-apps/api/path')
     const home = await homeDir()
-    const spaceDir = `${home}${getSpacesDir()}/${spaceId}`
+    const spaceDir = getSpaceDirPath(home, spaceId)
     const manifestPath = `${spaceDir}/manifest.json`
     const devMarkerPath = `${spaceDir}/.dev`
 
     // In production, only watch if .dev marker exists (construct dev is running)
-    if (!devOverrideDir && !import.meta.env.DEV) {
+    if (!devOverrideDir && !IS_DEV_INSTANCE && !import.meta.env.DEV) {
       if (!(await exists(devMarkerPath))) return null
       console.log(`[SpaceLoader] Dev marker found for "${spaceId}" — enabling hot-reload`)
     }
@@ -351,7 +347,7 @@ export async function watchSpace(
       if (stopped) return
       try {
         // Stop polling if .dev marker is removed (construct dev stopped)
-        if (!devOverrideDir && !import.meta.env.DEV) {
+        if (!devOverrideDir && !IS_DEV_INSTANCE && !import.meta.env.DEV) {
           if (!(await exists(devMarkerPath))) {
             console.log(`[SpaceLoader] Dev marker removed for "${spaceId}" — stopping watcher`)
             stopped = true
